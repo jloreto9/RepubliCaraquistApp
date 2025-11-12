@@ -31,7 +31,7 @@ Un asistente inteligente que responde con análisis naturales:
 
 ---
 
-## 🧱 Arquitectura General
+```## 🧱 Arquitectura General
 
 n8n (Job diario 2am)
 ↓
@@ -55,7 +55,7 @@ OpenAI API (insights generados)
 
 ## 🧩 Estructura del Proyecto
 
-republicaraquistapp/
+``` republicaraquistapp/
 │
 ├── streamlit_app/
 │ ├── pages/
