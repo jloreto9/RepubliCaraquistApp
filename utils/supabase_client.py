@@ -21,22 +21,22 @@ def init_supabase() -> Client:
 def get_current_season():
     """
     Determina la temporada actual de LVBP
-    La temporada va de octubre a enero/febrero
+    La temporada 2025-2026 se registra como 2026
     """
     now = datetime.now()
     month = now.month
     year = now.year
     
-    # Si estamos entre octubre y diciembre, la temporada es año actual - año siguiente
+    # Noviembre 2025 = Temporada 2026
+    # La temporada va de octubre a febrero
     if month >= 10:  # Octubre, Noviembre, Diciembre
-        return year + 1  # Ej: Oct 2024 = Temporada 2025
-    # Si estamos en enero o febrero, seguimos en la temporada del año actual
+        return year + 1  # 2025 + 1 = 2026
     elif month <= 2:  # Enero, Febrero
-        return year  # Ej: Enero 2025 = Temporada 2025
+        return year  # Enero 2026 = Temporada 2026
     else:
         # Fuera de temporada (marzo-septiembre)
-        # Mostrar la última temporada completada
-        return year  # Ej: Julio 2025 = Temporada 2025 (última completada)
+        # Mostrar la última temporada
+        return year
 
 @st.cache_data(ttl=3600)
 def get_available_seasons():
@@ -182,3 +182,4 @@ def calculate_batting_stats(df):
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)
+
