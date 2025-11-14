@@ -41,16 +41,18 @@ Streamlit App → (Usuarios / Dashboard / AI Analysis)
 ↓
 OpenAI API (insights generados)
 
+```
 
 ### 🔹 Componentes
 
+```
 | Componente | Descripción |
 |-------------|-------------|
 | **Supabase** | Base de datos PostgreSQL con vistas materializadas (batting, pitching, standings). |
 | **n8n (VPS Hostinger)** | Orquestador que ejecuta el job de ingesta diaria de datos (StatsAPI). |
 | **Streamlit** | Interfaz principal con módulos separados: standings, estadísticas, analista AI. |
 | **OpenAI API** | Motor de generación de análisis y narrativas deportivas. |
-
+```
 ---
 
 ## 🧩 Estructura del Proyecto
@@ -83,7 +85,7 @@ OpenAI API (insights generados)
 │
 ├── requirements.txt
 └── README.md
-
+```
 ---
 
 ## ⚙️ Instalación y Ejecución
@@ -92,24 +94,28 @@ OpenAI API (insights generados)
 ```bash
 git clone https://github.com/tuusuario/RepubliCaraquistApp.git
 cd RepubliCaraquistApp
-
+```
 ### 2️⃣ Crear entorno e instalar dependencias
+```
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
+```
 
 ### 3️⃣ Configurar variables de entorno
 
+```
 SUPABASE_URL="https://xxxxx.supabase.co"
 SUPABASE_KEY="public-anon-key"
 OPENAI_API_KEY="sk-xxxxx"
+```
 
 ### 4️⃣ Ejecutar la app
-
+```
 streamlit run streamlit_app/app.py
-
+```
 📦 Dependencias principales
-
+```
 - streamlit
 - supabase-py
 - pandas
@@ -117,6 +123,7 @@ streamlit run streamlit_app/app.py
 - plotly
 - openai
 - python-dotenv
+```
 
 🧮 Futuras mejoras
 
