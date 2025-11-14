@@ -1,4 +1,4 @@
-# streamlit_app/app.py
+# streamlit_app/app.py (primeras 60 líneas actualizadas)
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -11,7 +11,7 @@ load_dotenv()
 # Configuración de la página
 st.set_page_config(
     page_title="RepubliCaraquistApp",
-    page_icon="🦁",
+    page_icon="logo.png",  # ← Tu logo como favicon
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -25,6 +25,7 @@ st.markdown("""
         text-align: center;
         font-weight: bold;
         text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        margin-top: -10px;
     }
     .sub-header {
         font-size: 1.2rem;
@@ -47,9 +48,19 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Header principal
-st.markdown('<h1 class="main-header">🦁 RepubliCaraquistApp</h1>', unsafe_allow_html=True)
-st.markdown('<p class="sub-header">Análisis Avanzado de los Leones del Caracas - LVBP</p>', unsafe_allow_html=True)
+# Header principal con logo
+col1, col2, col3 = st.columns([1, 2, 1])
+
+with col1:
+    st.write("")
+
+with col2:
+    st.image("logo.png", width=150, use_column_width=False)
+    st.markdown('<h1 class="main-header">RepubliCaraquistApp</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Análisis Avanzado de los Leones del Caracas - LVBP</p>', unsafe_allow_html=True)
+
+with col3:
+    st.write("")
 
 # Importar funciones DESPUÉS del header
 from utils.supabase_client import get_standings, get_recent_games, get_team_stats, get_current_season, get_available_seasons
@@ -352,4 +363,5 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
 
