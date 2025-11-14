@@ -81,7 +81,7 @@ from utils.supabase_client import get_standings, get_recent_games, get_team_stat
 
 # Sidebar COMPLETO
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/0/0d/Logo_Leones_del_Caracas.svg", width=200)
+    st.image("logo.png", width=200)  # ← Usando tu logo.png local
     st.markdown("---")
     
     # Selector de temporada con formato correcto
@@ -377,6 +377,7 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
 
 
 
