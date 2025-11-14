@@ -320,9 +320,14 @@ with tab2:
         
         # Mostrar con colores
         def color_result(val):
-            color = '#90EE90' if val == 'W' else '#FFB6C1'
+            if val == 'W':
+                color = '#196F3D'
+            else:
+                color = '#922B21'
+                
             return f'background-color: {color}'
-        
+
+               
         st.dataframe(
             df_games.style.applymap(color_result, subset=['Resultado']),
             use_container_width=True,
@@ -371,6 +376,7 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
 
 
 
