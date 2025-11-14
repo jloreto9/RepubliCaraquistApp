@@ -272,7 +272,7 @@ if not standings_df.empty:
         
         st.plotly_chart(fig_pct, use_container_width=True)
     
-    with tab3:
+with tab3:
     st.markdown(f"### 🆚 Récord Head to Head - Leones del Caracas ({selected_season_display})")
     
     # Obtener juegos de los Leones
@@ -615,7 +615,7 @@ if not standings_df.empty:
             h2h_df = pd.DataFrame(h2h_data)
             st.dataframe(h2h_df, use_container_width=True, hide_index=True)
             
-        except Exception as e:
+    except Exception as e:
         st.error(f"Error al obtener datos: {str(e)}")
         
         # Mostrar tabla de respaldo con datos vacíos
@@ -658,7 +658,6 @@ if not standings_df.empty:
             st.write(f"Temporada seleccionada: {selected_season}")
             st.write(f"ID de Leones: {LEONES_ID}")
             st.write("IDs de equipos LVBP:", list(LVBP_TEAMS.keys()))
-
     
     with tab4:
         st.markdown(f"### 📅 Calendario - {selected_season_display}")
@@ -787,6 +786,7 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
 
 
