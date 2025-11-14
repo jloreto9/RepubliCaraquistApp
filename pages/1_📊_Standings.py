@@ -197,80 +197,80 @@ if not standings_df.empty:
         else:
             st.info("No hay datos de los Leones del Caracas para esta temporada")
     
-    with tab2:
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        # Gráfico de victorias vs derrotas
-        fig_wins = px.bar(
-            standings_df,
-            x='team_name',
-            y=['wins', 'losses'],
-            title=f'Victorias vs Derrotas - {selected_season_display}',
-            labels={'value': 'Juegos', 'team_name': ''},
-            color_discrete_map={'wins': '#90EE90', 'losses': '#FFB6C1'},
-            barmode='group'
-        )
-        fig_wins.update_layout(
-            xaxis_tickangle=45,
-            height=400,
-            showlegend=True,
-            legend_title_text='',
-            xaxis_title="",
-            yaxis_title="Juegos"
-        )
-        st.plotly_chart(fig_wins, use_container_width=True)
-    
-    with col2:
-        # Gráfico de diferencial de carreras
-        standings_df_sorted = standings_df.sort_values('run_diff', ascending=True)
+        with tab2:
+        col1, col2 = st.columns(2)
         
-        fig_diff = px.bar(
-            standings_df_sorted,
-            x='run_diff',
-            y='team_name',
-            orientation='h',
-            title=f'Diferencial de Carreras - {selected_season_display}',
-            labels={'run_diff': 'Diferencial', 'team_name': ''},
-            color='run_diff',
-            color_continuous_scale=['red', 'yellow', 'green']
+        with col1:
+            # Gráfico de victorias vs derrotas
+            fig_wins = px.bar(
+                standings_df,
+                x='team_name',
+                y=['wins', 'losses'],
+                title=f'Victorias vs Derrotas - {selected_season_display}',
+                labels={'value': 'Juegos', 'team_name': ''},
+                color_discrete_map={'wins': '#90EE90', 'losses': '#FFB6C1'},
+                barmode='group'
+            )
+            fig_wins.update_layout(
+                xaxis_tickangle=45,
+                height=400,
+                showlegend=True,
+                legend_title_text='',
+                xaxis_title="",
+                yaxis_title="Juegos"
+            )
+            st.plotly_chart(fig_wins, use_container_width=True)
+        
+        with col2:
+            # Gráfico de diferencial de carreras
+            standings_df_sorted = standings_df.sort_values('run_diff', ascending=True)
+            
+            fig_diff = px.bar(
+                standings_df_sorted,
+                x='run_diff',
+                y='team_name',
+                orientation='h',
+                title=f'Diferencial de Carreras - {selected_season_display}',
+                labels={'run_diff': 'Diferencial', 'team_name': ''},
+                color='run_diff',
+                color_continuous_scale=['red', 'yellow', 'green']
+            )
+            fig_diff.update_layout(
+                height=400,
+                showlegend=False,
+                xaxis_title="Diferencial",
+                yaxis_title=""
+            )
+            st.plotly_chart(fig_diff, use_container_width=True)
+        
+        # Gráfico de porcentaje de victorias
+        fig_pct = px.line(
+            standings_df,
+            x=range(1, len(standings_df) + 1),
+            y='pct',
+            title=f'Porcentaje de Victorias por Posición - {selected_season_display}',
+            markers=True
         )
-        fig_diff.update_layout(
-            height=400,
-            showlegend=False,
-            xaxis_title="Diferencial",
-            yaxis_title=""
+        
+        # Usar update_layout para TODAS las actualizaciones
+        fig_pct.update_layout(
+            xaxis_title='Posición',
+            yaxis_title='PCT',
+            yaxis_tickformat='.3f',
+            height=350
         )
-        st.plotly_chart(fig_diff, use_container_width=True)
-    
-    # Gráfico de porcentaje de victorias
-    fig_pct = px.line(
-        standings_df,
-        x=range(1, len(standings_df) + 1),
-        y='pct',
-        title=f'Porcentaje de Victorias por Posición - {selected_season_display}',
-        markers=True
-    )
-    
-    # Usar update_layout para TODAS las actualizaciones
-    fig_pct.update_layout(
-        xaxis_title='Posición',
-        yaxis_title='PCT',
-        yaxis_tickformat='.3f',
-        height=350
-    )
-    
-    # Agregar nombres de equipos
-    for i, row in standings_df.iterrows():
-        fig_pct.add_annotation(
-            x=i+1,
-            y=row['pct'],
-            text=row['team_name'].split()[-1],
-            showarrow=False,
-            yshift=10
-        )
-    
-    st.plotly_chart(fig_pct, use_container_width=True)
+        
+        # Agregar nombres de equipos
+        for i, row in standings_df.iterrows():
+            fig_pct.add_annotation(
+                x=i+1,
+                y=row['pct'],
+                text=row['team_name'].split()[-1],
+                showarrow=False,
+                yshift=10
+            )
+        
+        st.plotly_chart(fig_pct, use_container_width=True)
     
     with tab3:
         st.markdown(f"### 🆚 Récord Head to Head - Leones del Caracas ({selected_season_display})")
@@ -421,6 +421,7 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
 
 
