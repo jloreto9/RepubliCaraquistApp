@@ -1,0 +1,30 @@
+name: Update LVBP Data
+
+on:
+  schedule:
+    # Ejecutar todos los días a las 6 AM UTC (2 AM Venezuela)
+    - cron: '0 6 * * *'
+  workflow_dispatch: # Permite ejecutar manualmente
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v2
+    
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        pip install supabase requests MLB-StatsAPI
+    
+    - name: Update data
+      env:
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      run: |
+        python scripts/update_daily.py
