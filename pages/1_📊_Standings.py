@@ -211,8 +211,13 @@ if not standings_df.empty:
                 color_discrete_map={'wins': '#90EE90', 'losses': '#FFB6C1'},
                 barmode='group'
             )
-            fig_wins.update_xaxis(tickangle=45)
-            fig_wins.update_layout(height=400, showlegend=True, legend_title_text='')
+            # CORRECCIÓN: usar update_layout en lugar de update_xaxis
+            fig_wins.update_layout(
+                xaxis_tickangle=45,
+                height=400,
+                showlegend=True,
+                legend_title_text=''
+            )
             st.plotly_chart(fig_wins, use_container_width=True)
         
         with col2:
@@ -406,4 +411,5 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
