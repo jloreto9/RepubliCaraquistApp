@@ -34,11 +34,14 @@ def get_available_seasons():
         
         if response.data:
             seasons = list(set([g['season'] for g in response.data if g['season']]))
+            # Ordenar de más reciente a más antigua
             return sorted(seasons, reverse=True)
     except:
         pass
     
-    return [2026, 2025]
+    # Retornar temporadas por defecto si no hay datos
+    # 2015 = temporada 2014-2015, 2016 = temporada 2015-2016, etc.
+    return [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015]
 
 # UNA SOLA función get_standings - COMPLETA
 @st.cache_data(ttl=600)  # Cache por 10 minutos
@@ -293,3 +296,4 @@ def calculate_batting_stats(df):
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)
+
