@@ -453,7 +453,7 @@ st.markdown("""
 <div style='text-align: center; color: #666; padding: 2rem;'>
     <p>Desarrollado por Jorge Leonardo Loreto</p>
     <p>📊 Científico de Datos | ⚾ Analista de Béisbol | 🦁 Fanático de los Leones del Caracas</p>
-    <p>Twitter: @RepubCaraquista</p>
+    <p>Twitter: @JorgeLoreto / @RepubCaraquista</p>
     <p>📊 Datos actualizados diariamente a las 2:00 AM VET</p>
     <p>Powered by MLB Stats API & Supabase</p>
 </div>
