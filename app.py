@@ -247,7 +247,7 @@ with tab1:
                 won = last_game['away_score'] > last_game['home_score']
             
             # Color según resultado
-            bg_color = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' if won else 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+            bg_color = 'linear-gradient(135deg, #0A2342 0%, #15457C 100%)' if won else 'linear-gradient(135deg, #440C0C 0%, #8E2020 100%)'
             
             # Formatear fecha
             try:
@@ -371,6 +371,7 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
 
 
 
