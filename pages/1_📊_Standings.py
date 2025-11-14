@@ -711,11 +711,7 @@ if not standings_df.empty:
                 df_games = pd.DataFrame(games_display)
                 
                 def color_result(val):
-                    if val == 'W':
-                        color = '#196F3D'
-                    else:
-                        color = '#922B21'
-                        
+                    color = '#196F3D' if val == 'W' else '#922B21'
                     return f'background-color: {color}'
                 
                 st.dataframe(
@@ -786,14 +782,3 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
-
-
-
-
-
-
-
-
-
-
-
