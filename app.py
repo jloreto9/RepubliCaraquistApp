@@ -59,7 +59,7 @@ with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/0/0d/Logo_Leones_del_Caracas.svg", width=200)
     st.markdown("---")
     
-    # Selector de temporada
+    # Selector de temporada con formato correcto
     current_season = get_current_season()
     available_seasons = get_available_seasons()
     
@@ -67,19 +67,25 @@ with st.sidebar:
     if not available_seasons:
         available_seasons = [current_season]
     
-    selected_season = st.selectbox(
+    # Crear diccionario para el selector con formato legible
+    season_options = {}
+    for season in available_seasons:
+        # Formato: "2025-2026" para mostrar, 2026 como valor
+        display_text = f"{season-1}-{season}"
+        season_options[display_text] = season
+    
+    # Selector con formato de temporada
+    selected_season_display = st.selectbox(
         "⚾ Temporada",
-        available_seasons,
+        options=list(season_options.keys()),
         index=0
     )
     
+    # Obtener el valor real de la temporada seleccionada
+    selected_season = season_options[selected_season_display]
+    
     # Mostrar temporada formateada
-    if selected_season == 2026:
-        st.markdown("### Temporada 2025-2026")
-    elif selected_season == 2025:
-        st.markdown("### Temporada 2024-2025")
-    else:
-        st.markdown(f"### Temporada {selected_season-1}-{selected_season}")
+    st.markdown(f"### Temporada {selected_season_display}")
     
     st.markdown("**Liga Venezolana de Béisbol Profesional**")
     
@@ -346,3 +352,4 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
