@@ -16,6 +16,7 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# CSS para cambiar "app" por "Home" y alinearlo correctamente
 st.markdown("""
     <style>
     /* Ocultar el texto "app" original */
@@ -435,5 +436,6 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
 
 
