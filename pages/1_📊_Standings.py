@@ -208,7 +208,7 @@ if not standings_df.empty:
                 y=['wins', 'losses'],
                 title=f'Victorias vs Derrotas - {selected_season_display}',
                 labels={'value': 'Juegos', 'team_name': ''},
-                color_discrete_map={'wins': '#90EE90', 'losses': '#FFB6C1'},
+                color_discrete_map={'wins': '#196F3D', 'losses': '#922B21'},
                 barmode='group'
             )
             fig_wins.update_layout(
@@ -782,4 +782,5 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
