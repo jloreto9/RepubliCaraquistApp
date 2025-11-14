@@ -51,13 +51,13 @@ with col1:
 # IDs de los 8 equipos LVBP
 LVBP_TEAMS = {
     695: "Leones del Caracas",
-    696: "Tiburones de La Guaira", 
-    697: "Navegantes del Magallanes",
-    698: "Tigres de Aragua",
-    699: "Águilas del Zulia",
-    700: "Cardenales de Lara",
-    701: "Caribes de Anzoátegui",
-    702: "Bravos de Margarita"
+    698: "Tiburones de La Guaira", 
+    696: "Navegantes del Magallanes",
+    699: "Tigres de Aragua",
+    692: "Águilas del Zulia",
+    693: "Cardenales de Lara",
+    694: "Caribes de Anzoátegui",
+    697: "Bravos de Margarita"
 }
 
 # Obtener standings
@@ -406,3 +406,4 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
