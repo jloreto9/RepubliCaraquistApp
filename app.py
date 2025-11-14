@@ -55,19 +55,26 @@ st.markdown('<p class="sub-header">Análisis Avanzado de los Leones del Caracas 
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/0/0d/Logo_Leones_del_Caracas.svg", width=200)
     st.markdown("---")
-    st.markdown("### ⚾ Temporada 2024-2025")
+    
+    # Mostrar temporada actual
+    from utils.supabase_client import get_current_season, get_available_seasons
+    
+    current_season = get_current_season()
+    available_seasons = get_available_seasons()
+    
+    # Selector de temporada
+    selected_season = st.selectbox(
+        "⚾ Temporada",
+        available_seasons,
+        index=0 if current_season in available_seasons else 0
+    )
+    
+    st.markdown(f"### Temporada {selected_season-1}-{selected_season}")
     st.markdown("**Liga Venezolana de Béisbol Profesional**")
     
     # Info de última actualización
     st.markdown("---")
     st.info(f"🔄 Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
-    
-    # Links útiles
-    st.markdown("---")
-    st.markdown("### 🔗 Enlaces")
-    st.markdown("[🌐 LVBP Oficial](https://www.lvbp.com)")
-    st.markdown("[🦁 Leones del Caracas](https://www.leones.com)")
-    st.markdown("[📊 MLB Stats API](https://statsapi.mlb.com)")
 
 # Contenido principal - Dashboard
 col1, col2, col3, col4 = st.columns(4)
@@ -200,3 +207,4 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
