@@ -272,52 +272,138 @@ if not standings_df.empty:
         
         st.plotly_chart(fig_pct, use_container_width=True)
     
-with tab3:
-    st.markdown(f"### 🆚 Récord Head to Head - Leones del Caracas ({selected_season_display})")
-    
-    # Obtener juegos de los Leones
-    supabase = init_supabase()
-    
-    # IDs CORRECTOS de los equipos LVBP
-    LVBP_TEAMS = {
-        695: "Leones del Caracas",
-        698: "Tiburones de La Guaira", 
-        696: "Navegantes del Magallanes",
-        699: "Tigres de Aragua",
-        692: "Águilas del Zulia",
-        693: "Cardenales de Lara",
-        694: "Caribes de Anzoátegui",
-        697: "Bravos de Margarita"
-    }
-    
-    LEONES_ID = 695
-    
-    try:
-        # Obtener todos los juegos de los Leones en la temporada
-        games_response = supabase.table('games') \
-            .select('*') \
-            .eq('season', selected_season) \
-            .eq('status', 'Final') \
-            .or_(f'home_team_id.eq.{LEONES_ID},away_team_id.eq.{LEONES_ID}') \
-            .execute()
+    with tab3:
+        st.markdown(f"### 🆚 Récord Head to Head - Leones del Caracas ({selected_season_display})")
         
-        if games_response.data:
-            games_df = pd.DataFrame(games_response.data)
+        # Obtener juegos de los Leones
+        supabase = init_supabase()
+        
+        # IDs CORRECTOS de los equipos LVBP
+        LVBP_TEAMS = {
+            695: "Leones del Caracas",
+            698: "Tiburones de La Guaira", 
+            696: "Navegantes del Magallanes",
+            699: "Tigres de Aragua",
+            692: "Águilas del Zulia",
+            693: "Cardenales de Lara",
+            694: "Caribes de Anzoátegui",
+            697: "Bravos de Margarita"
+        }
+        
+        LEONES_ID = 695
+        
+        try:
+            # Obtener todos los juegos de los Leones en la temporada
+            games_response = supabase.table('games') \
+                .select('*') \
+                .eq('season', selected_season) \
+                .eq('status', 'Final') \
+                .or_(f'home_team_id.eq.{LEONES_ID},away_team_id.eq.{LEONES_ID}') \
+                .execute()
             
-            # Calcular récord contra cada equipo
-            h2h_data = []
-            
-            for team_id, team_name in LVBP_TEAMS.items():
-                if team_id == LEONES_ID:
-                    continue  # Saltar Leones vs Leones
+            if games_response.data:
+                games_df = pd.DataFrame(games_response.data)
                 
-                # Filtrar juegos contra este equipo
-                vs_team = games_df[
-                    ((games_df['home_team_id'] == LEONES_ID) & (games_df['away_team_id'] == team_id)) |
-                    ((games_df['away_team_id'] == LEONES_ID) & (games_df['home_team_id'] == team_id))
-                ]
+                # Calcular récord contra cada equipo
+                h2h_data = []
                 
-                if len(vs_team) == 0:
+                for team_id, team_name in LVBP_TEAMS.items():
+                    if team_id == LEONES_ID:
+                        continue  # Saltar Leones vs Leones
+                    
+                    # Filtrar juegos contra este equipo
+                    vs_team = games_df[
+                        ((games_df['home_team_id'] == LEONES_ID) & (games_df['away_team_id'] == team_id)) |
+                        ((games_df['away_team_id'] == LEONES_ID) & (games_df['home_team_id'] == team_id))
+                    ]
+                    
+                    if len(vs_team) == 0:
+                        # Nombre corto del equipo
+                        short_name = team_name.replace(' del ', ' ').replace(' de ', ' ')
+                        if 'Tiburones' in short_name:
+                            short_name = 'Tiburones'
+                        elif 'Navegantes' in short_name:
+                            short_name = 'Magallanes'
+                        elif 'Tigres' in short_name:
+                            short_name = 'Tigres'
+                        elif 'Águilas' in short_name:
+                            short_name = 'Águilas'
+                        elif 'Cardenales' in short_name:
+                            short_name = 'Cardenales'
+                        elif 'Caribes' in short_name:
+                            short_name = 'Caribes'
+                        elif 'Bravos' in short_name:
+                            short_name = 'Margarita'
+                        
+                        h2h_data.append({
+                            'Rival': short_name,
+                            'JJ': 0,
+                            'G': 0,
+                            'P': 0,
+                            'PCT': '.000',
+                            'Local': '0-0',
+                            'Visitante': '0-0',
+                            'CF': 0,
+                            'CP': 0,
+                            'DIF': 0,
+                            'Última': '-'
+                        })
+                        continue
+                    
+                    # Calcular estadísticas
+                    total_games = 0
+                    total_wins = 0
+                    total_losses = 0
+                    home_wins = 0
+                    home_losses = 0
+                    away_wins = 0
+                    away_losses = 0
+                    runs_for = 0
+                    runs_against = 0
+                    
+                    for _, game in vs_team.iterrows():
+                        total_games += 1
+                        
+                        if game['home_team_id'] == LEONES_ID:
+                            # Leones jugando de local
+                            runs_for += game['home_score'] or 0
+                            runs_against += game['away_score'] or 0
+                            
+                            if game['home_score'] > game['away_score']:
+                                total_wins += 1
+                                home_wins += 1
+                            else:
+                                total_losses += 1
+                                home_losses += 1
+                        else:
+                            # Leones jugando de visitante
+                            runs_for += game['away_score'] or 0
+                            runs_against += game['home_score'] or 0
+                            
+                            if game['away_score'] > game['home_score']:
+                                total_wins += 1
+                                away_wins += 1
+                            else:
+                                total_losses += 1
+                                away_losses += 1
+                    
+                    # Último juego
+                    last_game = vs_team.sort_values('game_date').iloc[-1]
+                    if last_game['home_team_id'] == LEONES_ID:
+                        last_result = 'V' if last_game['home_score'] > last_game['away_score'] else 'D'
+                        last_score = f"{last_game['home_score']}-{last_game['away_score']}"
+                    else:
+                        last_result = 'V' if last_game['away_score'] > last_game['home_score'] else 'D'
+                        last_score = f"{last_game['away_score']}-{last_game['home_score']}"
+                    
+                    try:
+                        last_date = pd.to_datetime(last_game['game_date']).strftime('%d/%m')
+                    except:
+                        last_date = ''
+                    
+                    # Calcular PCT
+                    pct = total_wins / total_games if total_games > 0 else 0
+                    
                     # Nombre corto del equipo
                     short_name = team_name.replace(' del ', ' ').replace(' de ', ' ')
                     if 'Tiburones' in short_name:
@@ -337,327 +423,241 @@ with tab3:
                     
                     h2h_data.append({
                         'Rival': short_name,
-                        'JJ': 0,
-                        'G': 0,
-                        'P': 0,
-                        'PCT': '.000',
-                        'Local': '0-0',
-                        'Visitante': '0-0',
-                        'CF': 0,
-                        'CP': 0,
-                        'DIF': 0,
-                        'Última': '-'
+                        'JJ': total_games,
+                        'G': total_wins,
+                        'P': total_losses,
+                        'PCT': f'.{int(pct*1000):03d}',
+                        'Local': f'{home_wins}-{home_losses}',
+                        'Visitante': f'{away_wins}-{away_losses}',
+                        'CF': runs_for,
+                        'CP': runs_against,
+                        'DIF': runs_for - runs_against,
+                        'Última': f'{last_result} {last_score} ({last_date})' if last_date else f'{last_result} {last_score}'
                     })
-                    continue
                 
-                # Calcular estadísticas
-                total_games = 0
-                total_wins = 0
-                total_losses = 0
-                home_wins = 0
-                home_losses = 0
-                away_wins = 0
-                away_losses = 0
-                runs_for = 0
-                runs_against = 0
+                # Crear DataFrame y ordenar por PCT
+                h2h_df = pd.DataFrame(h2h_data)
+                h2h_df['pct_num'] = h2h_df['PCT'].apply(lambda x: float(x))
+                h2h_df = h2h_df.sort_values('pct_num', ascending=False).drop('pct_num', axis=1)
                 
-                for _, game in vs_team.iterrows():
-                    total_games += 1
+                # Mostrar resumen
+                col1, col2, col3, col4 = st.columns(4)
+                
+                total_h2h_wins = h2h_df['G'].sum()
+                total_h2h_losses = h2h_df['P'].sum()
+                total_h2h_games = h2h_df['JJ'].sum()
+                total_h2h_pct = total_h2h_wins / total_h2h_games if total_h2h_games > 0 else 0
+                
+                with col1:
+                    st.metric("Total Juegos", total_h2h_games)
+                
+                with col2:
+                    st.metric("Récord Total", f"{total_h2h_wins}-{total_h2h_losses}")
+                
+                with col3:
+                    st.metric("PCT General", f".{int(total_h2h_pct*1000):03d}")
+                
+                with col4:
+                    winning_records = len(h2h_df[h2h_df['G'] > h2h_df['P']])
+                    st.metric("Récord Ganador vs", f"{winning_records}/7 equipos")
+                
+                st.markdown("---")
+                
+                # Colorear la tabla
+                def style_h2h(row):
+                    styles = [''] * len(row)
                     
-                    if game['home_team_id'] == LEONES_ID:
-                        # Leones jugando de local
-                        runs_for += game['home_score'] or 0
-                        runs_against += game['away_score'] or 0
-                        
-                        if game['home_score'] > game['away_score']:
-                            total_wins += 1
-                            home_wins += 1
+                    # Colorear PCT
+                    if 'PCT' in row.index:
+                        pct_val = float(row['PCT'])
+                        if pct_val >= 0.500:
+                            styles[row.index.get_loc('PCT')] = 'color: green; font-weight: bold'
                         else:
-                            total_losses += 1
-                            home_losses += 1
-                    else:
-                        # Leones jugando de visitante
-                        runs_for += game['away_score'] or 0
-                        runs_against += game['home_score'] or 0
-                        
-                        if game['away_score'] > game['home_score']:
-                            total_wins += 1
-                            away_wins += 1
-                        else:
-                            total_losses += 1
-                            away_losses += 1
+                            styles[row.index.get_loc('PCT')] = 'color: red'
+                    
+                    # Colorear DIF
+                    if 'DIF' in row.index:
+                        dif_val = row['DIF']
+                        if dif_val > 0:
+                            styles[row.index.get_loc('DIF')] = 'color: green; font-weight: bold'
+                        elif dif_val < 0:
+                            styles[row.index.get_loc('DIF')] = 'color: red'
+                    
+                    # Colorear última columna
+                    if 'Última' in row.index:
+                        if 'V' in str(row['Última']):
+                            styles[row.index.get_loc('Última')] = 'background-color: #90EE90'
+                        elif 'D' in str(row['Última']):
+                            styles[row.index.get_loc('Última')] = 'background-color: #FFB6C1'
+                    
+                    return styles
                 
-                # Último juego
-                last_game = vs_team.sort_values('game_date').iloc[-1]
-                if last_game['home_team_id'] == LEONES_ID:
-                    last_result = 'V' if last_game['home_score'] > last_game['away_score'] else 'D'
-                    last_score = f"{last_game['home_score']}-{last_game['away_score']}"
-                else:
-                    last_result = 'V' if last_game['away_score'] > last_game['home_score'] else 'D'
-                    last_score = f"{last_game['away_score']}-{last_game['home_score']}"
-                
-                try:
-                    last_date = pd.to_datetime(last_game['game_date']).strftime('%d/%m')
-                except:
-                    last_date = ''
-                
-                # Calcular PCT
-                pct = total_wins / total_games if total_games > 0 else 0
-                
-                # Nombre corto del equipo
-                short_name = team_name.replace(' del ', ' ').replace(' de ', ' ')
-                if 'Tiburones' in short_name:
-                    short_name = 'Tiburones'
-                elif 'Navegantes' in short_name:
-                    short_name = 'Magallanes'
-                elif 'Tigres' in short_name:
-                    short_name = 'Tigres'
-                elif 'Águilas' in short_name:
-                    short_name = 'Águilas'
-                elif 'Cardenales' in short_name:
-                    short_name = 'Cardenales'
-                elif 'Caribes' in short_name:
-                    short_name = 'Caribes'
-                elif 'Bravos' in short_name:
-                    short_name = 'Margarita'
-                
-                h2h_data.append({
-                    'Rival': short_name,
-                    'JJ': total_games,
-                    'G': total_wins,
-                    'P': total_losses,
-                    'PCT': f'.{int(pct*1000):03d}',
-                    'Local': f'{home_wins}-{home_losses}',
-                    'Visitante': f'{away_wins}-{away_losses}',
-                    'CF': runs_for,
-                    'CP': runs_against,
-                    'DIF': runs_for - runs_against,
-                    'Última': f'{last_result} {last_score} ({last_date})' if last_date else f'{last_result} {last_score}'
-                })
-            
-            # Crear DataFrame y ordenar por PCT
-            h2h_df = pd.DataFrame(h2h_data)
-            h2h_df['pct_num'] = h2h_df['PCT'].apply(lambda x: float(x))
-            h2h_df = h2h_df.sort_values('pct_num', ascending=False).drop('pct_num', axis=1)
-            
-            # Mostrar resumen
-            col1, col2, col3, col4 = st.columns(4)
-            
-            total_h2h_wins = h2h_df['G'].sum()
-            total_h2h_losses = h2h_df['P'].sum()
-            total_h2h_games = h2h_df['JJ'].sum()
-            total_h2h_pct = total_h2h_wins / total_h2h_games if total_h2h_games > 0 else 0
-            
-            with col1:
-                st.metric("Total Juegos", total_h2h_games)
-            
-            with col2:
-                st.metric("Récord Total", f"{total_h2h_wins}-{total_h2h_losses}")
-            
-            with col3:
-                st.metric("PCT General", f".{int(total_h2h_pct*1000):03d}")
-            
-            with col4:
-                winning_records = len(h2h_df[h2h_df['G'] > h2h_df['P']])
-                st.metric("Récord Ganador vs", f"{winning_records}/7 equipos")
-            
-            st.markdown("---")
-            
-            # Colorear la tabla
-            def style_h2h(row):
-                styles = [''] * len(row)
-                
-                # Colorear PCT
-                if 'PCT' in row.index:
-                    pct_val = float(row['PCT'])
-                    if pct_val >= 0.500:
-                        styles[row.index.get_loc('PCT')] = 'color: green; font-weight: bold'
-                    else:
-                        styles[row.index.get_loc('PCT')] = 'color: red'
-                
-                # Colorear DIF
-                if 'DIF' in row.index:
-                    dif_val = row['DIF']
-                    if dif_val > 0:
-                        styles[row.index.get_loc('DIF')] = 'color: green; font-weight: bold'
-                    elif dif_val < 0:
-                        styles[row.index.get_loc('DIF')] = 'color: red'
-                
-                # Colorear última columna
-                if 'Última' in row.index:
-                    if 'V' in str(row['Última']):
-                        styles[row.index.get_loc('Última')] = 'background-color: #90EE90'
-                    elif 'D' in str(row['Última']):
-                        styles[row.index.get_loc('Última')] = 'background-color: #FFB6C1'
-                
-                return styles
-            
-            # Mostrar tabla
-            st.dataframe(
-                h2h_df.style.apply(style_h2h, axis=1),
-                use_container_width=True,
-                hide_index=True,
-                height=350
-            )
-            
-            # Gráfico de barras H2H
-            st.markdown("---")
-            st.markdown("#### 📊 Visualización Head to Head")
-            
-            # Preparar datos para el gráfico
-            h2h_chart = h2h_df.copy()
-            
-            fig_h2h = go.Figure()
-            
-            # Agregar barras de victorias
-            fig_h2h.add_trace(go.Bar(
-                name='Victorias',
-                x=h2h_chart['Rival'],
-                y=h2h_chart['G'],
-                marker_color='#90EE90',
-                text=h2h_chart['G'],
-                textposition='auto',
-            ))
-            
-            # Agregar barras de derrotas
-            fig_h2h.add_trace(go.Bar(
-                name='Derrotas',
-                x=h2h_chart['Rival'],
-                y=h2h_chart['P'],
-                marker_color='#FFB6C1',
-                text=h2h_chart['P'],
-                textposition='auto',
-            ))
-            
-            fig_h2h.update_layout(
-                title=f'Récord de Leones del Caracas vs cada equipo - {selected_season_display}',
-                xaxis_title='Equipo',
-                yaxis_title='Juegos',
-                barmode='group',
-                height=400,
-                showlegend=True,
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="right",
-                    x=1
-                )
-            )
-            
-            st.plotly_chart(fig_h2h, use_container_width=True)
-            
-            # Gráfico de diferencial de carreras por equipo
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Gráfico de pastel - Victorias vs Derrotas totales
-                fig_pie = go.Figure(data=[go.Pie(
-                    labels=['Victorias', 'Derrotas'],
-                    values=[total_h2h_wins, total_h2h_losses],
-                    hole=.3,
-                    marker_colors=['#90EE90', '#FFB6C1']
-                )])
-                
-                fig_pie.update_layout(
-                    title=f'Distribución V-D Total<br>{total_h2h_wins}-{total_h2h_losses}',
-                    height=300,
-                    showlegend=True
+                # Mostrar tabla
+                st.dataframe(
+                    h2h_df.style.apply(style_h2h, axis=1),
+                    use_container_width=True,
+                    hide_index=True,
+                    height=350
                 )
                 
-                st.plotly_chart(fig_pie, use_container_width=True)
-            
-            with col2:
-                # Gráfico de diferencial por equipo
-                h2h_diff = h2h_df.sort_values('DIF', ascending=True)
-                colors = ['red' if x < 0 else 'green' for x in h2h_diff['DIF']]
+                # Gráfico de barras H2H
+                st.markdown("---")
+                st.markdown("#### 📊 Visualización Head to Head")
                 
-                fig_diff = go.Figure(go.Bar(
-                    x=h2h_diff['DIF'],
-                    y=h2h_diff['Rival'],
-                    orientation='h',
-                    marker_color=colors,
-                    text=h2h_diff['DIF'].apply(lambda x: f"{x:+d}"),
-                    textposition='auto'
+                # Preparar datos para el gráfico
+                h2h_chart = h2h_df.copy()
+                
+                fig_h2h = go.Figure()
+                
+                # Agregar barras de victorias
+                fig_h2h.add_trace(go.Bar(
+                    name='Victorias',
+                    x=h2h_chart['Rival'],
+                    y=h2h_chart['G'],
+                    marker_color='#90EE90',
+                    text=h2h_chart['G'],
+                    textposition='auto',
                 ))
                 
-                fig_diff.update_layout(
-                    title='Diferencial de Carreras por Rival',
-                    xaxis_title='Diferencial',
-                    yaxis_title='',
-                    height=300
+                # Agregar barras de derrotas
+                fig_h2h.add_trace(go.Bar(
+                    name='Derrotas',
+                    x=h2h_chart['Rival'],
+                    y=h2h_chart['P'],
+                    marker_color='#FFB6C1',
+                    text=h2h_chart['P'],
+                    textposition='auto',
+                ))
+                
+                fig_h2h.update_layout(
+                    title=f'Récord de Leones del Caracas vs cada equipo - {selected_season_display}',
+                    xaxis_title='Equipo',
+                    yaxis_title='Juegos',
+                    barmode='group',
+                    height=400,
+                    showlegend=True,
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1
+                    )
                 )
                 
-                st.plotly_chart(fig_diff, use_container_width=True)
+                st.plotly_chart(fig_h2h, use_container_width=True)
+                
+                # Gráfico de diferencial de carreras por equipo
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    # Gráfico de pastel - Victorias vs Derrotas totales
+                    fig_pie = go.Figure(data=[go.Pie(
+                        labels=['Victorias', 'Derrotas'],
+                        values=[total_h2h_wins, total_h2h_losses],
+                        hole=.3,
+                        marker_colors=['#90EE90', '#FFB6C1']
+                    )])
+                    
+                    fig_pie.update_layout(
+                        title=f'Distribución V-D Total<br>{total_h2h_wins}-{total_h2h_losses}',
+                        height=300,
+                        showlegend=True
+                    )
+                    
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                
+                with col2:
+                    # Gráfico de diferencial por equipo
+                    h2h_diff = h2h_df.sort_values('DIF', ascending=True)
+                    colors = ['red' if x < 0 else 'green' for x in h2h_diff['DIF']]
+                    
+                    fig_diff = go.Figure(go.Bar(
+                        x=h2h_diff['DIF'],
+                        y=h2h_diff['Rival'],
+                        orientation='h',
+                        marker_color=colors,
+                        text=h2h_diff['DIF'].apply(lambda x: f"{x:+d}"),
+                        textposition='auto'
+                    ))
+                    
+                    fig_diff.update_layout(
+                        title='Diferencial de Carreras por Rival',
+                        xaxis_title='Diferencial',
+                        yaxis_title='',
+                        height=300
+                    )
+                    
+                    st.plotly_chart(fig_diff, use_container_width=True)
+                
+            else:
+                st.warning("No hay juegos disponibles para calcular el head to head en esta temporada")
+                
+                # Mostrar tabla vacía
+                h2h_data = []
+                for team_id, team_name in LVBP_TEAMS.items():
+                    if team_id != LEONES_ID:
+                        short_name = team_name.split()[-1] if 'Navegantes' not in team_name else 'Magallanes'
+                        h2h_data.append({
+                            'Rival': short_name,
+                            'JJ': 0,
+                            'G': 0,
+                            'P': 0,
+                            'PCT': '.000',
+                            'Local': '0-0',
+                            'Visitante': '0-0',
+                            'CF': 0,
+                            'CP': 0,
+                            'DIF': 0,
+                            'Última': '-'
+                        })
+                
+                h2h_df = pd.DataFrame(h2h_data)
+                st.dataframe(h2h_df, use_container_width=True, hide_index=True)
+                
+        except Exception as e:
+            st.error(f"Error al obtener datos: {str(e)}")
             
-        else:
-            st.warning("No hay juegos disponibles para calcular el head to head en esta temporada")
+            # Mostrar tabla de respaldo con datos vacíos
+            h2h_backup = []
             
-            # Mostrar tabla vacía
-            h2h_data = []
-            for team_id, team_name in LVBP_TEAMS.items():
-                if team_id != LEONES_ID:
-                    short_name = team_name.split()[-1] if 'Navegantes' not in team_name else 'Magallanes'
-                    h2h_data.append({
-                        'Rival': short_name,
-                        'JJ': 0,
-                        'G': 0,
-                        'P': 0,
-                        'PCT': '.000',
-                        'Local': '0-0',
-                        'Visitante': '0-0',
-                        'CF': 0,
-                        'CP': 0,
-                        'DIF': 0,
-                        'Última': '-'
-                    })
+            # Nombres cortos para cada equipo
+            team_names_short = {
+                698: "Tiburones",
+                696: "Magallanes",
+                699: "Tigres",
+                692: "Águilas",
+                693: "Cardenales",
+                694: "Caribes",
+                697: "Margarita"
+            }
             
-            h2h_df = pd.DataFrame(h2h_data)
+            for team_id, short_name in team_names_short.items():
+                h2h_backup.append({
+                    'Rival': short_name,
+                    'JJ': 0,
+                    'G': 0,
+                    'P': 0,
+                    'PCT': '.000',
+                    'Local': '0-0',
+                    'Visitante': '0-0',
+                    'CF': 0,
+                    'CP': 0,
+                    'DIF': 0,
+                    'Última': '-'
+                })
+            
+            h2h_df = pd.DataFrame(h2h_backup)
+            
+            st.info("No se pudieron cargar los datos. Mostrando tabla vacía.")
             st.dataframe(h2h_df, use_container_width=True, hide_index=True)
             
-    except Exception as e:
-        st.error(f"Error al obtener datos: {str(e)}")
-        
-        # Mostrar tabla de respaldo con datos vacíos
-        h2h_backup = []
-        
-        # Nombres cortos para cada equipo
-        team_names_short = {
-            698: "Tiburones",
-            696: "Magallanes",
-            699: "Tigres",
-            692: "Águilas",
-            693: "Cardenales",
-            694: "Caribes",
-            697: "Margarita"
-        }
-        
-        for team_id, short_name in team_names_short.items():
-            h2h_backup.append({
-                'Rival': short_name,
-                'JJ': 0,
-                'G': 0,
-                'P': 0,
-                'PCT': '.000',
-                'Local': '0-0',
-                'Visitante': '0-0',
-                'CF': 0,
-                'CP': 0,
-                'DIF': 0,
-                'Última': '-'
-            })
-        
-        h2h_df = pd.DataFrame(h2h_backup)
-        
-        st.info("No se pudieron cargar los datos. Mostrando tabla vacía.")
-        st.dataframe(h2h_df, use_container_width=True, hide_index=True)
-        
-        # Mostrar información de debug
-        with st.expander("🔍 Información de Debug"):
-            st.write(f"Error encontrado: {str(e)}")
-            st.write(f"Temporada seleccionada: {selected_season}")
-            st.write(f"ID de Leones: {LEONES_ID}")
-            st.write("IDs de equipos LVBP:", list(LVBP_TEAMS.keys()))
+            # Mostrar información de debug
+            with st.expander("🔍 Información de Debug"):
+                st.write(f"Error encontrado: {str(e)}")
+                st.write(f"Temporada seleccionada: {selected_season}")
+                st.write(f"ID de Leones: {LEONES_ID}")
+                st.write("IDs de equipos LVBP:", list(LVBP_TEAMS.keys()))
     
     with tab4:
         st.markdown(f"### 📅 Calendario - {selected_season_display}")
@@ -786,6 +786,7 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
 
 
