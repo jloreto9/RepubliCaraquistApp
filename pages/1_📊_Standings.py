@@ -514,7 +514,7 @@ if not standings_df.empty:
                     name='Victorias',
                     x=h2h_chart['Rival'],
                     y=h2h_chart['G'],
-                    marker_color='#90EE90',
+                    marker_color='#196F3D',
                     text=h2h_chart['G'],
                     textposition='auto',
                 ))
@@ -524,7 +524,7 @@ if not standings_df.empty:
                     name='Derrotas',
                     x=h2h_chart['Rival'],
                     y=h2h_chart['P'],
-                    marker_color='#FFB6C1',
+                    marker_color='#922B21',
                     text=h2h_chart['P'],
                     textposition='auto',
                 ))
@@ -556,7 +556,7 @@ if not standings_df.empty:
                         labels=['Victorias', 'Derrotas'],
                         values=[total_h2h_wins, total_h2h_losses],
                         hole=.3,
-                        marker_colors=['#90EE90', '#FFB6C1']
+                        marker_colors=['#196F3D', '#922B21']
                     )])
                     
                     fig_pie.update_layout(
@@ -786,6 +786,7 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
 
 
