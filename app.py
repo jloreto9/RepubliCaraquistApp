@@ -186,15 +186,39 @@ standings_df = get_standings(selected_season)  # Usar selected_season
 
 # Datos de los Leones
 if not standings_df.empty:
+    # Asegurarse de que el DataFrame esté ordenado por PCT
+    standings_df = standings_df.sort_values('pct', ascending=False).reset_index(drop=True)
+    
     # Buscar datos de los Leones
     leones_data = standings_df[standings_df['team_name'].str.contains('Leones', case=False, na=False)]
     
     if not leones_data.empty:
         leones = leones_data.iloc[0]
         
-        # Posición
-        position = standings_df.index[standings_df['team_name'] == leones['team_name']].tolist()[0] + 1
+        # Calcular posición correctamente después del reset_index
+        # Buscar el índice donde están los Leones
+        for idx, row in standings_df.iterrows():
+            if 'Leones' in str(row['team_name']):
+                position = idx + 1  # +1 porque el índice empieza en 0
+                break
+        else:
+            position = 0  # Si no se encuentra
+        
         position_text = f"{position}°"
+        
+        # Récord
+        wins = int(leones.get('wins', 0))
+        losses = int(leones.get('losses', 0))
+        record_text = f"{wins}-{losses}"
+        pct = leones.get('pct', 0)
+        
+        # Racha
+        streak = leones.get('streak', 'N/A')
+        
+        # Diferencial
+        run_diff = int(leones.get('run_diff', 0))
+        runs_for = int(leones.get('runs_for', 0))
+        runs_against = int(leones.get('runs_against', 0))
         
         # Récord
         wins = int(leones.get('wins', 0))
