@@ -52,29 +52,36 @@ st.markdown('<h1 class="main-header">🦁 RepubliCaraquistApp</h1>', unsafe_allo
 st.markdown('<p class="sub-header">Análisis Avanzado de los Leones del Caracas - LVBP</p>', unsafe_allow_html=True)
 
 # Sidebar
+# Sidebar
 with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/0/0d/Logo_Leones_del_Caracas.svg", width=200)
     st.markdown("---")
     
-    # Mostrar temporada actual
+    # Selector de temporada
     from utils.supabase_client import get_current_season, get_available_seasons
     
-    current_season = get_current_season()
+    current_season = get_current_season()  # Debería ser 2026
     available_seasons = get_available_seasons()
     
-    # Selector de temporada
+    # Si no hay temporadas disponibles, usar la actual
+    if not available_seasons:
+        available_seasons = [current_season]
+    
     selected_season = st.selectbox(
         "⚾ Temporada",
         available_seasons,
-        index=0 if current_season in available_seasons else 0
+        index=0
     )
     
-    st.markdown(f"### Temporada {selected_season-1}-{selected_season}")
-    st.markdown("**Liga Venezolana de Béisbol Profesional**")
+    # Mostrar como 2025-2026
+    if selected_season == 2026:
+        st.markdown("### Temporada 2025-2026")
+    elif selected_season == 2025:
+        st.markdown("### Temporada 2024-2025")
+    else:
+        st.markdown(f"### Temporada {selected_season-1}-{selected_season}")
     
-    # Info de última actualización
-    st.markdown("---")
-    st.info(f"🔄 Última actualización: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    st.markdown("**Liga Venezolana de Béisbol Profesional**")
 
 # Contenido principal - Dashboard
 col1, col2, col3, col4 = st.columns(4)
@@ -207,4 +214,5 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
 
