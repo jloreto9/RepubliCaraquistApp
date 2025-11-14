@@ -251,7 +251,7 @@ st.markdown("---")
 # Footer
 st.markdown("""
 <div style='text-align: center; color: #666; padding: 2rem;'>
-    <p>Desarrollado con ❤️ por Jorge Leonardo Loreto</p>
+    <p>Desarrollado Jorge Leonardo Loreto 📊 Científico de Datos | ⚾ Analista de Béisbol | 🦁 Fanático de los Leones del Caracas Twitter: @RepubCaraquista</p>
     <p>📊 Datos actualizados diariamente a las 2:00 AM VET</p>
     <p>Powered by MLB Stats API & Supabase</p>
 </div>
@@ -259,6 +259,7 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
 
 
 
