@@ -15,28 +15,68 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
-# CSS para cambiar "app" por "Home" en el sidebar
+# app.py - Después de st.set_page_config()
+
+# CSS para cambiar "app" por "Home" y alinearlo correctamente
 st.markdown("""
     <style>
-    /* Cambiar el texto "app" por "Home" */
-    [data-testid="stSidebarNav"] li:first-child span {
-        display: none;
+    /* Ocultar el texto "app" original */
+    [data-testid="stSidebarNav"] a[href="/"] {
+        position: relative;
     }
     
-    [data-testid="stSidebarNav"] li:first-child::after {
+    [data-testid="stSidebarNav"] a[href="/"] span {
+        visibility: hidden;
+    }
+    
+    /* Agregar "Home" con la misma alineación */
+    [data-testid="stSidebarNav"] a[href="/"]:after {
         content: "🏠 Home";
-        display: block;
-        padding: 0.25rem 1rem;
-        font-size: 1rem;
+        visibility: visible;
+        position: absolute;
+        left: 0;
+        top: 0;
+        padding: 0.25rem 0.75rem;
+        display: flex;
+        align-items: center;
+        width: 100%;
+        height: 100%;
     }
     
-    /* Resaltar Home cuando está activo */
-    [data-testid="stSidebarNav"] li:first-child a[aria-selected="true"]::after {
-        font-weight: bold;
+    /* Mantener el hover effect */
+    [data-testid="stSidebarNav"] a[href="/"]:hover:after {
+        background-color: rgba(151, 166, 195, 0.15);
+    }
+    
+    /* Cuando Home está seleccionado */
+    [data-testid="stSidebarNav"] a[href="/"][aria-selected="true"]:after {
+        font-weight: 600;
+        background-color: rgba(151, 166, 195, 0.25);
+    }
+    
+    /* Tu CSS existente */
+    .main-header {
+        font-size: 3rem;
         color: #FDB827;
+        text-align: center;
+        font-weight: bold;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    .sub-header {
+        font-size: 1.2rem;
+        color: #666;
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+    .leones-gold {
+        color: #FDB827;
+    }
+    .leones-red {
+        color: #CE1141;
     }
     </style>
 """, unsafe_allow_html=True)
+
 
 # CSS personalizado
 st.markdown("""
@@ -398,3 +438,4 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
