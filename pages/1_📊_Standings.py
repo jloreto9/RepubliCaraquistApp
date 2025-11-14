@@ -197,7 +197,7 @@ if not standings_df.empty:
         else:
             st.info("No hay datos de los Leones del Caracas para esta temporada")
     
-        with tab2:
+    with tab2:
         col1, col2 = st.columns(2)
         
         with col1:
@@ -421,6 +421,7 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
 
 
