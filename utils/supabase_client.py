@@ -52,7 +52,7 @@ def get_standings(season=None):
     supabase = init_supabase()
     
     # IDs de los equipos LVBP
-    LVBP_TEAM_IDS = [695, 696, 697, 698, 699, 700, 701, 702]
+    LVBP_TEAM_IDS = [692, 693, 694, 695, 696, 697, 698, 699]
     
     # Primero intentar tabla standings si existe
     try:
@@ -316,5 +316,6 @@ def calculate_batting_stats(df):
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)
+
 
 
