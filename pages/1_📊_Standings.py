@@ -486,9 +486,9 @@ if not standings_df.empty:
                     # Colorear última columna
                     if 'Última' in row.index:
                         if 'V' in str(row['Última']):
-                            styles[row.index.get_loc('Última')] = 'background-color: #90EE90'
+                            styles[row.index.get_loc('Última')] = 'background-color: #196F3D'
                         elif 'D' in str(row['Última']):
-                            styles[row.index.get_loc('Última')] = 'background-color: #FFB6C1'
+                            styles[row.index.get_loc('Última')] = 'background-color: #922B21'
                     
                     return styles
                 
@@ -786,6 +786,7 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
 
 
