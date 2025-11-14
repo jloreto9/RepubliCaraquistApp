@@ -37,7 +37,7 @@ st.markdown("""
         color: #FDB827;
     }
     .leones-red {
-        color: #CE1141;
+        color: #010E50;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -371,6 +371,7 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
 
 
 
