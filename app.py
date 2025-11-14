@@ -48,16 +48,30 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# Header principal con logo
-col1, col2, col3 = st.columns([1, 2, 1])
+# Header principal - versión horizontal
+col1, col2, col3 = st.columns([1, 3, 1])
 
 with col1:
     st.write("")
 
 with col2:
-    st.image("logo.png", width=150, use_column_width=False)
-    st.markdown('<h1 class="main-header">RepubliCaraquistApp</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Análisis Avanzado de los Leones del Caracas - LVBP</p>', unsafe_allow_html=True)
+    col_logo, col_text = st.columns([1, 3])
+    
+    with col_logo:
+        st.image("logo.png", width=120)
+    
+    with col_text:
+        st.markdown("""
+            <div style='padding-top: 20px;'>
+                <h1 style='font-size: 2.5rem; color: #FDB827; font-weight: bold; 
+                           text-shadow: 2px 2px 4px rgba(0,0,0,0.3); margin: 0;'>
+                    RepubliCaraquistApp
+                </h1>
+                <p style='font-size: 1rem; color: #666; margin: 5px 0;'>
+                    Análisis Avanzado de los Leones del Caracas - LVBP
+                </p>
+            </div>
+        """, unsafe_allow_html=True)
 
 with col3:
     st.write("")
@@ -363,5 +377,6 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
 
 
