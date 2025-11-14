@@ -43,20 +43,23 @@ def get_available_seasons():
     # 2015 = temporada 2014-2015, 2016 = temporada 2015-2016, etc.
     return [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015]
 
-# UNA SOLA función get_standings - COMPLETA
 @st.cache_data(ttl=600)  # Cache por 10 minutos
 def get_standings(season=None):
-    """Calcula standings desde la tabla games"""
+    """Calcula standings desde la tabla games - Solo equipos LVBP"""
     if season is None:
         season = get_current_season()
     
     supabase = init_supabase()
     
-    # Primero intentar tabla standings
+    # IDs de los equipos LVBP
+    LVBP_TEAM_IDS = [695, 696, 697, 698, 699, 700, 701, 702]
+    
+    # Primero intentar tabla standings si existe
     try:
         response = supabase.table('standings') \
             .select('*') \
             .eq('season', season) \
+            .in_('team_id', LVBP_TEAM_IDS) \
             .order('pct', desc=True) \
             .execute()
         
@@ -67,7 +70,7 @@ def get_standings(season=None):
     
     # Si no hay standings, calcular desde games
     try:
-        # Obtener juegos
+        # Obtener juegos de la temporada
         games_response = supabase.table('games') \
             .select('*') \
             .eq('season', season) \
@@ -79,10 +82,16 @@ def get_standings(season=None):
         
         games_df = pd.DataFrame(games_response.data)
         
-        # Obtener equipos
+        # Filtrar solo juegos de equipos LVBP
+        games_df = games_df[
+            (games_df['home_team_id'].isin(LVBP_TEAM_IDS)) | 
+            (games_df['away_team_id'].isin(LVBP_TEAM_IDS))
+        ]
+        
+        # Obtener información de equipos
         teams_response = supabase.table('teams') \
             .select('*') \
-            .eq('league_id', 135) \
+            .in_('id', LVBP_TEAM_IDS) \
             .execute()
         
         if not teams_response.data:
@@ -100,6 +109,9 @@ def get_standings(season=None):
                 (games_df['away_team_id'] == team.id)
             ]
             
+            if len(team_games) == 0:
+                continue
+            
             wins = 0
             losses = 0
             runs_for = 0
@@ -110,7 +122,10 @@ def get_standings(season=None):
             away_losses = 0
             last_10 = []
             
-            for _, game in team_games.iterrows():
+            # Ordenar juegos por fecha para calcular rachas
+            team_games_sorted = team_games.sort_values('game_date')
+            
+            for _, game in team_games_sorted.iterrows():
                 if game['home_team_id'] == team.id:
                     # Juego de local
                     runs_for += game['home_score'] or 0
@@ -144,7 +159,9 @@ def get_standings(season=None):
             
             # Últimos 10 juegos
             last_10 = last_10[-10:] if len(last_10) >= 10 else last_10
-            last_10_record = f"{last_10.count('W')}-{last_10.count('L')}"
+            last_10_wins = last_10.count('W')
+            last_10_losses = last_10.count('L')
+            last_10_record = f"{last_10_wins}-{last_10_losses}"
             
             # Racha actual
             if last_10:
@@ -166,7 +183,7 @@ def get_standings(season=None):
                 'wins': wins,
                 'losses': losses,
                 'pct': pct,
-                'games_back': 0,
+                'games_back': 0,  # Se calculará después
                 'runs_for': runs_for,
                 'runs_against': runs_against,
                 'run_diff': runs_for - runs_against,
@@ -175,6 +192,9 @@ def get_standings(season=None):
                 'last_10': last_10_record,
                 'streak': streak
             })
+        
+        if not standings_data:
+            return pd.DataFrame()
         
         # Crear DataFrame y ordenar por PCT
         standings_df = pd.DataFrame(standings_data).sort_values('pct', ascending=False)
@@ -296,4 +316,5 @@ def calculate_batting_stats(df):
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)
+
 
