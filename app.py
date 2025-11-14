@@ -57,41 +57,66 @@ with st.sidebar:
     st.image("https://upload.wikimedia.org/wikipedia/commons/0/0d/Logo_Leones_del_Caracas.svg", width=200)
     st.markdown("---")
     
-    # Selector de temporada
-    from utils.supabase_client import get_current_season, get_available_seasons
-    
-    current_season = get_current_season()  # Debería ser 2026
-    available_seasons = get_available_seasons()
-    
-    # Si no hay temporadas disponibles, usar la actual
-    if not available_seasons:
-        available_seasons = [current_season]
-    
-    selected_season = st.selectbox(
-        "⚾ Temporada",
-        available_seasons,
-        index=0
-    )
-    
-    # Mostrar como 2025-2026
-    if selected_season == 2026:
-        st.markdown("### Temporada 2025-2026")
-    elif selected_season == 2025:
-        st.markdown("### Temporada 2024-2025")
-    else:
-        st.markdown(f"### Temporada {selected_season-1}-{selected_season}")
-    
-    st.markdown("**Liga Venezolana de Béisbol Profesional**")
+    # Contenido principal - Dashboard con datos reales
+from utils.supabase_client import get_standings, get_recent_games, get_team_stats
 
-# Contenido principal - Dashboard
+# Obtener datos reales
+current_season = 2026  # o get_current_season()
+standings_df = get_standings(current_season)
+
+# Datos de los Leones
+if not standings_df.empty:
+    # Buscar datos de los Leones
+    leones_data = standings_df[standings_df['team_name'].str.contains('Leones', case=False, na=False)]
+    
+    if not leones_data.empty:
+        leones = leones_data.iloc[0]
+        
+        # Posición
+        position = standings_df.index[standings_df['team_name'] == leones['team_name']].tolist()[0] + 1
+        position_text = f"{position}°"
+        
+        # Récord
+        wins = int(leones.get('wins', 0))
+        losses = int(leones.get('losses', 0))
+        record_text = f"{wins}-{losses}"
+        pct = leones.get('pct', 0)
+        
+        # Racha
+        streak = leones.get('streak', 'N/A')
+        
+        # Diferencial
+        run_diff = int(leones.get('run_diff', 0))
+        runs_for = int(leones.get('runs_for', 0))
+        runs_against = int(leones.get('runs_against', 0))
+    else:
+        # Valores por defecto si no hay datos
+        position_text = "N/A"
+        record_text = "0-0"
+        pct = 0
+        streak = "N/A"
+        run_diff = 0
+        runs_for = 0
+        runs_against = 0
+else:
+    # Sin datos - valores por defecto
+    position_text = "N/A"
+    record_text = "0-0"
+    pct = 0
+    streak = "N/A"
+    run_diff = 0
+    runs_for = 0
+    runs_against = 0
+
+# Mostrar métricas
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.metric(
         label="🏆 Posición",
-        value="2do",
-        delta="↑ 1 posición"
+        value=position_text,
+        delta=f"↑ {position} posición" if position <= 4 else f"↓ {position} posición"
     )
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -99,8 +124,8 @@ with col2:
     st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.metric(
         label="📊 Récord",
-        value="25-15",
-        delta=".625 PCT"
+        value=record_text,
+        delta=f".{int(pct*1000):03d} PCT"
     )
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -108,8 +133,8 @@ with col3:
     st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.metric(
         label="🔥 Racha",
-        value="W3",
-        delta="3 victorias seguidas"
+        value=streak,
+        delta="Racha actual"
     )
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -117,8 +142,8 @@ with col4:
     st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.metric(
         label="🎯 Diferencial",
-        value="+28",
-        delta="RF: 198 | RA: 170"
+        value=f"{run_diff:+d}" if run_diff != 0 else "0",
+        delta=f"RF: {runs_for} | RA: {runs_against}"
     )
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -128,30 +153,50 @@ st.markdown("---")
 tab1, tab2, tab3 = st.tabs(["📅 Último Juego", "📈 Tendencias", "🌟 Líderes del Equipo"])
 
 with tab1:
+    # Obtener último juego real
+    recent_games = get_recent_games(team_id=695, limit=1)
+    
     col1, col2 = st.columns([2, 1])
     
     with col1:
         st.markdown("### 🆚 Último Resultado")
-        st.markdown("""
-        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-                    padding: 2rem; border-radius: 1rem; color: white;'>
-            <h2 style='text-align: center; margin: 0;'>
-                Leones del Caracas 7 - 4 Navegantes del Magallanes
-            </h2>
-            <p style='text-align: center; margin-top: 1rem;'>
-                📅 15 de Diciembre, 2024 | 📍 Estadio Universitario
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+        
+        if not recent_games.empty:
+            last_game = recent_games.iloc[0]
+            
+            # Determinar si Leones ganó
+            is_home = last_game['home_team_id'] == 695
+            if is_home:
+                score_text = f"Leones del Caracas {last_game['home_score']} - {last_game['away_score']} {last_game.get('away_team', {}).get('name', 'Rival')}"
+                won = last_game['home_score'] > last_game['away_score']
+            else:
+                score_text = f"{last_game.get('home_team', {}).get('name', 'Rival')} {last_game['home_score']} - {last_game['away_score']} Leones del Caracas"
+                won = last_game['away_score'] > last_game['home_score']
+            
+            # Color según resultado
+            bg_color = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' if won else 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'
+            
+            st.markdown(f"""
+            <div style='background: {bg_color}; 
+                        padding: 2rem; border-radius: 1rem; color: white;'>
+                <h2 style='text-align: center; margin: 0;'>
+                    {score_text}
+                </h2>
+                <p style='text-align: center; margin-top: 1rem;'>
+                    📅 {pd.to_datetime(last_game['game_date']).strftime('%d de %B, %Y')} | 📍 {last_game.get('venue', 'Estadio')}
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.info("No hay juegos recientes disponibles")
     
     with col2:
         st.markdown("### ⭐ Jugador del Juego")
+        # Aquí podrías obtener el mejor jugador del último juego
+        # Por ahora, datos de ejemplo
         st.info("""
-        **Harold Castro**  
-        3-4, 2 HR, 4 RBI  
-        
-        **AVG:** .342  
-        **OPS:** .925
+        **Por implementar**  
+        Estadísticas del mejor jugador
         """)
 
 with tab2:
@@ -214,5 +259,6 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
 
 
