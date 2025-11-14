@@ -33,12 +33,6 @@ st.markdown("""
         text-align: center;
         margin-bottom: 2rem;
     }
-    .metric-card {
-        background-color: #f0f2f6;
-        padding: 1rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
     .leones-gold {
         color: #FDB827;
     }
@@ -377,6 +371,7 @@ st.markdown("""
 
 # Información de navegación
 st.info("👈 **Navega por las diferentes secciones usando el menú lateral**")
+
 
 
 
