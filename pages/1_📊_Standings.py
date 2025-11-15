@@ -752,7 +752,7 @@ if not standings_df.empty:
                     
                     def color_estadio(val):
                         if val == 'Monumental':
-                            return 'font-weight: bold; color: #FEFAFA'
+                            return 'color: #FEFAFA'
                         else:
                             return 'color: #FEFAFA'
                     
@@ -919,6 +919,7 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
 
 
