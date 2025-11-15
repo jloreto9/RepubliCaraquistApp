@@ -659,232 +659,205 @@ if not standings_df.empty:
                 st.write(f"ID de Leones: {LEONES_ID}")
                 st.write("IDs de equipos LVBP:", list(LVBP_TEAMS.keys()))
     
-	with tab4:
-	    st.markdown(f"### 📅 Calendario - {selected_season_display}")
-	    
-	    col1, col2 = st.columns(2)
-	    
-	    with col1:
-	        st.markdown("#### 📅 Próximos 5 Juegos")
-	        
-	        try:
-	            # Obtener juegos futuros o programados
-	            supabase = init_supabase()
-	            
-	            # Fecha actual
-	            from datetime import datetime, timedelta
-	            today = datetime.now().strftime('%Y-%m-%d')
-	            
-	            # Buscar próximos juegos de los Leones
-	            upcoming_games = supabase.table('games') \
-	                .select('*') \
-	                .eq('season', selected_season) \
-	                .gte('game_date', today) \
-	                .or_(f'home_team_id.eq.695,away_team_id.eq.695') \
-	                .neq('status', 'Final') \
-	                .order('game_date', desc=False) \
-	                .limit(5) \
-	                .execute()
-	            
-	            if upcoming_games.data and len(upcoming_games.data) > 0:
-	                upcoming_display = []
-	                
-	                for game in upcoming_games.data:
-	                    # Fecha y hora
-	                    try:
-	                        game_datetime = pd.to_datetime(game['game_datetime'])
-	                        fecha = game_datetime.strftime('%d/%m')
-	                        hora = game_datetime.strftime('%I:%M %p')
-	                    except:
-	                        fecha = game.get('game_date', 'TBD')[:10] if game.get('game_date') else 'TBD'
-	                        hora = 'TBD'
-	                    
-	                    # Determinar rival y lugar
-	                    if game['home_team_id'] == 695:
-	                        # Leones en casa
-	                        rival_id = game['away_team_id']
-	                        lugar = 'vs'
-	                        estadio_juego = "Monumental"
-	                    else:
-	                        # Leones visitante
-	                        rival_id = game['home_team_id']
-	                        lugar = '@'
-	                        
-	                        # Estadios de cada equipo
-	                        estadios_equipos = {
-	                            698: "Universitario",
-	                            696: "José B. Pérez",
-	                            699: "J.P. Colmenares",
-	                            692: "Luis Aparicio",
-	                            693: "A.H. Gutiérrez",
-	                            694: "Chico Carrasquel",
-	                            697: "Nueva Esparta"
-	                        }
-	                        estadio_juego = estadios_equipos.get(rival_id, "Por definir")
-	                    
-	                    # Nombre del rival
-	                    rival_names = {
-	                        698: "Tiburones",
-	                        696: "Magallanes",
-	                        699: "Tigres",
-	                        692: "Águilas",
-	                        693: "Cardenales",
-	                        694: "Caribes",
-	                        697: "Margarita"
-	                    }
-	                    rival = rival_names.get(rival_id, f"Equipo {rival_id}")
-	                    
-	                    # Estado del juego
-	                    status = game.get('status', 'Programado')
-	                    if status == 'Scheduled':
-	                        status = 'Programado'
-	                    elif status == 'In Progress':
-	                        status = 'En Juego'
-	                    elif status == 'Postponed':
-	                        status = 'Pospuesto'
-	                    
-	                    upcoming_display.append({
-	                        'Fecha': fecha,
-	                        'Hora': hora,
-	                        'Rival': f"{lugar} {rival}",
-	                        'Estadio': estadio_juego,
-	                        'Estado': status
-	                    })
-	                
-	                upcoming_df = pd.DataFrame(upcoming_display)
-	                
-	                # Colorear estado
-	                def color_status(val):
-	                    if val == 'En Juego':
-	                        return 'background-color: #F39C12; color: white'
-	                    elif val == 'Pospuesto':
-	                        return 'background-color: #E74C3C; color: white'
-	                    elif val == 'Programado':
-	                        return 'background-color: #3498DB; color: white'
-	                    return ''
-	                
-	                # Colorear estadio
-	                def color_estadio(val):
-	                    if val == 'Monumental':
-	                        return 'font-weight: bold; color: #196F3D'
-	                    else:
-	                        return 'color: #5D6D7E'
-	                
-	                styled_df = upcoming_df.style.applymap(color_status, subset=['Estado'])
-	                styled_df = styled_df.applymap(color_estadio, subset=['Estadio'])
-	                
-	                st.dataframe(
-	                    styled_df,
-	                    use_container_width=True,
-	                    hide_index=True
-	                )
-	            else:
-	                st.info("No hay juegos programados próximamente")
-	                if selected_season < get_current_season():
-	                    st.caption("📌 Esta es una temporada pasada. No hay juegos futuros.")
-	                else:
-	                    st.caption("📌 La temporada puede haber finalizado o no hay juegos programados.")
-	                    
-	        except Exception as e:
-	            st.error(f"Error al cargar próximos juegos: {str(e)}")
-	            st.info("No se pudieron cargar los próximos juegos")
-	    
-	    with col2:
-	        st.markdown("#### 📜 Últimos 5 Resultados")
-	        
-	        try:
-	            # Obtener últimos juegos finalizados
-	            recent_games = supabase.table('games') \
-	                .select('*') \
-	                .eq('season', selected_season) \
-	                .eq('status', 'Final') \
-	                .or_(f'home_team_id.eq.695,away_team_id.eq.695') \
-	                .order('game_date', desc=True) \
-	                .limit(5) \
-	                .execute()
-	            
-	            if recent_games.data and len(recent_games.data) > 0:
-	                games_display = []
-	                
-	                for game in recent_games.data:
-	                    is_home = game['home_team_id'] == 695
-	                    
-	                    # Fecha
-	                    try:
-	                        fecha = pd.to_datetime(game['game_date']).strftime('%d/%m')
-	                    except:
-	                        fecha = 'N/A'
-	                    
-	                    # Determinar rival
-	                    if is_home:
-	                        rival_id = game['away_team_id']
-	                        lugar = 'vs'
-	                        score_leones = game['home_score']
-	                        score_rival = game['away_score']
-	                    else:
-	                        rival_id = game['home_team_id']
-	                        lugar = '@'
-	                        score_leones = game['away_score']
-	                        score_rival = game['home_score']
-	                    
-	                    # Nombre del rival
-	                    rival_names = {
-	                        698: "Tiburones",
-	                        696: "Magallanes",
-	                        699: "Tigres",
-	                        692: "Águilas",
-	                        693: "Cardenales",
-	                        694: "Caribes",
-	                        697: "Margarita"
-	                    }
-	                    rival = rival_names.get(rival_id, f"Equipo {rival_id}")
-	                    
-	                    # Resultado
-	                    if score_leones > score_rival:
-	                        resultado = 'V'
-	                    else:
-	                        resultado = 'D'
-	                    
-	                    games_display.append({
-	                        'Fecha': fecha,
-	                        'Rival': f"{lugar} {rival}",
-	                        'Resultado': resultado,
-	                        'Marcador': f"{score_leones}-{score_rival}"
-	                    })
-	                
-	                df_games = pd.DataFrame(games_display)
-	                
-	                # Colorear resultados
-	                def color_result(val):
-	                    if val == 'V':
-	                        return f'background-color: #196F3D; color: white; font-weight: bold'
-	                    elif val == 'D':
-	                        return f'background-color: #922B21; color: white; font-weight: bold'
-	                    return ''
-	                
-	                st.dataframe(
-	                    df_games.style.applymap(color_result, subset=['Resultado']),
-	                    use_container_width=True,
-	                    hide_index=True
-	                )
-	                
-	                # Mostrar resumen
-	                total_v = len([g for g in games_display if g['Resultado'] == 'V'])
-	                total_d = len([g for g in games_display if g['Resultado'] == 'D'])
-	                
-	                col_a, col_b = st.columns(2)
-	                with col_a:
-	                    st.metric("Últimos 5", f"{total_v}-{total_d}")
-	                with col_b:
-	                    pct_recent = total_v / 5 if 5 > 0 else 0
-	                    st.metric("PCT", f".{int(pct_recent*1000):03d}")
-	                    
-	            else:
-	                st.info("No hay juegos recientes disponibles")
-	                
-	        except Exception as e:
-	            st.error(f"Error al cargar juegos recientes: {str(e)}")
-	            st.info("No se pudieron cargar los juegos recientes")
+    with tab4:
+        st.markdown(f"### 📅 Calendario - {selected_season_display}")
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown("#### 📅 Próximos 5 Juegos")
+            
+            try:
+                supabase = init_supabase()
+                from datetime import datetime, timedelta
+                today = datetime.now().strftime('%Y-%m-%d')
+                
+                upcoming_games = supabase.table('games') \
+                    .select('*') \
+                    .eq('season', selected_season) \
+                    .gte('game_date', today) \
+                    .or_(f'home_team_id.eq.695,away_team_id.eq.695') \
+                    .neq('status', 'Final') \
+                    .order('game_date', desc=False) \
+                    .limit(5) \
+                    .execute()
+                
+                if upcoming_games.data and len(upcoming_games.data) > 0:
+                    upcoming_display = []
+                    
+                    for game in upcoming_games.data:
+                        try:
+                            game_datetime = pd.to_datetime(game['game_datetime'])
+                            fecha = game_datetime.strftime('%d/%m')
+                            hora = game_datetime.strftime('%I:%M %p')
+                        except:
+                            fecha = game.get('game_date', 'TBD')[:10] if game.get('game_date') else 'TBD'
+                            hora = 'TBD'
+                        
+                        if game['home_team_id'] == 695:
+                            rival_id = game['away_team_id']
+                            lugar = 'vs'
+                            estadio_juego = "Monumental"
+                        else:
+                            rival_id = game['home_team_id']
+                            lugar = '@'
+                            estadios_equipos = {
+                                698: "Universitario",
+                                696: "José B. Pérez",
+                                699: "J.P. Colmenares",
+                                692: "Luis Aparicio",
+                                693: "A.H. Gutiérrez",
+                                694: "Chico Carrasquel",
+                                697: "Nueva Esparta"
+                            }
+                            estadio_juego = estadios_equipos.get(rival_id, "Por definir")
+                        
+                        rival_names = {
+                            698: "Tiburones",
+                            696: "Magallanes",
+                            699: "Tigres",
+                            692: "Águilas",
+                            693: "Cardenales",
+                            694: "Caribes",
+                            697: "Margarita"
+                        }
+                        rival = rival_names.get(rival_id, f"Equipo {rival_id}")
+                        
+                        status = game.get('status', 'Programado')
+                        if status == 'Scheduled':
+                            status = 'Programado'
+                        elif status == 'In Progress':
+                            status = 'En Juego'
+                        elif status == 'Postponed':
+                            status = 'Pospuesto'
+                        
+                        upcoming_display.append({
+                            'Fecha': fecha,
+                            'Hora': hora,
+                            'Rival': f"{lugar} {rival}",
+                            'Estadio': estadio_juego,
+                            'Estado': status
+                        })
+                    
+                    upcoming_df = pd.DataFrame(upcoming_display)
+                    
+                    def color_status(val):
+                        if val == 'En Juego':
+                            return 'background-color: #F39C12; color: white'
+                        elif val == 'Pospuesto':
+                            return 'background-color: #E74C3C; color: white'
+                        elif val == 'Programado':
+                            return 'background-color: #3498DB; color: white'
+                        return ''
+                    
+                    def color_estadio(val):
+                        if val == 'Monumental':
+                            return 'font-weight: bold; color: #196F3D'
+                        else:
+                            return 'color: #5D6D7E'
+                    
+                    styled_df = upcoming_df.style.applymap(color_status, subset=['Estado'])
+                    styled_df = styled_df.applymap(color_estadio, subset=['Estadio'])
+                    
+                    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+                else:
+                    st.info("No hay juegos programados próximamente")
+                    if selected_season < get_current_season():
+                        st.caption("📌 Esta es una temporada pasada.")
+                    else:
+                        st.caption("📌 La temporada puede haber finalizado.")
+                        
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
+        
+        with col2:
+            st.markdown("#### 📜 Últimos 5 Resultados")
+            
+            try:
+                recent_games = supabase.table('games') \
+                    .select('*') \
+                    .eq('season', selected_season) \
+                    .eq('status', 'Final') \
+                    .or_(f'home_team_id.eq.695,away_team_id.eq.695') \
+                    .order('game_date', desc=True) \
+                    .limit(5) \
+                    .execute()
+                
+                if recent_games.data and len(recent_games.data) > 0:
+                    games_display = []
+                    
+                    for game in recent_games.data:
+                        is_home = game['home_team_id'] == 695
+                        
+                        try:
+                            fecha = pd.to_datetime(game['game_date']).strftime('%d/%m')
+                        except:
+                            fecha = 'N/A'
+                        
+                        if is_home:
+                            rival_id = game['away_team_id']
+                            lugar = 'vs'
+                            score_leones = game['home_score']
+                            score_rival = game['away_score']
+                        else:
+                            rival_id = game['home_team_id']
+                            lugar = '@'
+                            score_leones = game['away_score']
+                            score_rival = game['home_score']
+                        
+                        rival_names = {
+                            698: "Tiburones",
+                            696: "Magallanes",
+                            699: "Tigres",
+                            692: "Águilas",
+                            693: "Cardenales",
+                            694: "Caribes",
+                            697: "Margarita"
+                        }
+                        rival = rival_names.get(rival_id, f"Equipo {rival_id}")
+                        
+                        if score_leones > score_rival:
+                            resultado = 'V'
+                        else:
+                            resultado = 'D'
+                        
+                        games_display.append({
+                            'Fecha': fecha,
+                            'Rival': f"{lugar} {rival}",
+                            'Resultado': resultado,
+                            'Marcador': f"{score_leones}-{score_rival}"
+                        })
+                    
+                    df_games = pd.DataFrame(games_display)
+                    
+                    def color_result(val):
+                        if val == 'V':
+                            return 'background-color: #196F3D; color: white; font-weight: bold'
+                        elif val == 'D':
+                            return 'background-color: #922B21; color: white; font-weight: bold'
+                        return ''
+                    
+                    st.dataframe(
+                        df_games.style.applymap(color_result, subset=['Resultado']),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                    
+                    total_v = len([g for g in games_display if g['Resultado'] == 'V'])
+                    total_d = len([g for g in games_display if g['Resultado'] == 'D'])
+                    
+                    col_a, col_b = st.columns(2)
+                    with col_a:
+                        st.metric("Últimos 5", f"{total_v}-{total_d}")
+                    with col_b:
+                        pct_recent = total_v / 5 if 5 > 0 else 0
+                        st.metric("PCT", f".{int(pct_recent*1000):03d}")
+                        
+                else:
+                    st.info("No hay juegos recientes disponibles")
+                    
+            except Exception as e:
+                st.error(f"Error: {str(e)}")
 
 else:
     st.warning(f"No hay datos de standings disponibles para la temporada {selected_season_display}")
@@ -946,4 +919,5 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
