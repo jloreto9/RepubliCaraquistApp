@@ -56,87 +56,76 @@ with tab1:
     st.markdown(f"### 🏏 Líderes de Bateo - {selected_season_display}")
     
     try:
-        # DEBUG: Ver qué hay en la base de datos
-        with st.expander("🔍 Debug - Ver datos disponibles"):
-            # Ver si hay juegos
+        # DEBUG MEJORADO
+        with st.expander("🔍 Debug - Diagnóstico de datos"):
+            # 1. Ver juegos de la temporada
             games_check = supabase.table('games') \
-                .select('id, game_date, home_team_id, away_team_id') \
+                .select('id, game_date, home_team_id, away_team_id, season') \
                 .eq('season', selected_season) \
                 .or_(f'home_team_id.eq.{LEONES_ID},away_team_id.eq.{LEONES_ID}') \
-                .limit(5) \
+                .order('game_date', desc=True) \
+                .limit(10) \
                 .execute()
             
-            st.write(f"Juegos encontrados para temporada {selected_season}:")
+            st.write(f"**Juegos de temporada {selected_season}:**")
             if games_check.data:
-                st.write(f"Total: {len(games_check.data)} juegos")
-                st.write("Primeros IDs:", [g['id'] for g in games_check.data[:5]])
+                games_df_debug = pd.DataFrame(games_check.data)
+                st.dataframe(games_df_debug[['id', 'game_date', 'season']], use_container_width=True)
+                valid_game_ids = [g['id'] for g in games_check.data]
             else:
                 st.write("No se encontraron juegos")
+                valid_game_ids = []
             
-            # Ver si hay stats de bateo
-            batting_check = supabase.table('batting_stats') \
-                .select('game_id, player_id, team_id, ab, h') \
-                .eq('team_id', LEONES_ID) \
-                .limit(5) \
-                .execute()
-            
-            st.write("\nEstadísticas de bateo encontradas:")
-            if batting_check.data:
-                st.write(f"Total registros: {len(batting_check.data)}")
-                st.write("Game IDs:", [b['game_id'] for b in batting_check.data[:5]])
-            else:
-                st.write("No se encontraron estadísticas")
-        
-        # OPCIÓN 1: Query directo sin filtrar por temporada primero
-        batting_response = supabase.table('batting_stats') \
-            .select('''
-                *,
-                players!inner(full_name, jersey_number),
-                games!inner(season, game_date)
-            ''') \
-            .eq('team_id', LEONES_ID) \
-            .eq('games.season', selected_season) \
-            .execute()
-        
-        if not batting_response.data or len(batting_response.data) == 0:
-            # OPCIÓN 2: Query más simple sin join de games
-            st.info("Intentando método alternativo...")
-            
-            # Obtener todos los batting_stats de los Leones
-            batting_response = supabase.table('batting_stats') \
-                .select('*, players!inner(full_name, jersey_number)') \
-                .eq('team_id', LEONES_ID) \
-                .execute()
-            
-            if batting_response.data:
-                # Filtrar manualmente por temporada
-                batting_df = pd.DataFrame(batting_response.data)
-                
-                # Obtener los game_ids de la temporada
-                games_response = supabase.table('games') \
-                    .select('id') \
-                    .eq('season', selected_season) \
+            # 2. Ver qué game_ids tienen estadísticas
+            if valid_game_ids:
+                batting_check = supabase.table('batting_stats') \
+                    .select('game_id, player_id, ab, h') \
+                    .in_('game_id', valid_game_ids) \
+                    .limit(10) \
                     .execute()
                 
-                if games_response.data:
-                    valid_game_ids = [g['id'] for g in games_response.data]
-                    # Filtrar batting_df por game_ids válidos
-                    batting_df = batting_df[batting_df['game_id'].isin(valid_game_ids)]
-                    
-                    if len(batting_df) > 0:
-                        st.success(f"✅ Encontradas {len(batting_df)} entradas de bateo para la temporada {selected_season}")
-                    else:
-                        batting_df = pd.DataFrame()  # DataFrame vacío
+                st.write(f"\n**Estadísticas para estos juegos:**")
+                if batting_check.data:
+                    st.success(f"✅ Encontradas {len(batting_check.data)} estadísticas")
                 else:
-                    batting_df = pd.DataFrame()
-            else:
-                batting_df = pd.DataFrame()
-        else:
-            batting_df = pd.DataFrame(batting_response.data)
-            st.success(f"✅ Encontradas {len(batting_df)} entradas de bateo")
+                    st.error("❌ NO hay estadísticas para los game_ids de esta temporada")
+                    
+                    # Ver qué game_ids SÍ tienen estadísticas
+                    any_batting = supabase.table('batting_stats') \
+                        .select('game_id') \
+                        .eq('team_id', LEONES_ID) \
+                        .limit(20) \
+                        .execute()
+                    
+                    if any_batting.data:
+                        batting_game_ids = list(set([b['game_id'] for b in any_batting.data]))
+                        st.write("\n**Game IDs que SÍ tienen estadísticas:**")
+                        st.write(batting_game_ids[:5])
+                        
+                        # Ver a qué temporada pertenecen esos juegos
+                        games_with_stats = supabase.table('games') \
+                            .select('id, season, game_date') \
+                            .in_('id', batting_game_ids[:5]) \
+                            .execute()
+                        
+                        if games_with_stats.data:
+                            st.write("\n**Estos juegos son de las temporadas:**")
+                            for g in games_with_stats.data:
+                                st.write(f"- Game {g['id']}: Temporada {g['season']} ({g['game_date']})")
         
-        # Procesar datos si existen
-        if not batting_df.empty:
+        # SOLUCIÓN TEMPORAL: Usar CUALQUIER estadística de los Leones
+        st.warning("⚠️ Los datos de batting_stats no están vinculados correctamente con los juegos de la temporada actual.")
+        st.info("Mostrando todas las estadísticas disponibles de los Leones (sin filtrar por temporada)")
+        
+        # Obtener TODAS las estadísticas de los Leones
+        batting_response = supabase.table('batting_stats') \
+            .select('*, players!inner(full_name, jersey_number)') \
+            .eq('team_id', LEONES_ID) \
+            .execute()
+        
+        if batting_response.data and len(batting_response.data) > 0:
+            batting_df = pd.DataFrame(batting_response.data)
+            
             # Extraer nombre del jugador
             batting_df['player_name'] = batting_df['players'].apply(
                 lambda x: x['full_name'] if isinstance(x, dict) else 'Desconocido'
@@ -144,12 +133,6 @@ with tab1:
             batting_df['jersey'] = batting_df['players'].apply(
                 lambda x: str(x.get('jersey_number', '')) if isinstance(x, dict) else ''
             )
-            
-            # Asegurar que todas las columnas numéricas sean numéricas
-            numeric_cols = ['ab', 'r', 'h', 'doubles', 'triples', 'hr', 'rbi', 'bb', 'so', 'sb', 'cs', 'hbp', 'sf', 'sh']
-            for col in numeric_cols:
-                if col in batting_df.columns:
-                    batting_df[col] = pd.to_numeric(batting_df[col], errors='coerce').fillna(0)
             
             # Agrupar por jugador
             batting_grouped = batting_df.groupby(['player_id', 'player_name', 'jersey']).agg({
@@ -162,65 +145,53 @@ with tab1:
                 'rbi': 'sum',
                 'bb': 'sum',
                 'so': 'sum',
-                'sb': 'sum',
-                'cs': 'sum'
+                'sb': 'sum'
             }).reset_index()
             
             # Calcular estadísticas
-            batting_grouped['AVG'] = (batting_grouped['h'] / batting_grouped['ab']).round(3).fillna(0)
+            batting_grouped['AVG'] = (batting_grouped['h'] / batting_grouped['ab']).fillna(0)
             batting_grouped['OBP'] = ((batting_grouped['h'] + batting_grouped['bb']) / 
-                                      (batting_grouped['ab'] + batting_grouped['bb'])).round(3).fillna(0)
+                                      (batting_grouped['ab'] + batting_grouped['bb'])).fillna(0)
             batting_grouped['TB'] = (batting_grouped['h'] + batting_grouped['doubles'] + 
                                      2*batting_grouped['triples'] + 3*batting_grouped['hr'])
-            batting_grouped['SLG'] = (batting_grouped['TB'] / batting_grouped['ab']).round(3).fillna(0)
-            batting_grouped['OPS'] = (batting_grouped['OBP'] + batting_grouped['SLG']).round(3)
+            batting_grouped['SLG'] = (batting_grouped['TB'] / batting_grouped['ab']).fillna(0)
+            batting_grouped['OPS'] = batting_grouped['OBP'] + batting_grouped['SLG']
             
             # Filtrar jugadores con al menos 10 AB
             batting_qualified = batting_grouped[batting_grouped['ab'] >= 10].copy()
+            batting_qualified = batting_qualified.sort_values('AVG', ascending=False)
             
-            if len(batting_qualified) > 0:
-                # Ordenar por AVG
-                batting_qualified = batting_qualified.sort_values('AVG', ascending=False)
-                
-                # Mostrar métricas y tabla como antes...
-                col1, col2, col3, col4 = st.columns(4)
-                
-                # Líder de bateo
-                avg_leader = batting_qualified.iloc[0]
-                with col1:
-                    st.metric(
-                        "👑 Líder de Bateo",
-                        avg_leader['player_name'],
-                        f".{int(avg_leader['AVG']*1000):03d}"
-                    )
-                
-                # Continuar con el resto del código...
-                # [El resto del código de display sigue igual]
-                
-            else:
-                st.warning("No hay jugadores con al menos 10 turnos al bate")
+            # Mostrar tabla
+            st.markdown("### 📊 Estadísticas disponibles (todas las temporadas)")
+            
+            display_cols = {
+                'player_name': 'Jugador',
+                'ab': 'VB',
+                'h': 'H',
+                'AVG': 'AVG',
+                'hr': 'HR',
+                'rbi': 'CI',
+                'OPS': 'OPS'
+            }
+            
+            batting_display = batting_qualified[list(display_cols.keys())].head(20).copy()
+            batting_display.columns = list(display_cols.values())
+            
+            # Formatear
+            batting_display['AVG'] = batting_display['AVG'].apply(lambda x: f'.{int(x*1000):03d}')
+            batting_display['OPS'] = batting_display['OPS'].apply(lambda x: f'{x:.3f}')
+            
+            for col in ['VB', 'H', 'HR', 'CI']:
+                batting_display[col] = batting_display[col].astype(int)
+            
+            st.dataframe(batting_display, use_container_width=True, hide_index=True)
+            
         else:
-            st.warning("No se encontraron estadísticas de bateo para esta temporada")
+            st.error("No hay estadísticas de bateo en la base de datos")
             
-            # Mostrar información adicional de debug
-            with st.expander("🔍 Información adicional"):
-                st.write(f"Temporada seleccionada: {selected_season}")
-                st.write(f"ID de los Leones: {LEONES_ID}")
-                
-                # Verificar si hay datos en general
-                all_batting = supabase.table('batting_stats') \
-                    .select('team_id') \
-                    .limit(10) \
-                    .execute()
-                
-                if all_batting.data:
-                    unique_teams = set([b['team_id'] for b in all_batting.data])
-                    st.write(f"Teams con datos: {unique_teams}")
-                
     except Exception as e:
         st.error(f"Error: {str(e)}")
-        with st.expander("Detalles del error"):
-            st.write(str(e))
+
 with tab2:
     st.markdown(f"### ⚾ Líderes de Pitcheo - {selected_season_display}")
     
@@ -494,4 +465,5 @@ st.markdown("""
     <p>Mínimo 10 VB para calificar en bateo | Mínimo 5 IP para calificar en pitcheo</p>
 </div>
 """, unsafe_allow_html=True)
+
 
