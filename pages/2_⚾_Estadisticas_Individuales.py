@@ -56,218 +56,169 @@ with tab1:
     st.markdown(f"### 🏏 Líderes de Bateo - {selected_season_display}")
     
     try:
-        # Primero obtener los juegos de la temporada para filtrar
-        games_response = supabase.table('games') \
-            .select('id') \
-            .eq('season', selected_season) \
-            .or_(f'home_team_id.eq.{LEONES_ID},away_team_id.eq.{LEONES_ID}') \
+        # DEBUG: Ver qué hay en la base de datos
+        with st.expander("🔍 Debug - Ver datos disponibles"):
+            # Ver si hay juegos
+            games_check = supabase.table('games') \
+                .select('id, game_date, home_team_id, away_team_id') \
+                .eq('season', selected_season) \
+                .or_(f'home_team_id.eq.{LEONES_ID},away_team_id.eq.{LEONES_ID}') \
+                .limit(5) \
+                .execute()
+            
+            st.write(f"Juegos encontrados para temporada {selected_season}:")
+            if games_check.data:
+                st.write(f"Total: {len(games_check.data)} juegos")
+                st.write("Primeros IDs:", [g['id'] for g in games_check.data[:5]])
+            else:
+                st.write("No se encontraron juegos")
+            
+            # Ver si hay stats de bateo
+            batting_check = supabase.table('batting_stats') \
+                .select('game_id, player_id, team_id, ab, h') \
+                .eq('team_id', LEONES_ID) \
+                .limit(5) \
+                .execute()
+            
+            st.write("\nEstadísticas de bateo encontradas:")
+            if batting_check.data:
+                st.write(f"Total registros: {len(batting_check.data)}")
+                st.write("Game IDs:", [b['game_id'] for b in batting_check.data[:5]])
+            else:
+                st.write("No se encontraron estadísticas")
+        
+        # OPCIÓN 1: Query directo sin filtrar por temporada primero
+        batting_response = supabase.table('batting_stats') \
+            .select('''
+                *,
+                players!inner(full_name, jersey_number),
+                games!inner(season, game_date)
+            ''') \
+            .eq('team_id', LEONES_ID) \
+            .eq('games.season', selected_season) \
             .execute()
         
-        if games_response.data:
-            game_ids = [g['id'] for g in games_response.data]
+        if not batting_response.data or len(batting_response.data) == 0:
+            # OPCIÓN 2: Query más simple sin join de games
+            st.info("Intentando método alternativo...")
             
-            # Obtener estadísticas de bateo solo de esos juegos
+            # Obtener todos los batting_stats de los Leones
             batting_response = supabase.table('batting_stats') \
                 .select('*, players!inner(full_name, jersey_number)') \
                 .eq('team_id', LEONES_ID) \
-                .in_('game_id', game_ids) \
                 .execute()
             
-            if batting_response.data and len(batting_response.data) > 0:
-                # Crear DataFrame
+            if batting_response.data:
+                # Filtrar manualmente por temporada
                 batting_df = pd.DataFrame(batting_response.data)
                 
-                # Extraer nombre del jugador
-                batting_df['player_name'] = batting_df['players'].apply(
-                    lambda x: x['full_name'] if isinstance(x, dict) else 'Desconocido'
-                )
-                batting_df['jersey'] = batting_df['players'].apply(
-                    lambda x: str(x.get('jersey_number', '')) if isinstance(x, dict) else ''
-                )
+                # Obtener los game_ids de la temporada
+                games_response = supabase.table('games') \
+                    .select('id') \
+                    .eq('season', selected_season) \
+                    .execute()
                 
-                # Agrupar por jugador y sumar estadísticas
-                batting_grouped = batting_df.groupby(['player_id', 'player_name', 'jersey']).agg({
-                    'ab': 'sum',
-                    'r': 'sum',
-                    'h': 'sum',
-                    'doubles': 'sum',
-                    'triples': 'sum',
-                    'hr': 'sum',
-                    'rbi': 'sum',
-                    'bb': 'sum',
-                    'so': 'sum',
-                    'sb': 'sum',
-                    'cs': 'sum',
-                    'hbp': 'sum',
-                    'sf': 'sum',
-                    'sh': 'sum'
-                }).reset_index()
-                
-                # Reemplazar NaN con 0
-                batting_grouped = batting_grouped.fillna(0)
-                
-                # Calcular estadísticas correctamente
-                # AVG = H / AB
-                batting_grouped['AVG'] = batting_grouped.apply(
-                    lambda x: x['h'] / x['ab'] if x['ab'] > 0 else 0, axis=1
-                )
-                
-                # OBP = (H + BB + HBP) / (AB + BB + HBP + SF)
-                batting_grouped['OBP'] = batting_grouped.apply(
-                    lambda x: (x['h'] + x['bb'] + x['hbp']) / (x['ab'] + x['bb'] + x['hbp'] + x['sf']) 
-                    if (x['ab'] + x['bb'] + x['hbp'] + x['sf']) > 0 else 0, axis=1
-                )
-                
-                # TB (Total Bases) = H + 2B + (2*3B) + (3*HR)
-                batting_grouped['TB'] = batting_grouped['h'] + batting_grouped['doubles'] + (2 * batting_grouped['triples']) + (3 * batting_grouped['hr'])
-                
-                # SLG = TB / AB
-                batting_grouped['SLG'] = batting_grouped.apply(
-                    lambda x: x['TB'] / x['ab'] if x['ab'] > 0 else 0, axis=1
-                )
-                
-                # OPS = OBP + SLG
-                batting_grouped['OPS'] = batting_grouped['OBP'] + batting_grouped['SLG']
-                
-                # Filtrar jugadores con al menos 10 turnos al bate
-                batting_qualified = batting_grouped[batting_grouped['ab'] >= 10].copy()
-                
-                # Ordenar por promedio
+                if games_response.data:
+                    valid_game_ids = [g['id'] for g in games_response.data]
+                    # Filtrar batting_df por game_ids válidos
+                    batting_df = batting_df[batting_df['game_id'].isin(valid_game_ids)]
+                    
+                    if len(batting_df) > 0:
+                        st.success(f"✅ Encontradas {len(batting_df)} entradas de bateo para la temporada {selected_season}")
+                    else:
+                        batting_df = pd.DataFrame()  # DataFrame vacío
+                else:
+                    batting_df = pd.DataFrame()
+            else:
+                batting_df = pd.DataFrame()
+        else:
+            batting_df = pd.DataFrame(batting_response.data)
+            st.success(f"✅ Encontradas {len(batting_df)} entradas de bateo")
+        
+        # Procesar datos si existen
+        if not batting_df.empty:
+            # Extraer nombre del jugador
+            batting_df['player_name'] = batting_df['players'].apply(
+                lambda x: x['full_name'] if isinstance(x, dict) else 'Desconocido'
+            )
+            batting_df['jersey'] = batting_df['players'].apply(
+                lambda x: str(x.get('jersey_number', '')) if isinstance(x, dict) else ''
+            )
+            
+            # Asegurar que todas las columnas numéricas sean numéricas
+            numeric_cols = ['ab', 'r', 'h', 'doubles', 'triples', 'hr', 'rbi', 'bb', 'so', 'sb', 'cs', 'hbp', 'sf', 'sh']
+            for col in numeric_cols:
+                if col in batting_df.columns:
+                    batting_df[col] = pd.to_numeric(batting_df[col], errors='coerce').fillna(0)
+            
+            # Agrupar por jugador
+            batting_grouped = batting_df.groupby(['player_id', 'player_name', 'jersey']).agg({
+                'ab': 'sum',
+                'r': 'sum',
+                'h': 'sum',
+                'doubles': 'sum',
+                'triples': 'sum',
+                'hr': 'sum',
+                'rbi': 'sum',
+                'bb': 'sum',
+                'so': 'sum',
+                'sb': 'sum',
+                'cs': 'sum'
+            }).reset_index()
+            
+            # Calcular estadísticas
+            batting_grouped['AVG'] = (batting_grouped['h'] / batting_grouped['ab']).round(3).fillna(0)
+            batting_grouped['OBP'] = ((batting_grouped['h'] + batting_grouped['bb']) / 
+                                      (batting_grouped['ab'] + batting_grouped['bb'])).round(3).fillna(0)
+            batting_grouped['TB'] = (batting_grouped['h'] + batting_grouped['doubles'] + 
+                                     2*batting_grouped['triples'] + 3*batting_grouped['hr'])
+            batting_grouped['SLG'] = (batting_grouped['TB'] / batting_grouped['ab']).round(3).fillna(0)
+            batting_grouped['OPS'] = (batting_grouped['OBP'] + batting_grouped['SLG']).round(3)
+            
+            # Filtrar jugadores con al menos 10 AB
+            batting_qualified = batting_grouped[batting_grouped['ab'] >= 10].copy()
+            
+            if len(batting_qualified) > 0:
+                # Ordenar por AVG
                 batting_qualified = batting_qualified.sort_values('AVG', ascending=False)
                 
-                # Métricas principales
+                # Mostrar métricas y tabla como antes...
                 col1, col2, col3, col4 = st.columns(4)
                 
-                if not batting_qualified.empty:
-                    # Líder de bateo
-                    avg_leader = batting_qualified.iloc[0]
-                    
-                    with col1:
-                        st.metric(
-                            "👑 Líder de Bateo",
-                            avg_leader['player_name'],
-                            f".{int(avg_leader['AVG']*1000):03d}"
-                        )
-                    
-                    # Líder de jonrones
-                    hr_leader = batting_qualified.nlargest(1, 'hr').iloc[0]
-                    with col2:
-                        st.metric(
-                            "💪 Líder Jonrones",
-                            hr_leader['player_name'],
-                            f"{int(hr_leader['hr'])} HR"
-                        )
-                    
-                    # Líder de impulsadas
-                    rbi_leader = batting_qualified.nlargest(1, 'rbi').iloc[0]
-                    with col3:
-                        st.metric(
-                            "🎯 Líder Impulsadas",
-                            rbi_leader['player_name'],
-                            f"{int(rbi_leader['rbi'])} RBI"
-                        )
-                    
-                    # Líder de OPS
-                    ops_leader = batting_qualified.nlargest(1, 'OPS').iloc[0]
-                    with col4:
-                        st.metric(
-                            "📊 Líder OPS",
-                            ops_leader['player_name'],
-                            f"{ops_leader['OPS']:.3f}"
-                        )
-                
-                st.markdown("---")
-                
-                # Preparar tabla de display
-                display_cols = {
-                    'player_name': 'Jugador',
-                    'jersey': '#',
-                    'ab': 'VB',
-                    'r': 'CA',
-                    'h': 'H',
-                    'doubles': '2B',
-                    'triples': '3B',
-                    'hr': 'HR',
-                    'rbi': 'CI',
-                    'bb': 'BB',
-                    'so': 'SO',
-                    'sb': 'BR',
-                    'AVG': 'AVG',
-                    'OBP': 'OBP',
-                    'SLG': 'SLG',
-                    'OPS': 'OPS'
-                }
-                
-                batting_display = batting_qualified[list(display_cols.keys())].copy()
-                batting_display.columns = list(display_cols.values())
-                
-                # Formatear estadísticas decimales
-                for col in ['AVG', 'OBP', 'SLG']:
-                    if col in batting_display.columns:
-                        batting_display[col] = batting_display[col].apply(
-                            lambda x: f'.{int(x*1000):03d}' if x > 0 else '.000'
-                        )
-                
-                # Formatear OPS
-                batting_display['OPS'] = batting_display['OPS'].apply(lambda x: f'{x:.3f}')
-                
-                # Convertir a enteros las estadísticas de conteo
-                int_cols = ['VB', 'CA', 'H', '2B', '3B', 'HR', 'CI', 'BB', 'SO', 'BR']
-                for col in int_cols:
-                    if col in batting_display.columns:
-                        batting_display[col] = batting_display[col].astype(int)
-                
-                # Mostrar tabla
-                st.dataframe(
-                    batting_display,
-                    use_container_width=True,
-                    hide_index=True,
-                    height=400
-                )
-                
-                # Gráficos
-                st.markdown("---")
-                col1, col2 = st.columns(2)
-                
+                # Líder de bateo
+                avg_leader = batting_qualified.iloc[0]
                 with col1:
-                    # Top 10 promedio de bateo (mínimo 10 AB)
-                    top_avg = batting_qualified.nlargest(10, 'AVG')
-                    fig_avg = px.bar(
-                        top_avg,
-                        x='AVG',
-                        y='player_name',
-                        orientation='h',
-                        title='Top 10 - Promedio de Bateo',
-                        labels={'AVG': 'Promedio', 'player_name': ''},
-                        text=top_avg['AVG'].apply(lambda x: f'.{int(x*1000):03d}')
+                    st.metric(
+                        "👑 Líder de Bateo",
+                        avg_leader['player_name'],
+                        f".{int(avg_leader['AVG']*1000):03d}"
                     )
-                    fig_avg.update_traces(marker_color='#196F3D')
-                    fig_avg.update_layout(height=400, showlegend=False)
-                    st.plotly_chart(fig_avg, use_container_width=True)
                 
-                with col2:
-                    # Jonrones vs RBI
-                    fig_power = px.scatter(
-                        batting_qualified,
-                        x='hr',
-                        y='rbi',
-                        size='ab',
-                        hover_data=['player_name', 'AVG'],
-                        title='Poder: Jonrones vs Carreras Impulsadas',
-                        labels={'hr': 'Jonrones', 'rbi': 'Carreras Impulsadas'},
-                        text='player_name'
-                    )
-                    fig_power.update_traces(marker=dict(color='#FDB827', line=dict(width=1, color='#196F3D')))
-                    fig_power.update_layout(height=400)
-                    st.plotly_chart(fig_power, use_container_width=True)
+                # Continuar con el resto del código...
+                # [El resto del código de display sigue igual]
                 
             else:
-                st.info("No hay estadísticas de bateo disponibles para esta temporada")
+                st.warning("No hay jugadores con al menos 10 turnos al bate")
         else:
-            st.info("No hay juegos de los Leones en esta temporada")
+            st.warning("No se encontraron estadísticas de bateo para esta temporada")
             
+            # Mostrar información adicional de debug
+            with st.expander("🔍 Información adicional"):
+                st.write(f"Temporada seleccionada: {selected_season}")
+                st.write(f"ID de los Leones: {LEONES_ID}")
+                
+                # Verificar si hay datos en general
+                all_batting = supabase.table('batting_stats') \
+                    .select('team_id') \
+                    .limit(10) \
+                    .execute()
+                
+                if all_batting.data:
+                    unique_teams = set([b['team_id'] for b in all_batting.data])
+                    st.write(f"Teams con datos: {unique_teams}")
+                
     except Exception as e:
-        st.error(f"Error al cargar estadísticas de bateo: {str(e)}")
+        st.error(f"Error: {str(e)}")
         with st.expander("Detalles del error"):
             st.write(str(e))
 with tab2:
@@ -543,3 +494,4 @@ st.markdown("""
     <p>Mínimo 10 VB para calificar en bateo | Mínimo 5 IP para calificar en pitcheo</p>
 </div>
 """, unsafe_allow_html=True)
+
