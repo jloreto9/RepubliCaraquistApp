@@ -752,9 +752,9 @@ if not standings_df.empty:
                     
                     def color_estadio(val):
                         if val == 'Monumental':
-                            return 'font-weight: bold; color: #196F3D'
+                            return 'font-weight: bold; color: #FEFAFA'
                         else:
-                            return 'color: #5D6D7E'
+                            return 'color: #FEFAFA'
                     
                     styled_df = upcoming_df.style.applymap(color_status, subset=['Estado'])
                     styled_df = styled_df.applymap(color_estadio, subset=['Estadio'])
@@ -919,5 +919,6 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
 
