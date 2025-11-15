@@ -659,7 +659,7 @@ if not standings_df.empty:
                 st.write(f"ID de Leones: {LEONES_ID}")
                 st.write("IDs de equipos LVBP:", list(LVBP_TEAMS.keys()))
     
-    with tab4:
+	with tab4:
 	    st.markdown(f"### 📅 Calendario - {selected_season_display}")
 	    
 	    col1, col2 = st.columns(2)
@@ -704,10 +704,23 @@ if not standings_df.empty:
 	                        # Leones en casa
 	                        rival_id = game['away_team_id']
 	                        lugar = 'vs'
+	                        estadio_juego = "Monumental"
 	                    else:
 	                        # Leones visitante
 	                        rival_id = game['home_team_id']
 	                        lugar = '@'
+	                        
+	                        # Estadios de cada equipo
+	                        estadios_equipos = {
+	                            698: "Universitario",
+	                            696: "José B. Pérez",
+	                            699: "J.P. Colmenares",
+	                            692: "Luis Aparicio",
+	                            693: "A.H. Gutiérrez",
+	                            694: "Chico Carrasquel",
+	                            697: "Nueva Esparta"
+	                        }
+	                        estadio_juego = estadios_equipos.get(rival_id, "Por definir")
 	                    
 	                    # Nombre del rival
 	                    rival_names = {
@@ -734,8 +747,8 @@ if not standings_df.empty:
 	                        'Fecha': fecha,
 	                        'Hora': hora,
 	                        'Rival': f"{lugar} {rival}",
-	                        'Estado': status,
-	                        'Estadio': game.get('venue', 'TBD') if lugar == 'vs' else 'Visitante'
+	                        'Estadio': estadio_juego,
+	                        'Estado': status
 	                    })
 	                
 	                upcoming_df = pd.DataFrame(upcoming_display)
@@ -750,16 +763,23 @@ if not standings_df.empty:
 	                        return 'background-color: #3498DB; color: white'
 	                    return ''
 	                
+	                # Colorear estadio
+	                def color_estadio(val):
+	                    if val == 'Monumental':
+	                        return 'font-weight: bold; color: #196F3D'
+	                    else:
+	                        return 'color: #5D6D7E'
+	                
+	                styled_df = upcoming_df.style.applymap(color_status, subset=['Estado'])
+	                styled_df = styled_df.applymap(color_estadio, subset=['Estadio'])
+	                
 	                st.dataframe(
-	                    upcoming_df.style.applymap(color_status, subset=['Estado']),
+	                    styled_df,
 	                    use_container_width=True,
 	                    hide_index=True
 	                )
 	            else:
-	                # Si no hay juegos futuros en esta temporada
 	                st.info("No hay juegos programados próximamente")
-	                
-	                # Mostrar mensaje según la temporada
 	                if selected_season < get_current_season():
 	                    st.caption("📌 Esta es una temporada pasada. No hay juegos futuros.")
 	                else:
@@ -822,10 +842,8 @@ if not standings_df.empty:
 	                    # Resultado
 	                    if score_leones > score_rival:
 	                        resultado = 'V'
-	                        color_res = '#196F3D'
 	                    else:
 	                        resultado = 'D'
-	                        color_res = '#922B21'
 	                    
 	                    games_display.append({
 	                        'Fecha': fecha,
@@ -836,7 +854,7 @@ if not standings_df.empty:
 	                
 	                df_games = pd.DataFrame(games_display)
 	                
-	                # Colorear resultados con los colores sobrios
+	                # Colorear resultados
 	                def color_result(val):
 	                    if val == 'V':
 	                        return f'background-color: #196F3D; color: white; font-weight: bold'
@@ -867,80 +885,6 @@ if not standings_df.empty:
 	        except Exception as e:
 	            st.error(f"Error al cargar juegos recientes: {str(e)}")
 	            st.info("No se pudieron cargar los juegos recientes")
-	    
-	    # Sección adicional: Resumen del mes
-	    st.markdown("---")
-	    st.markdown(f"#### 📊 Resumen del Mes Actual")
-	    
-	    try:
-	        # Obtener mes actual
-	        current_month = datetime.now().month
-	        current_year = datetime.now().year
-	        month_start = f"{current_year}-{current_month:02d}-01"
-	        
-	        # Si es el próximo mes, ajustar
-	        if current_month == 12:
-	            month_end = f"{current_year + 1}-01-01"
-	        else:
-	            month_end = f"{current_year}-{current_month + 1:02d}-01"
-	        
-	        # Juegos del mes
-	        month_games = supabase.table('games') \
-	            .select('*') \
-	            .eq('season', selected_season) \
-	            .gte('game_date', month_start) \
-	            .lt('game_date', month_end) \
-	            .or_(f'home_team_id.eq.695,away_team_id.eq.695') \
-	            .execute()
-	        
-	        if month_games.data:
-	            games_this_month = len(month_games.data)
-	            wins_month = 0
-	            losses_month = 0
-	            
-	            for game in month_games.data:
-	                if game['status'] == 'Final':
-	                    if game['home_team_id'] == 695:
-	                        if game['home_score'] > game['away_score']:
-	                            wins_month += 1
-	                        else:
-	                            losses_month += 1
-	                    else:
-	                        if game['away_score'] > game['home_score']:
-	                            wins_month += 1
-	                        else:
-	                            losses_month += 1
-	            
-	            col1, col2, col3, col4 = st.columns(4)
-	            
-	            month_names = {
-	                1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
-	                5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
-	                9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
-	            }
-	            
-	            with col1:
-	                st.metric(f"{month_names[current_month]}", f"{games_this_month} juegos")
-	            
-	            with col2:
-	                st.metric("Récord", f"{wins_month}-{losses_month}")
-	            
-	            with col3:
-	                if wins_month + losses_month > 0:
-	                    pct_month = wins_month / (wins_month + losses_month)
-	                    st.metric("PCT", f".{int(pct_month*1000):03d}")
-	                else:
-	                    st.metric("PCT", ".000")
-	            
-	            with col4:
-	                pending = games_this_month - (wins_month + losses_month)
-	                st.metric("Por jugar", pending)
-	        else:
-	            st.info("No hay juegos programados este mes")
-	            
-	    except Exception as e:
-	        st.info("No se pudo cargar el resumen del mes")
-
 
 else:
     st.warning(f"No hay datos de standings disponibles para la temporada {selected_season_display}")
@@ -1002,3 +946,4 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
