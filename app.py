@@ -364,62 +364,74 @@ with tab1:
 with tab2:
     st.markdown("### 📊 Últimos 10 Juegos")
     
-    # Obtener últimos 10 juegos reales
     recent_10 = get_recent_games(team_id=695, limit=10)
     
     if not recent_10.empty:
+        # Nuevo: Procesar para manejar doble juegos e innings incompletos
         games_display = []
-        for _, game in recent_10.iterrows():
-            is_home = game['home_team_id'] == 695
-            
-            # Fecha
-            try:
-                fecha = pd.to_datetime(game['game_date']).strftime('%d/%m')
-            except:
-                fecha = 'N/A'
-            
-            # Rival y resultado
-            if is_home:
-                if isinstance(game.get('away_team'), dict):
-                    rival = game['away_team'].get('abbreviation', 'RIV')
+        grouped_by_date = recent_10.groupby('game_date')  # Agrupar por fecha
+        
+        for date, group in grouped_by_date:
+            game_count = len(group)  # Número de juegos en esa fecha
+            for idx, game in enumerate(group.iterrows(), start=1):
+                game = game[1]  # Obtener la fila
+                is_home = game['home_team_id'] == 695
+                
+                # Fecha (formateada)
+                try:
+                    fecha = pd.to_datetime(date).strftime('%d/%m')
+                except:
+                    fecha = 'N/A'
+                
+                # Rival y resultado (igual que antes)
+                if is_home:
+                    rival = game.get('away_team', {}).get('abbreviation', 'RIV') if isinstance(game.get('away_team'), dict) else 'RIV'
+                    resultado = 'W' if game['home_score'] > game['away_score'] else 'L'
+                    marcador = f"{game['home_score']}-{game['away_score']}"
                 else:
-                    rival = 'RIV'
-                resultado = 'W' if game['home_score'] > game['away_score'] else 'L'
-                marcador = f"{game['home_score']}-{game['away_score']}"
-            else:
-                if isinstance(game.get('home_team'), dict):
-                    rival = f"@{game['home_team'].get('abbreviation', 'RIV')}"
+                    rival = f"@{game.get('home_team', {}).get('abbreviation', 'RIV')}" if isinstance(game.get('home_team'), dict) else '@RIV'
+                    resultado = 'W' if game['away_score'] > game['home_score'] else 'L'
+                    marcador = f"{game['away_score']}-{game['home_score']}"
+                
+                # Nuevo: Manejar doble juegos (agregar "Juego X" si hay múltiples)
+                if game_count > 1:
+                    rival = f"{rival} (Juego {idx})"
+                
+                # Nuevo: Verificar si el juego fue completo (9+ innings y finalizado)
+                # Asumiendo que 'inning' es el número de innings jugados y 'status' indica si terminó
+                inning = game.get('inning', 0)  # Campo hipotético; ajusta si es diferente
+                status = game.get('status', '')  # e.g., "Final"
+                if status == 'Final' and inning >= 9:
+                    notas = "Completo"
                 else:
-                    rival = '@RIV'
-                resultado = 'W' if game['away_score'] > game['home_score'] else 'L'
-                marcador = f"{game['away_score']}-{game['home_score']}"
-            
-            games_display.append({
-                'Fecha': fecha,
-                'Rival': rival,
-                'Resultado': resultado,
-                'Marcador': marcador
-            })
+                    notas = f"Incompleto ({inning} inn)" if inning < 9 else "Otro"
+                
+                games_display.append({
+                    'Fecha': fecha,
+                    'Rival': rival,
+                    'Resultado': resultado,
+                    'Marcador': marcador,
+                    'Notas': notas  # Nueva columna
+                })
         
         df_games = pd.DataFrame(games_display)
         
-        # Mostrar con colores
+        # Función de color (igual que antes)
         def color_result(val):
             if val == 'W':
                 color = '#196F3D'
             else:
                 color = '#922B21'
-                
             return f'background-color: {color}'
-
-               
+        
+        # Mostrar DataFrame con la nueva columna
         st.dataframe(
             df_games.style.applymap(color_result, subset=['Resultado']),
             use_container_width=True,
             hide_index=True
         )
     else:
-        st.info("No hay datos de juegos recientes disponibles")
+        st.info("No hay datos de juegos recientes disponibles.")
 
 with tab3:
     col1, col2 = st.columns(2)
