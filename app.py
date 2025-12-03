@@ -366,24 +366,24 @@ with tab2:
     
     recent_10 = get_recent_games(team_id=695, limit=10)
     
+    # Depuración: Muestra los datos crudos
+    st.write("Datos crudos de recent_10:", recent_10.head())
+    
     if not recent_10.empty:
-        # Nuevo: Procesar para manejar doble juegos e innings incompletos
         games_display = []
-        grouped_by_date = recent_10.groupby('game_date')  # Agrupar por fecha
+        grouped_by_date = recent_10.groupby('game_date')
         
         for date, group in grouped_by_date:
-            game_count = len(group)  # Número de juegos en esa fecha
+            game_count = len(group)
             for idx, game in enumerate(group.iterrows(), start=1):
-                game = game[1]  # Obtener la fila
+                game = game[1]
                 is_home = game['home_team_id'] == 695
                 
-                # Fecha (formateada)
                 try:
                     fecha = pd.to_datetime(date).strftime('%d/%m')
                 except:
                     fecha = 'N/A'
                 
-                # Rival y resultado (igual que antes)
                 if is_home:
                     rival = game.get('away_team', {}).get('abbreviation', 'RIV') if isinstance(game.get('away_team'), dict) else 'RIV'
                     resultado = 'W' if game['home_score'] > game['away_score'] else 'L'
@@ -393,30 +393,27 @@ with tab2:
                     resultado = 'W' if game['away_score'] > game['home_score'] else 'L'
                     marcador = f"{game['away_score']}-{game['home_score']}"
                 
-                # Nuevo: Manejar doble juegos (agregar "Juego X" si hay múltiples)
                 if game_count > 1:
                     rival = f"{rival} (Juego {idx})"
                 
-                # Nuevo: Verificar si el juego fue completo (9+ innings y finalizado)
-                # Asumiendo que 'inning' es el número de innings jugados y 'status' indica si terminó
-                inning = game.get('inning', 0)  # Campo hipotético; ajusta si es diferente
-                status = game.get('status', '')  # e.g., "Final"
-                if status == 'Final' and inning >= 9:
+                # Ajusta esta lógica basada en los datos reales
+                status = game.get('status', '')
+                inning = game.get('inning', 9)  # Asume 9 por defecto si no hay campo
+                if status in ['Final', 'Completed'] and inning >= 9:
                     notas = "Completo"
                 else:
-                    notas = f"Incompleto ({inning} inn)" if inning < 9 else "Otro"
+                    notas = f"Incompleto ({inning} inn)" if inning < 9 else f"Otro ({status})"
                 
                 games_display.append({
                     'Fecha': fecha,
                     'Rival': rival,
                     'Resultado': resultado,
                     'Marcador': marcador,
-                    'Notas': notas  # Nueva columna
+                    'Notas': notas
                 })
         
         df_games = pd.DataFrame(games_display)
         
-        # Función de color (igual que antes)
         def color_result(val):
             if val == 'W':
                 color = '#196F3D'
@@ -424,7 +421,6 @@ with tab2:
                 color = '#922B21'
             return f'background-color: {color}'
         
-        # Mostrar DataFrame con la nueva columna
         st.dataframe(
             df_games.style.applymap(color_result, subset=['Resultado']),
             use_container_width=True,
