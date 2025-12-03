@@ -74,7 +74,7 @@ def get_standings(season=None):
         games_response = supabase.table('games') \
             .select('*') \
             .eq('season', season) \
-            .in_('status', ['Final', 'Completed', 'Completed Early']) \  # ← Agregado 'Completed Early'
+            .in_('status', ['Final', 'Completed', 'Completed Early']) \
             .execute()
         
         if not games_response.data:
@@ -320,6 +320,7 @@ def calculate_batting_stats(df):
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)
+
 
 
 
