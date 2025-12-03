@@ -70,11 +70,11 @@ def get_standings(season=None):
     
     # Si no hay standings, calcular desde games
     try:
-        # Obtener juegos de la temporada - CORRECCIÓN: Incluir 'Final' y 'Completed'
+        # Obtener juegos de la temporada - CORRECCIÓN: Incluir 'Final', 'Completed' y 'Completed Early'
         games_response = supabase.table('games') \
             .select('*') \
             .eq('season', season) \
-            .in_('status', ['Final', 'Completed']) \  # ← Cambio: .in_() en lugar de .eq('status', 'Final')
+            .in_('status', ['Final', 'Completed', 'Completed Early']) \  # ← Agregado 'Completed Early'
             .execute()
         
         if not games_response.data:
@@ -320,6 +320,7 @@ def calculate_batting_stats(df):
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)
+
 
 
 
