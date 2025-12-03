@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+from utils.supabase_client import get_standings, get_recent_games, get_team_stats, get_current_season, get_available_seasons, get_leones_advanced_stats
 
 # Cargar variables de entorno
 load_dotenv()
@@ -296,7 +297,7 @@ with col4:
 st.markdown("---")
 
 # Tabs principales
-tab1, tab2, tab3 = st.tabs(["📅 Último Juego", "📈 Tendencias", "🌟 Líderes del Equipo"])
+tab1, tab2, tab3, tab4 = st.tabs(["📅 Último Juego", "📈 Tendencias", "🌟 Líderes del Equipo", "🦁 Leones Stats"])
 
 with tab1:
     # Obtener último juego real
@@ -455,6 +456,38 @@ with tab3:
         st.dataframe(pitching_leaders, use_container_width=True, hide_index=True)
 
 st.markdown("---")
+
+with tab4:
+    st.markdown("### 🦁 Leones del Caracas 25-26")
+    
+    # Obtener estadísticas avanzadas
+    advanced_stats = get_leones_advanced_stats(selected_season)
+    
+    if advanced_stats:
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.markdown(f"**Juego N°{advanced_stats['total_games']} ({advanced_stats['record']})**")
+            st.markdown(f"**Home Club:** {advanced_stats['home_record']}")
+            st.markdown(f"**Visitante:** {advanced_stats['away_record']}")
+            st.markdown(f"**De noche:** {advanced_stats['night_record']}")
+            st.markdown(f"**Blanqueo:** {advanced_stats['shutouts']}")
+            st.markdown(f"**Racha:** {advanced_stats['streak']}")
+            st.markdown(f"**En extrainning:** {advanced_stats['extra_inning']}")
+            st.markdown(f"**Ult-10J:** {advanced_stats['last_10']}")
+        
+        with col2:
+            st.markdown(f"**Por 1 Carrera:** {advanced_stats['one_run']}")
+            st.markdown(f"**Remontados:** {advanced_stats['comebacks']}")
+            st.markdown(f"**Arriba:** {advanced_stats['up']}")
+            st.markdown(f"**Terreneadas:** {advanced_stats['blown_leads']}")
+            st.markdown(f"**Abridores:** {advanced_stats['starters']}")
+            st.markdown(f"**Relevistas:** {advanced_stats['relievers']}")
+            st.markdown(f"**Salvados:** {advanced_stats['saves']}")
+            st.markdown(f"**OCT:** {advanced_stats['oct']}")
+            st.markdown(f"**NOV:** {advanced_stats['nov']}")
+    else:
+        st.info("No hay datos disponibles para estadísticas avanzadas.")
 
 # Footer
 st.markdown("""
