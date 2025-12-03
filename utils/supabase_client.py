@@ -82,10 +82,6 @@ def get_standings(season=None):
         
         games_df = pd.DataFrame(games_response.data)
         
-        # Depuración temporal: Muestra cuántos juegos y qué statuses hay (quita después de probar)
-        st.write(f"Juegos encontrados para temporada {season}: {len(games_df)}")
-        st.write("Statuses únicos:", games_df['status'].unique())
-        
         # Filtrar solo juegos de equipos LVBP
         games_df = games_df[
             (games_df['home_team_id'].isin(LVBP_TEAM_IDS)) | 
@@ -320,6 +316,7 @@ def calculate_batting_stats(df):
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)
+
 
 
 
