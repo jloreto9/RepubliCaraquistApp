@@ -245,19 +245,19 @@ def get_leones_advanced_stats(season=None):
         home_losses = 0
         away_wins = 0
         away_losses = 0
-        night_wins = 0
+        night_wins = 0  # Placeholder: Asume que no hay campo 'is_night_game'
         night_losses = 0
         shutouts = 0
         extra_inning_wins = 0
         extra_inning_losses = 0
         one_run_wins = 0
         one_run_losses = 0
-        comeback_wins = 0
+        comeback_wins = 0  # Placeholder: Requiere datos por inning
         comeback_losses = 0
-        up_wins = 0
+        up_wins = 0  # Placeholder
         up_losses = 0
-        blown_leads = 0  # Terreneadas (perdidos en la baja del 9no)
-        starter_wins = 0
+        blown_leads = 0  # Placeholder
+        starter_wins = 0  # Placeholder: Requiere datos de pitchers
         starter_losses = 0
         reliever_wins = 0
         reliever_losses = 0
@@ -301,19 +301,16 @@ def get_leones_advanced_stats(season=None):
                 else:
                     away_losses += 1
             
-            # De noche (asumiendo campo 'is_night_game' o inferir de hora; si no, omite o ajusta)
-            # Si no tienes 'is_night_game', puedes omitir o hardcodear basado en conocimiento
-            if game.get('is_night_game', False):  # Ajusta si el campo existe
-                if won:
-                    night_wins += 1
-                else:
-                    night_losses += 1
+            # De noche: Placeholder (si tienes campo 'game_time' o 'is_night', ajusta aquí)
+            # Ejemplo: if pd.to_datetime(game.get('game_time', '12:00')).hour >= 18: ...
+            # Por ahora, omite o hardcodea si sabes
+            pass  # No calcular hasta tener campo
             
             # Blanqueo (shutout: oponente no anota)
             if opponent_score == 0:
                 shutouts += 1
             
-            # Extra innings (asumiendo inning > 9)
+            # Extra innings: Si inning > 9
             if game.get('inning', 9) > 9:
                 if won:
                     extra_inning_wins += 1
@@ -327,51 +324,30 @@ def get_leones_advanced_stats(season=None):
                 else:
                     one_run_losses += 1
             
-            # Remontados (comebacks: perdían y ganaron)
-            # Esto requiere datos de innings; si no tienes, omite o simplifica
-            # Asumiendo un campo 'comeback' o lógica simple (e.g., si ganaron por poco)
-            if game.get('comeback', False):  # Ajusta si tienes este campo
-                if won:
-                    comeback_wins += 1
-                else:
-                    comeback_losses += 1
+            # Remontadas/Arriba/Terreneadas: Placeholder (requiere innings_data)
+            # Si tienes campo 'innings_summary' (e.g., JSON con scores por inning), puedes parsear
+            # Por ahora: "No disponible"
+            pass
             
-            # Arriba (up: ganaron estando arriba)
-            if game.get('up', False):  # Campo hipotético; ajusta
-                if won:
-                    up_wins += 1
-                else:
-                    up_losses += 1
-            
-            # Terreneadas (blown leads: perdieron en la baja del 9no)
-            if game.get('blown_lead', False):  # Campo hipotético
-                blown_leads += 1
-            
-            # Abridores/Relevistas (asumiendo campos 'starter_win', etc.)
-            if game.get('starter_win', False):
-                starter_wins += 1
-            if game.get('starter_loss', False):
-                starter_losses += 1
-            if game.get('reliever_win', False):
-                reliever_wins += 1
-            if game.get('reliever_loss', False):
-                reliever_losses += 1
-            
-            # Salvados
-            saves += game.get('saves', 0) or 0
+            # Abridores/Relevistas/Salvados: Placeholder (requiere pitchers_data)
+            # Si tienes tabla 'game_pitchers', consulta ahí
+            pass
             
             # Por mes (OCT/NOV)
-            month = pd.to_datetime(game['game_date']).month
-            if month == 10:
-                if won:
-                    oct_wins += 1
-                else:
-                    oct_losses += 1
-            elif month == 11:
-                if won:
-                    nov_wins += 1
-                else:
-                    nov_losses += 1
+            try:
+                month = pd.to_datetime(game['game_date']).month
+                if month == 10:
+                    if won:
+                        oct_wins += 1
+                    else:
+                        oct_losses += 1
+                elif month == 11:
+                    if won:
+                        nov_wins += 1
+                    else:
+                        nov_losses += 1
+            except:
+                pass
         
         # Últimos 10
         for _, g in last_10_games.iterrows():
@@ -401,18 +377,18 @@ def get_leones_advanced_stats(season=None):
             'record': f"{wins}-{losses}",
             'home_record': f"{home_wins}-{home_losses}",
             'away_record': f"{away_wins}-{away_losses}",
-            'night_record': f"{night_wins}-{night_losses}",
+            'night_record': f"{night_wins}-{night_losses}",  # Placeholder
             'shutouts': f"{shutouts}",
             'streak': streak,
             'extra_inning': f"{extra_inning_wins}-{extra_inning_losses}",
             'last_10': f"{last_10_wins}-{last_10_losses}",
             'one_run': f"{one_run_wins}-{one_run_losses}",
-            'comebacks': f"{comeback_wins}-{comeback_losses}",
-            'up': f"{up_wins}-{up_losses}",
-            'blown_leads': f"{blown_leads}",
-            'starters': f"{starter_wins}-{starter_losses}",
-            'relievers': f"{reliever_wins}-{reliever_losses}",
-            'saves': f"{saves}",
+            'comebacks': f"{comeback_wins}-{comeback_losses}",  # Placeholder: "No disponible"
+            'up': f"{up_wins}-{up_losses}",  # Placeholder
+            'blown_leads': f"{blown_leads}",  # Placeholder
+            'starters': f"{starter_wins}-{starter_losses}",  # Placeholder
+            'relievers': f"{reliever_wins}-{reliever_losses}",  # Placeholder
+            'saves': f"{saves}",  # Placeholder
             'oct': f"{oct_wins}G-{oct_losses}P",
             'nov': f"{nov_wins}G-{nov_losses}P"
         }
@@ -420,7 +396,6 @@ def get_leones_advanced_stats(season=None):
     except Exception as e:
         st.error(f"Error calculando estadísticas avanzadas: {str(e)}")
         return {}
-
 @st.cache_data(ttl=3600)
 def get_team_stats(team_id=695, season=None):
     """Obtiene estadísticas del equipo"""
@@ -522,6 +497,7 @@ def calculate_batting_stats(df):
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)
+
 
 
 
