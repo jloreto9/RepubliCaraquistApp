@@ -297,7 +297,7 @@ if not standings_df.empty:
             games_response = supabase.table('games') \
                 .select('*') \
                 .eq('season', selected_season) \
-                .in_('status', ['Final', 'Completed Early']) \  # ← Cambio: .in_() en lugar de .eq('status', 'Final')
+                .in_('status', ['Final', 'Completed Early']) \
                 .or_(f'home_team_id.eq.{LEONES_ID},away_team_id.eq.{LEONES_ID}') \
                 .execute()
             
@@ -919,6 +919,7 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
 
 
