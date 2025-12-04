@@ -367,9 +367,6 @@ with tab2:
     
     recent_10 = get_recent_games(team_id=695, limit=10)
     
-    # Depuración: Muestra los datos crudos
-    st.write("Datos crudos de recent_10:", recent_10.head())
-    
     if not recent_10.empty:
         games_display = []
         grouped_by_date = recent_10.groupby('game_date')
@@ -397,13 +394,12 @@ with tab2:
                 if game_count > 1:
                     rival = f"{rival} (Juego {idx})"
                 
-                # Ajusta esta lógica basada en los datos reales
+                inning = game.get('inning', 0)
                 status = game.get('status', '')
-                inning = game.get('inning', 9)  # Asume 9 por defecto si no hay campo
                 if status in ['Final', 'Completed'] and inning >= 9:
                     notas = "Completo"
                 else:
-                    notas = f"Incompleto ({inning} inn)" if inning < 9 else f"Otro ({status})"
+                    notas = f"Incompleto ({inning} inn)" if inning < 9 else "Otro"
                 
                 games_display.append({
                     'Fecha': fecha,
