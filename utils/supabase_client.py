@@ -215,189 +215,180 @@ def get_standings(season=None):
         st.error(f"Error calculando standings: {str(e)}")
         return pd.DataFrame()
 
-@st.cache_data(ttl=600)
-def get_leones_advanced_stats(season=None):
-    """Calcula estadísticas avanzadas de los Leones del Caracas"""
-    if season is None:
-        season = get_current_season()
-    
-    supabase = init_supabase()
-    
-    try:
-        # Obtener juegos de los Leones en la temporada
-        games_response = supabase.table('games') \
-            .select('*') \
-            .eq('season', season) \
-            .in_('status', ['Final', 'Completed', 'Completed Early']) \
-            .or_('home_team_id.eq.695,away_team_id.eq.695') \
-            .execute()
-        
-        if not games_response.data:
-            return {}
-        
-        games_df = pd.DataFrame(games_response.data)
-        
-        # Inicializar contadores
-        total_games = len(games_df)
-        wins = 0
-        losses = 0
-        home_wins = 0
-        home_losses = 0
-        away_wins = 0
-        away_losses = 0
-        night_wins = 0  # Placeholder: Asume que no hay campo 'is_night_game'
-        night_losses = 0
-        shutouts = 0
-        extra_inning_wins = 0
-        extra_inning_losses = 0
-        one_run_wins = 0
-        one_run_losses = 0
-        comeback_wins = 0  # Placeholder: Requiere datos por inning
-        comeback_losses = 0
-        up_wins = 0  # Placeholder
-        up_losses = 0
-        blown_leads = 0  # Placeholder
-        starter_wins = 0  # Placeholder: Requiere datos de pitchers
-        starter_losses = 0
-        reliever_wins = 0
-        reliever_losses = 0
-        saves = 0
-        oct_wins = 0
-        oct_losses = 0
-        nov_wins = 0
-        nov_losses = 0
-        
-        # Últimos 10 juegos
-        last_10_games = games_df.sort_values('game_date', ascending=False).head(10)
-        last_10_wins = 0
-        last_10_losses = 0
-        
-        # Racha actual
-        streak_games = []
-        
-        for _, game in games_df.iterrows():
-            is_home = game['home_team_id'] == 695
-            leones_score = game['home_score'] if is_home else game['away_score']
-            opponent_score = game['away_score'] if is_home else game['home_score']
-            won = leones_score > opponent_score
-            
-            # Récord general
-            if won:
-                wins += 1
-                streak_games.append('W')
-            else:
-                losses += 1
-                streak_games.append('L')
-            
-            # Home/Away
-            if is_home:
-                if won:
-                    home_wins += 1
-                else:
-                    home_losses += 1
-            else:
-                if won:
-                    away_wins += 1
-                else:
-                    away_losses += 1
-            
-            # De noche: Placeholder (si tienes campo 'game_time' o 'is_night', ajusta aquí)
-            # Ejemplo: if pd.to_datetime(game.get('game_time', '12:00')).hour >= 18: ...
-            # Por ahora, omite o hardcodea si sabes
-            pass  # No calcular hasta tener campo
-            
-            # Blanqueo (shutout: oponente no anota)
-            if opponent_score == 0:
-                shutouts += 1
-            
-            # Extra innings: Si inning > 9
-            if game.get('inning', 9) > 9:
-                if won:
-                    extra_inning_wins += 1
-                else:
-                    extra_inning_losses += 1
-            
-            # Por 1 carrera
-            if abs(leones_score - opponent_score) == 1:
-                if won:
-                    one_run_wins += 1
-                else:
-                    one_run_losses += 1
-            
-            # Remontadas/Arriba/Terreneadas: Placeholder (requiere innings_data)
-            # Si tienes campo 'innings_summary' (e.g., JSON con scores por inning), puedes parsear
-            # Por ahora: "No disponible"
-            pass
-            
-            # Abridores/Relevistas/Salvados: Placeholder (requiere pitchers_data)
-            # Si tienes tabla 'game_pitchers', consulta ahí
-            pass
-            
-            # Por mes (OCT/NOV)
-            try:
-                month = pd.to_datetime(game['game_date']).month
-                if month == 10:
-                    if won:
-                        oct_wins += 1
-                    else:
-                        oct_losses += 1
-                elif month == 11:
-                    if won:
-                        nov_wins += 1
-                    else:
-                        nov_losses += 1
-            except:
-                pass
-        
-        # Últimos 10
-        for _, g in last_10_games.iterrows():
-            is_home = g['home_team_id'] == 695
-            leones_score = g['home_score'] if is_home else g['away_score']
-            opponent_score = g['away_score'] if is_home else g['home_score']
-            if leones_score > opponent_score:
-                last_10_wins += 1
-            else:
-                last_10_losses += 1
-        
-        # Racha
-        if streak_games:
-            current_streak = 1
-            streak_type = streak_games[-1]
-            for i in range(len(streak_games)-2, -1, -1):
-                if streak_games[i] == streak_type:
-                    current_streak += 1
-                else:
-                    break
-            streak = f"{current_streak} {streak_type}"
-        else:
-            streak = "N/A"
-        
-        return {
-            'total_games': total_games,
-            'record': f"{wins}-{losses}",
-            'home_record': f"{home_wins}-{home_losses}",
-            'away_record': f"{away_wins}-{away_losses}",
-            'night_record': f"{night_wins}-{night_losses}",  # Placeholder
-            'shutouts': f"{shutouts}",
-            'streak': streak,
-            'extra_inning': f"{extra_inning_wins}-{extra_inning_losses}",
-            'last_10': f"{last_10_wins}-{last_10_losses}",
-            'one_run': f"{one_run_wins}-{one_run_losses}",
-            'comebacks': f"{comeback_wins}-{comeback_losses}",  # Placeholder: "No disponible"
-            'up': f"{up_wins}-{up_losses}",  # Placeholder
-            'blown_leads': f"{blown_leads}",  # Placeholder
-            'starters': f"{starter_wins}-{starter_losses}",  # Placeholder
-            'relievers': f"{reliever_wins}-{reliever_losses}",  # Placeholder
-            'saves': f"{saves}",  # Placeholder
-            'oct': f"{oct_wins}G-{oct_losses}P",
-            'nov': f"{nov_wins}G-{nov_losses}P"
-        }
-        
-    except Exception as e:
-        st.error(f"Error calculando estadísticas avanzadas: {str(e)}")
-        return {}
-        return pd.DataFrame()
-
+   @st.cache_data(ttl=600)
+   def get_leones_advanced_stats(season=None):
+       """Calcula estadísticas avanzadas de los Leones del Caracas"""
+       if season is None:
+           season = get_current_season()
+       
+       supabase = init_supabase()
+       
+       try:
+           # Obtener juegos de los Leones en la temporada
+           games_response = supabase.table('games') \
+               .select('*') \
+               .eq('season', season) \
+               .in_('status', ['Final', 'Completed', 'Completed Early']) \
+               .or_('home_team_id.eq.695,away_team_id.eq.695') \
+               .execute()
+           
+           if not games_response.data:
+               return {}
+           
+           games_df = pd.DataFrame(games_response.data)
+           
+           # Inicializar contadores
+           total_games = len(games_df)
+           wins = 0
+           losses = 0
+           home_wins = 0
+           home_losses = 0
+           away_wins = 0
+           away_losses = 0
+           night_wins = 0  # Placeholder
+           night_losses = 0
+           shutouts = 0
+           extra_inning_wins = 0
+           extra_inning_losses = 0
+           one_run_wins = 0
+           one_run_losses = 0
+           comeback_wins = 0  # Placeholder
+           comeback_losses = 0
+           up_wins = 0  # Placeholder
+           up_losses = 0
+           blown_leads = 0  # Placeholder
+           starter_wins = 0  # Placeholder
+           starter_losses = 0
+           reliever_wins = 0
+           reliever_losses = 0
+           saves = 0
+           oct_wins = 0
+           oct_losses = 0
+           nov_wins = 0
+           nov_losses = 0
+           
+           # Últimos 10 juegos
+           last_10_games = games_df.sort_values('game_date', ascending=False).head(10)
+           last_10_wins = 0
+           last_10_losses = 0
+           
+           # Racha actual
+           streak_games = []
+           
+           for _, game in games_df.iterrows():
+               is_home = game['home_team_id'] == 695
+               leones_score = game['home_score'] if is_home else game['away_score']
+               opponent_score = game['away_score'] if is_home else game['home_score']
+               won = leones_score > opponent_score
+               
+               # Récord general
+               if won:
+                   wins += 1
+                   streak_games.append('W')
+               else:
+                   losses += 1
+                   streak_games.append('L')
+               
+               # Home/Away
+               if is_home:
+                   if won:
+                       home_wins += 1
+                   else:
+                       home_losses += 1
+               else:
+                   if won:
+                       away_wins += 1
+                   else:
+                       away_losses += 1
+               
+               # De noche: Placeholder
+               pass
+               
+               # Blanqueo
+               if opponent_score == 0:
+                   shutouts += 1
+               
+               # Extra innings
+               if game.get('inning', 9) > 9:
+                   if won:
+                       extra_inning_wins += 1
+                   else:
+                       extra_inning_losses += 1
+               
+               # Por 1 carrera
+               if abs(leones_score - opponent_score) == 1:
+                   if won:
+                       one_run_wins += 1
+                   else:
+                       one_run_losses += 1
+               
+               # Placeholders para remontadas, arriba, terreneadas, pitchers
+               pass
+               
+               # Por mes
+               try:
+                   month = pd.to_datetime(game['game_date']).month
+                   if month == 10:
+                       if won:
+                           oct_wins += 1
+                       else:
+                           oct_losses += 1
+                   elif month == 11:
+                       if won:
+                           nov_wins += 1
+                       else:
+                           nov_losses += 1
+               except:
+                   pass
+           
+           # Últimos 10
+           for _, g in last_10_games.iterrows():
+               is_home = g['home_team_id'] == 695
+               leones_score = g['home_score'] if is_home else g['away_score']
+               opponent_score = g['away_score'] if is_home else g['home_score']
+               if leones_score > opponent_score:
+                   last_10_wins += 1
+               else:
+                   last_10_losses += 1
+           
+           # Racha
+           if streak_games:
+               current_streak = 1
+               streak_type = streak_games[-1]
+               for i in range(len(streak_games)-2, -1, -1):
+                   if streak_games[i] == streak_type:
+                       current_streak += 1
+                   else:
+                       break
+               streak = f"{current_streak} {streak_type}"
+           else:
+               streak = "N/A"
+           
+           return {
+               'total_games': total_games,
+               'record': f"{wins}-{losses}",
+               'home_record': f"{home_wins}-{home_losses}",
+               'away_record': f"{away_wins}-{away_losses}",
+               'night_record': f"{night_wins}-{night_losses}",
+               'shutouts': f"{shutouts}",
+               'streak': streak,
+               'extra_inning': f"{extra_inning_wins}-{extra_inning_losses}",
+               'last_10': f"{last_10_wins}-{last_10_losses}",
+               'one_run': f"{one_run_wins}-{one_run_losses}",
+               'comebacks': f"{comeback_wins}-{comeback_losses}",
+               'up': f"{up_wins}-{up_losses}",
+               'blown_leads': f"{blown_leads}",
+               'starters': f"{starter_wins}-{starter_losses}",
+               'relievers': f"{reliever_wins}-{reliever_losses}",
+               'saves': f"{saves}",
+               'oct': f"{oct_wins}G-{oct_losses}P",
+               'nov': f"{nov_wins}G-{nov_losses}P"
+           }
+           
+       except Exception as e:
+           st.error(f"Error calculando estadísticas avanzadas: {str(e)}")
+           return {}
+   
 @st.cache_data(ttl=1800)
 def get_recent_games(team_id=695, limit=10):
     """Obtiene los últimos juegos del equipo"""
@@ -479,6 +470,7 @@ def calculate_batting_stats(df):
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)
+
 
 
 
