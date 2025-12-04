@@ -293,11 +293,11 @@ if not standings_df.empty:
         LEONES_ID = 695
         
         try:
-            # Obtener todos los juegos de los Leones en la temporada
+            # Obtener todos los juegos de los Leones en la temporada - INCLUIR 'Final' y 'Completed Early'
             games_response = supabase.table('games') \
                 .select('*') \
                 .eq('season', selected_season) \
-                .eq('status', 'Final') \
+                .in_('status', ['Final', 'Completed Early']) \  # ← Cambio: .in_() en lugar de .eq('status', 'Final')
                 .or_(f'home_team_id.eq.{LEONES_ID},away_team_id.eq.{LEONES_ID}') \
                 .execute()
             
@@ -919,6 +919,7 @@ with st.expander("📖 Leyenda"):
         - **L#**: Derrotas consecutivas
         - **Últimos 10**: Récord en los últimos 10 juegos
         """)
+
 
 
 
