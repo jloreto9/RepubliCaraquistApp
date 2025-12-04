@@ -133,7 +133,7 @@ with col3:
     st.write("")
 
 # Importar funciones DESPUÉS del header
-from utils.supabase_client import get_standings, get_recent_games, get_team_stats, get_current_season, get_available_seasons
+from utils.supabase_client import get_standings, get_recent_games, get_current_season, get_available_seasons
 
 # Sidebar COMPLETO
 with st.sidebar:
