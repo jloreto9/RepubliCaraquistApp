@@ -236,7 +236,7 @@ def get_leones_advanced_stats(season=None):
             return {}
         
         games_df = pd.DataFrame(games_response.data)
-        game_ids = games_df['id'].tolist()  # IDs de juegos para consultas adicionales
+        game_ids = games_df['id'].tolist()
         
         # Inicializar contadores
         total_games = len(games_df)
@@ -246,7 +246,7 @@ def get_leones_advanced_stats(season=None):
         home_losses = 0
         away_wins = 0
         away_losses = 0
-        night_wins = 0  # Placeholder
+        night_wins = 0
         night_losses = 0
         shutouts = 0
         extra_inning_wins = 0
@@ -263,12 +263,18 @@ def get_leones_advanced_stats(season=None):
         nov_wins = 0
         nov_losses = 0
         
-        # Consultar innings para remontadas, arriba y terreneadas
-        innings_response = supabase.table('game_innings') \
-            .select('*') \
-            .in_('game_id', game_ids) \
-            .execute()
-        innings_df = pd.DataFrame(innings_response.data) if innings_response.data else pd.DataFrame()
+        # Intentar consultar innings (si la tabla existe)
+        innings_df = pd.DataFrame()
+        try:
+            innings_response = supabase.table('game_innings') \
+                .select('*') \
+                .in_('game_id', game_ids) \
+                .execute()
+            if innings_response.data:
+                innings_df = pd.DataFrame(innings_response.data)
+        except Exception as e:
+            # Si la tabla no existe, continuar sin innings
+            pass
         
         # Últimos 10 juegos
         last_10_games = games_df.sort_values('game_date', ascending=False).head(10)
@@ -305,9 +311,6 @@ def get_leones_advanced_stats(season=None):
                 else:
                     away_losses += 1
             
-            # De noche: Placeholder
-            pass
-            
             # Blanqueo
             if opponent_score == 0:
                 shutouts += 1
@@ -326,7 +329,7 @@ def get_leones_advanced_stats(season=None):
                 else:
                     one_run_losses += 1
             
-            # Remontadas, arriba y terreneadas: Calcular desde innings
+            # Remontadas, arriba y terreneadas (solo si innings_df tiene datos)
             if not innings_df.empty:
                 game_innings = innings_df[innings_df['game_id'] == game_id].sort_values('inning')
                 if not game_innings.empty:
@@ -350,7 +353,7 @@ def get_leones_advanced_stats(season=None):
                     elif not won and leones_was_ahead:
                         up_losses += 1
                     
-                    # Terreneadas: Perdida en la baja del 9no
+                    # Terreneadas
                     if not won and game.get('inning', 9) >= 9:
                         ninth_inning = game_innings[game_innings['inning'] == 9]
                         if not ninth_inning.empty:
@@ -409,12 +412,12 @@ def get_leones_advanced_stats(season=None):
             'extra_inning': f"{extra_inning_wins}-{extra_inning_losses}",
             'last_10': f"{last_10_wins}-{last_10_losses}",
             'one_run': f"{one_run_wins}-{one_run_losses}",
-            'comebacks': f"{comeback_wins}-{comeback_losses}",
-            'up': f"{up_wins}-{up_losses}",
-            'blown_leads': f"{blown_leads}",
-            'starters': "En construcción",  # Placeholder estático
-            'relievers': "En construcción",  # Placeholder estático
-            'saves': "En construcción",  # Placeholder estático
+            'comebacks': "En construcción" if innings_df.empty else f"{comeback_wins}-{comeback_losses}",
+            'up': "En construcción" if innings_df.empty else f"{up_wins}-{up_losses}",
+            'blown_leads': "En construcción" if innings_df.empty else f"{blown_leads}",
+            'starters': "En construcción",
+            'relievers': "En construcción",
+            'saves': "En construcción",
             'oct': f"{oct_wins}G-{oct_losses}P",
             'nov': f"{nov_wins}G-{nov_losses}P"
         }
@@ -504,6 +507,7 @@ def calculate_batting_stats(df):
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)
+
 
 
 
