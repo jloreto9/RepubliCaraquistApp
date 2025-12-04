@@ -394,19 +394,11 @@ with tab2:
                 if game_count > 1:
                     rival = f"{rival} (Juego {idx})"
                 
-                inning = game.get('inning', 0)
-                status = game.get('status', '')
-                if status in ['Final', 'Completed'] and inning >= 9:
-                    notas = "Completo"
-                else:
-                    notas = f"Incompleto ({inning} inn)" if inning < 9 else "Otro"
-                
                 games_display.append({
                     'Fecha': fecha,
                     'Rival': rival,
                     'Resultado': resultado,
-                    'Marcador': marcador,
-                    'Notas': notas
+                    'Marcador': marcador
                 })
         
         df_games = pd.DataFrame(games_display)
