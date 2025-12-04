@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 import os
 from dotenv import load_dotenv
-from utils.supabase_client import get_standings, get_recent_games, get_team_stats, get_current_season, get_available_seasons, get_leones_advanced_stats
+from utils.supabase_client import get_standings, get_recent_games, get_current_season, get_available_seasons, get_leones_advanced_stats
 
 # Cargar variables de entorno
 load_dotenv()
