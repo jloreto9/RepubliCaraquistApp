@@ -396,24 +396,6 @@ def get_leones_advanced_stats(season=None):
     except Exception as e:
         st.error(f"Error calculando estadísticas avanzadas: {str(e)}")
         return {}
-@st.cache_data(ttl=3600)
-def get_team_stats(team_id=695, season=None):
-    """Obtiene estadísticas del equipo"""
-    if season is None:
-        season = get_current_season()
-    
-    supabase = init_supabase()
-    
-    try:
-        games = supabase.table('games') \
-            .select('*') \
-            .eq('season', season) \
-            .or_(f'home_team_id.eq.{team_id},away_team_id.eq.{team_id}') \
-            .order('game_date', desc=True) \
-            .execute()
-        
-        return pd.DataFrame(games.data) if games.data else pd.DataFrame()
-    except:
         return pd.DataFrame()
 
 @st.cache_data(ttl=1800)
@@ -497,6 +479,7 @@ def calculate_batting_stats(df):
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)
+
 
 
 
