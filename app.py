@@ -468,7 +468,7 @@ with tab4:
         
         with col2:
             st.markdown(f"**Por 1 Carrera:** {advanced_stats['one_run']}")
-            st.markdown(f"**Remontados:** {advanced_stats['comebacks']}")
+            st.markdown(f"**Remontados:** {advanced_stats['remontados']}")
             st.markdown(f"**Arriba:** {advanced_stats['up']}")
             st.markdown(f"**Terreneadas:** {advanced_stats['blown_leads']}")
             st.markdown(f"**Abridores:** {advanced_stats['starters']}")

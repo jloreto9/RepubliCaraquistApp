@@ -258,12 +258,20 @@ def get_leones_advanced_stats(season=None):
         up_wins = 0
         up_losses = 0
         blown_leads = 0
+        remontados = 0
+        arriba_wins = 0
+        arriba_losses = 0
         oct_wins = 0
         oct_losses = 0
         nov_wins = 0
         nov_losses = 0
         dec_wins = 0
         dec_losses = 0
+        starter_wins = 0
+        starter_losses = 0
+        reliever_wins = 0
+        reliever_losses = 0
+        saves = 0
         
         # Intentar consultar innings (si la tabla existe)
         innings_df = pd.DataFrame()
@@ -331,38 +339,91 @@ def get_leones_advanced_stats(season=None):
                 else:
                     one_run_losses += 1
             
-            # Remontadas, arriba y terreneadas (solo si innings_df tiene datos)
+            # Remontadas, arriba, terreneadas y decisiones de pitcheo (solo si innings_df tiene datos)
             if not innings_df.empty:
                 game_innings = innings_df[innings_df['game_id'] == game_id].sort_values('inning')
                 if not game_innings.empty:
-                    leones_was_behind = False
-                    leones_was_ahead = False
-                    for _, inn in game_innings.iterrows():
-                        inn_leones = inn['home_score'] if is_home else inn['away_score']
-                        inn_opponent = inn['away_score'] if is_home else inn['home_score']
-                        if inn_leones < inn_opponent:
-                            leones_was_behind = True
-                        elif inn_leones > inn_opponent:
-                            leones_was_ahead = True
-                    
+                    cumulative_leones = game_innings.apply(
+                        lambda row: row['home_score'] if is_home else row['away_score'], axis=1
+                    )
+                    cumulative_opp = game_innings.apply(
+                        lambda row: row['away_score'] if is_home else row['home_score'], axis=1
+                    )
+
+                    score_by_inning = pd.DataFrame({
+                        'inning': game_innings['inning'],
+                        'leones': cumulative_leones,
+                        'opp': cumulative_opp
+                    })
+
+                    # Estado al 5to y 7mo inning
+                    through_five = score_by_inning[score_by_inning['inning'] == 5]
+                    through_seven = score_by_inning[score_by_inning['inning'] == 7]
+
+                    if not through_five.empty:
+                        five_leones = through_five.iloc[0]['leones']
+                        five_opp = through_five.iloc[0]['opp']
+
+                        # Remontados: ganaban al 5to y terminaron perdiendo
+                        if five_leones > five_opp and not won:
+                            remontados += 1
+
+                        # Decisiones de abridores / relevistas (aproximación)
+                        if five_leones > five_opp and won:
+                            starter_wins += 1
+                        elif five_leones < five_opp and not won:
+                            starter_losses += 1
+                        elif five_leones < five_opp and won:
+                            reliever_wins += 1
+                        elif five_leones > five_opp and not won:
+                            reliever_losses += 1
+                        else:
+                            # Empatados al 5to, decisión recae en el bullpen
+                            if won:
+                                reliever_wins += 1
+                            else:
+                                reliever_losses += 1
+
+                    if not through_seven.empty:
+                        seven_leones = through_seven.iloc[0]['leones']
+                        seven_opp = through_seven.iloc[0]['opp']
+                        if seven_leones > seven_opp:
+                            if won:
+                                arriba_wins += 1
+                            else:
+                                arriba_losses += 1
+
+                    # Arriba / Remontadas generales
+                    leones_was_behind = (score_by_inning['leones'] < score_by_inning['opp']).any()
+                    leones_was_ahead = (score_by_inning['leones'] > score_by_inning['opp']).any()
+
                     if won and leones_was_behind:
                         comeback_wins += 1
                     elif not won and leones_was_behind:
                         comeback_losses += 1
-                    
+
                     if won and leones_was_ahead:
                         up_wins += 1
                     elif not won and leones_was_ahead:
                         up_losses += 1
-                    
-                    # Terreneadas
-                    if not won and game.get('inning', 9) >= 9:
-                        ninth_inning = game_innings[game_innings['inning'] == 9]
-                        if not ninth_inning.empty:
-                            ninth_leones = ninth_inning.iloc[0]['home_score'] if is_home else ninth_inning.iloc[0]['away_score']
-                            ninth_opponent = ninth_inning.iloc[0]['away_score'] if is_home else ninth_inning.iloc[0]['home_score']
-                            if ninth_leones > ninth_opponent:
-                                blown_leads += 1
+
+                    # Terreneadas (walk-offs)
+                    final_inning = score_by_inning['inning'].max()
+                    last_frame = score_by_inning[score_by_inning['inning'] == final_inning]
+                    prev_frame = score_by_inning[score_by_inning['inning'] == final_inning - 1]
+
+                    if not last_frame.empty and not prev_frame.empty:
+                        prev_leones = prev_frame.iloc[0]['leones']
+                        prev_opp = prev_frame.iloc[0]['opp']
+                        final_leones = last_frame.iloc[0]['leones']
+                        final_opp = last_frame.iloc[0]['opp']
+
+                        # Si el local deja en el terreno al final
+                        walkoff_for = is_home and won and prev_leones <= prev_opp and final_leones > final_opp
+                        walkoff_against = (not is_home) and (not won) and prev_opp <= prev_leones and final_opp > final_leones
+
+                        if walkoff_for or walkoff_against:
+                            blown_leads += 1
             
             # Por mes
             try:
@@ -384,6 +445,10 @@ def get_leones_advanced_stats(season=None):
                         dec_losses += 1
             except:
                 pass
+            
+            # Salvados: aproximar con margen de 3 carreras o menos
+            if won and abs(leones_score - opponent_score) <= 3:
+                saves += 1
         
         # Últimos 10
         for _, g in last_10_games.iterrows():
@@ -420,11 +485,12 @@ def get_leones_advanced_stats(season=None):
             'last_10': f"{last_10_wins}-{last_10_losses}",
             'one_run': f"{one_run_wins}-{one_run_losses}",
             'comebacks': "En construcción" if innings_df.empty else f"{comeback_wins}-{comeback_losses}",
-            'up': "En construcción" if innings_df.empty else f"{up_wins}-{up_losses}",
+            'up': "En construcción" if innings_df.empty else f"{arriba_wins}-{arriba_losses}",
             'blown_leads': "En construcción" if innings_df.empty else f"{blown_leads}",
-            'starters': "En construcción",
-            'relievers': "En construcción",
-            'saves': "En construcción",
+            'starters': "En construcción" if innings_df.empty else f"{starter_wins}-{starter_losses}",
+            'relievers': "En construcción" if innings_df.empty else f"{reliever_wins}-{reliever_losses}",
+            'saves': "En construcción" if innings_df.empty else f"{saves}",
+            'remontados': "En construcción" if innings_df.empty else f"{remontados}",
             'oct': f"{oct_wins}G-{oct_losses}P",
             'nov': f"{nov_wins}G-{nov_losses}P",
             'dec': f"{dec_wins}G-{dec_losses}P"
