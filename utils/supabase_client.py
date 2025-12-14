@@ -262,6 +262,8 @@ def get_leones_advanced_stats(season=None):
         oct_losses = 0
         nov_wins = 0
         nov_losses = 0
+        dec_wins = 0
+        dec_losses = 0
         
         # Intentar consultar innings (si la tabla existe)
         innings_df = pd.DataFrame()
@@ -375,6 +377,11 @@ def get_leones_advanced_stats(season=None):
                         nov_wins += 1
                     else:
                         nov_losses += 1
+                elif month == 12:
+                    if won:
+                        dec_wins += 1
+                    else:
+                        dec_losses += 1
             except:
                 pass
         
@@ -419,7 +426,8 @@ def get_leones_advanced_stats(season=None):
             'relievers': "En construcción",
             'saves': "En construcción",
             'oct': f"{oct_wins}G-{oct_losses}P",
-            'nov': f"{nov_wins}G-{nov_losses}P"
+            'nov': f"{nov_wins}G-{nov_losses}P",
+            'dec': f"{dec_wins}G-{dec_losses}P"
         }
         
     except Exception as e:

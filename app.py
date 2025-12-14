@@ -476,6 +476,7 @@ with tab4:
             st.markdown(f"**Salvados:** {advanced_stats['saves']}")
             st.markdown(f"**OCT:** {advanced_stats['oct']}")
             st.markdown(f"**NOV:** {advanced_stats['nov']}")
+            st.markdown(f"**DEC:** {advanced_stats['dec']}")
     else:
         st.info("No hay datos disponibles para estadísticas avanzadas.")
 
