@@ -445,7 +445,7 @@ def get_leones_advanced_stats(season=None):
                         dec_losses += 1
             except:
                 pass
-            
+
             # Salvados: aproximar con margen de 3 carreras o menos
             if won and abs(leones_score - opponent_score) <= 3:
                 saves += 1
@@ -484,13 +484,13 @@ def get_leones_advanced_stats(season=None):
             'extra_inning': f"{extra_inning_wins}-{extra_inning_losses}",
             'last_10': f"{last_10_wins}-{last_10_losses}",
             'one_run': f"{one_run_wins}-{one_run_losses}",
-            'comebacks': "En construcción" if innings_df.empty else f"{comeback_wins}-{comeback_losses}",
-            'up': "En construcción" if innings_df.empty else f"{arriba_wins}-{arriba_losses}",
-            'blown_leads': "En construcción" if innings_df.empty else f"{blown_leads}",
-            'starters': "En construcción" if innings_df.empty else f"{starter_wins}-{starter_losses}",
-            'relievers': "En construcción" if innings_df.empty else f"{reliever_wins}-{reliever_losses}",
-            'saves': "En construcción" if innings_df.empty else f"{saves}",
-            'remontados': "En construcción" if innings_df.empty else f"{remontados}",
+            'comebacks': f"{comeback_wins}-{comeback_losses}",
+            'up': f"{arriba_wins}-{arriba_losses}",
+            'blown_leads': f"{blown_leads}",
+            'starters': f"{starter_wins}-{starter_losses}",
+            'relievers': f"{reliever_wins}-{reliever_losses}",
+            'saves': f"{saves}",
+            'remontados': f"{remontados}",
             'oct': f"{oct_wins}G-{oct_losses}P",
             'nov': f"{nov_wins}G-{nov_losses}P",
             'dec': f"{dec_wins}G-{dec_losses}P"
