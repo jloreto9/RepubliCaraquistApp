@@ -81,6 +81,7 @@ def get_standings(season=None):
             return pd.DataFrame()
         
         games_df = pd.DataFrame(games_response.data)
+        games_df = games_df.sort_values('game_date')
         
         # Filtrar solo juegos de equipos LVBP
         games_df = games_df[
@@ -343,12 +344,15 @@ def get_leones_advanced_stats(season=None):
             if not innings_df.empty:
                 game_innings = innings_df[innings_df['game_id'] == game_id].sort_values('inning')
                 if not game_innings.empty:
-                    cumulative_leones = game_innings.apply(
+                    inning_runs_leones = game_innings.apply(
                         lambda row: row['home_score'] if is_home else row['away_score'], axis=1
                     )
-                    cumulative_opp = game_innings.apply(
+                    inning_runs_opp = game_innings.apply(
                         lambda row: row['away_score'] if is_home else row['home_score'], axis=1
                     )
+
+                    cumulative_leones = inning_runs_leones.cumsum()
+                    cumulative_opp = inning_runs_opp.cumsum()
 
                     score_by_inning = pd.DataFrame({
                         'inning': game_innings['inning'],
