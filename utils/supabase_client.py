@@ -19,8 +19,22 @@ def init_supabase() -> Client:
     return create_client(url, key)
 
 def get_current_season():
-    """Retorna la temporada actual"""
-    return 2026  # Temporada 2025-2026
+    """Retorna la temporada actual basada en la fecha"""
+    now = datetime.now()
+    month = now.month
+    year = now.year
+
+    # La temporada 2025-2026 se guarda como 2026
+    # Octubre-Diciembre del año N = temporada N+1
+    # Enero-Febrero del año N = temporada N
+    # Marzo-Septiembre = fuera de temporada (retorna año actual)
+    if month >= 10:  # Oct-Dic
+        return year + 1
+    elif month <= 2:  # Ene-Feb
+        return year
+    else:
+        # Fuera de temporada (Mar-Sep)
+        return year
 
 @st.cache_data(ttl=3600)
 def get_available_seasons():
