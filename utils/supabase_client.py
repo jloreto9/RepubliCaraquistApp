@@ -523,42 +523,130 @@ def get_recent_games(team_id=695, limit=10):
         return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
-def get_batting_stats(team_id=695, limit=50):
-    """Obtiene estadísticas de bateo"""
+def get_batting_stats(team_id=695, limit=50, season=None):
+    """Obtiene estadísticas de bateo agregadas por jugador"""
     supabase = init_supabase()
-    
+
+    if season is None:
+        season = get_current_season()
+
     try:
+        # Obtener todos los registros de bateo del equipo para la temporada
         response = supabase.table('batting_stats') \
-            .select('*, players!inner(full_name)') \
+            .select('*, players!inner(full_name), games!inner(season)') \
             .eq('team_id', team_id) \
-            .limit(limit) \
+            .eq('games.season', season) \
             .execute()
-        
-        if response.data:
-            return pd.DataFrame(response.data)
-    except:
-        pass
-    
-    return pd.DataFrame()
+
+        if not response.data:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(response.data)
+
+        # Extraer nombre del jugador
+        df['player_name'] = df['players'].apply(
+            lambda x: x.get('full_name', 'N/A') if isinstance(x, dict) else 'N/A'
+        )
+
+        # Agrupar por jugador y sumar estadísticas
+        grouped = df.groupby(['player_id', 'player_name']).agg({
+            'ab': 'sum',
+            'r': 'sum',
+            'h': 'sum',
+            'doubles': 'sum',
+            'triples': 'sum',
+            'hr': 'sum',
+            'rbi': 'sum',
+            'bb': 'sum',
+            'so': 'sum',
+            'sb': 'sum'
+        }).reset_index()
+
+        # Calcular estadísticas derivadas
+        grouped['avg'] = (grouped['h'] / grouped['ab']).fillna(0).round(3)
+        grouped['obp'] = ((grouped['h'] + grouped['bb']) / (grouped['ab'] + grouped['bb'])).fillna(0).round(3)
+        grouped['slg'] = ((grouped['h'] + grouped['doubles'] + 2*grouped['triples'] + 3*grouped['hr']) / grouped['ab']).fillna(0).round(3)
+        grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
+
+        # Crear columna 'players' con el formato esperado
+        grouped['players'] = grouped.apply(
+            lambda row: {'full_name': row['player_name']}, axis=1
+        )
+
+        return grouped.sort_values('ops', ascending=False).head(limit)
+
+    except Exception as e:
+        print(f"Error obteniendo estadísticas de bateo: {str(e)}")
+        return pd.DataFrame()
 
 @st.cache_data(ttl=3600)
-def get_pitching_stats(team_id=695, limit=50):
-    """Obtiene estadísticas de pitcheo"""
+def get_pitching_stats(team_id=695, limit=50, season=None):
+    """Obtiene estadísticas de pitcheo agregadas por jugador"""
     supabase = init_supabase()
-    
+
+    if season is None:
+        season = get_current_season()
+
     try:
+        # Obtener todos los registros de pitcheo del equipo para la temporada
         response = supabase.table('pitching_stats') \
-            .select('*, players!inner(full_name)') \
+            .select('*, players!inner(full_name), games!inner(season)') \
             .eq('team_id', team_id) \
-            .limit(limit) \
+            .eq('games.season', season) \
             .execute()
-        
-        if response.data:
-            return pd.DataFrame(response.data)
-    except:
-        pass
-    
-    return pd.DataFrame()
+
+        if not response.data:
+            return pd.DataFrame()
+
+        df = pd.DataFrame(response.data)
+
+        # Extraer nombre del jugador
+        df['player_name'] = df['players'].apply(
+            lambda x: x.get('full_name', 'N/A') if isinstance(x, dict) else 'N/A'
+        )
+
+        # Contar juegos (apariciones)
+        df['g_count'] = 1
+
+        # Agrupar por jugador y sumar estadísticas
+        grouped = df.groupby(['player_id', 'player_name']).agg({
+            'ip_decimal': 'sum',
+            'h': 'sum',
+            'r': 'sum',
+            'er': 'sum',
+            'bb': 'sum',
+            'so': 'sum',
+            'hr': 'sum',
+            'g_count': 'sum'
+        }).reset_index()
+
+        # Renombrar columnas
+        grouped = grouped.rename(columns={
+            'ip_decimal': 'ip',
+            'g_count': 'g'
+        })
+
+        # Calcular estadísticas derivadas
+        grouped['era'] = ((grouped['er'] * 9) / grouped['ip']).fillna(0).round(2)
+        grouped['whip'] = ((grouped['h'] + grouped['bb']) / grouped['ip']).fillna(0).round(2)
+
+        # Estas estadísticas no están disponibles en el boxscore individual
+        # Las inicializamos en 0 por ahora
+        grouped['w'] = 0
+        grouped['l'] = 0
+        grouped['sv'] = 0
+        grouped['gs'] = 0
+
+        # Crear columna 'players' con el formato esperado
+        grouped['players'] = grouped.apply(
+            lambda row: {'full_name': row['player_name']}, axis=1
+        )
+
+        return grouped.sort_values('ip', ascending=False).head(limit)
+
+    except Exception as e:
+        print(f"Error obteniendo estadísticas de pitcheo: {str(e)}")
+        return pd.DataFrame()
 
 def calculate_batting_stats(df):
     """Calcula estadísticas de bateo agregadas"""

@@ -69,63 +69,12 @@ tab1, tab2, tab3 = st.tabs(["🏏 Bateo", "⚾ Pitcheo", "📊 Comparaciones"])
 with tab1:
     st.markdown("### 🏏 Estadísticas de Bateo")
 
-    # Obtener datos de bateo
-    batting_df = get_batting_stats(team_id=695, limit=100)
+    # Obtener datos de bateo para la temporada seleccionada (ya vienen agregados)
+    batting_df = get_batting_stats(team_id=695, limit=100, season=selected_season)
 
     if not batting_df.empty:
-        # Extraer nombre del jugador primero
-        if 'players' in batting_df.columns:
-            batting_df['player_name'] = batting_df['players'].apply(
-                lambda x: x.get('full_name', 'N/A') if isinstance(x, dict) else 'N/A'
-            )
-        elif 'player_name' not in batting_df.columns:
-            batting_df['player_name'] = 'Jugador ' + batting_df.index.astype(str)
-
-        # Asegurar que existan columnas básicas con valores por defecto
-        if 'ab' not in batting_df.columns:
-            batting_df['ab'] = 0
-        if 'h' not in batting_df.columns:
-            batting_df['h'] = 0
-        if 'r' not in batting_df.columns:
-            batting_df['r'] = 0
-        if 'doubles' not in batting_df.columns:
-            batting_df['doubles'] = 0
-        if 'triples' not in batting_df.columns:
-            batting_df['triples'] = 0
-        if 'hr' not in batting_df.columns:
-            batting_df['hr'] = 0
-        if 'rbi' not in batting_df.columns:
-            batting_df['rbi'] = 0
-        if 'bb' not in batting_df.columns:
-            batting_df['bb'] = 0
-        if 'so' not in batting_df.columns:
-            batting_df['so'] = 0
-        if 'sb' not in batting_df.columns:
-            batting_df['sb'] = 0
-
-        # Calcular estadísticas adicionales si no existen
-        if 'avg' not in batting_df.columns:
-            batting_df['avg'] = batting_df.apply(
-                lambda x: round(x['h'] / x['ab'], 3) if x['ab'] > 0 else 0.000,
-                axis=1
-            )
-
-        if 'obp' not in batting_df.columns:
-            batting_df['obp'] = batting_df.apply(
-                lambda x: round((x['h'] + x['bb']) / (x['ab'] + x['bb']), 3)
-                if (x['ab'] + x['bb']) > 0 else 0.000,
-                axis=1
-            )
-
-        if 'slg' not in batting_df.columns:
-            batting_df['slg'] = batting_df.apply(
-                lambda x: round((x['h'] + x['doubles'] + 2*x['triples'] + 3*x['hr']) / x['ab'], 3)
-                if x['ab'] > 0 else 0.000,
-                axis=1
-            )
-
-        if 'ops' not in batting_df.columns:
-            batting_df['ops'] = (batting_df['obp'] + batting_df['slg']).round(3)
+        # Los datos ya vienen con player_name y todas las estadísticas calculadas
+        # Solo filtrar por AB mínimo si el usuario lo especifica
 
         # Filtro de búsqueda
         search = st.text_input("🔍 Buscar jugador", placeholder="Nombre del jugador...")
@@ -339,54 +288,11 @@ with tab1:
 with tab2:
     st.markdown("### ⚾ Estadísticas de Pitcheo")
 
-    # Obtener datos de pitcheo
-    pitching_df = get_pitching_stats(team_id=695, limit=100)
+    # Obtener datos de pitcheo para la temporada seleccionada (ya vienen agregados)
+    pitching_df = get_pitching_stats(team_id=695, limit=100, season=selected_season)
 
     if not pitching_df.empty:
-        # Extraer nombre del jugador primero
-        if 'players' in pitching_df.columns:
-            pitching_df['player_name'] = pitching_df['players'].apply(
-                lambda x: x.get('full_name', 'N/A') if isinstance(x, dict) else 'N/A'
-            )
-        elif 'player_name' not in pitching_df.columns:
-            pitching_df['player_name'] = 'Lanzador ' + pitching_df.index.astype(str)
-
-        # Asegurar que existan columnas básicas con valores por defecto
-        if 'ip' not in pitching_df.columns:
-            pitching_df['ip'] = 0.0
-        if 'er' not in pitching_df.columns:
-            pitching_df['er'] = 0
-        if 'h' not in pitching_df.columns:
-            pitching_df['h'] = 0
-        if 'bb' not in pitching_df.columns:
-            pitching_df['bb'] = 0
-        if 'so' not in pitching_df.columns:
-            pitching_df['so'] = 0
-        if 'w' not in pitching_df.columns:
-            pitching_df['w'] = 0
-        if 'l' not in pitching_df.columns:
-            pitching_df['l'] = 0
-        if 'g' not in pitching_df.columns:
-            pitching_df['g'] = 0
-        if 'gs' not in pitching_df.columns:
-            pitching_df['gs'] = 0
-        if 'sv' not in pitching_df.columns:
-            pitching_df['sv'] = 0
-        if 'r' not in pitching_df.columns:
-            pitching_df['r'] = 0
-
-        # Calcular estadísticas adicionales si no existen
-        if 'era' not in pitching_df.columns:
-            pitching_df['era'] = pitching_df.apply(
-                lambda x: round((x['er'] * 9) / x['ip'], 2) if x['ip'] > 0 else 0.00,
-                axis=1
-            )
-
-        if 'whip' not in pitching_df.columns:
-            pitching_df['whip'] = pitching_df.apply(
-                lambda x: round((x['h'] + x['bb']) / x['ip'], 2) if x['ip'] > 0 else 0.00,
-                axis=1
-            )
+        # Los datos ya vienen con player_name y todas las estadísticas calculadas
 
         # Filtro de búsqueda
         search = st.text_input("🔍 Buscar lanzador", placeholder="Nombre del lanzador...")
@@ -605,62 +511,12 @@ with tab2:
 with tab3:
     st.markdown("### 📊 Comparaciones y Análisis")
 
-    # Verificar si hay datos
-    batting_df = get_batting_stats(team_id=695, limit=100)
-    pitching_df = get_pitching_stats(team_id=695, limit=100)
+    # Verificar si hay datos para la temporada seleccionada (ya vienen agregados)
+    batting_df = get_batting_stats(team_id=695, limit=100, season=selected_season)
+    pitching_df = get_pitching_stats(team_id=695, limit=100, season=selected_season)
 
     if not batting_df.empty and not pitching_df.empty:
-        # Preparar datos de bateo
-        if 'players' in batting_df.columns:
-            batting_df['player_name'] = batting_df['players'].apply(
-                lambda x: x.get('full_name', 'N/A') if isinstance(x, dict) else 'N/A'
-            )
-        elif 'player_name' not in batting_df.columns:
-            batting_df['player_name'] = 'Jugador ' + batting_df.index.astype(str)
-
-        # Asegurar columnas necesarias para bateo
-        for col in ['ab', 'h', 'hr', 'rbi', 'bb', 'doubles', 'triples', 'so', 'sb', 'r']:
-            if col not in batting_df.columns:
-                batting_df[col] = 0
-
-        # Calcular estadísticas derivadas
-        if 'avg' not in batting_df.columns:
-            batting_df['avg'] = batting_df.apply(
-                lambda x: round(x['h'] / x['ab'], 3) if x['ab'] > 0 else 0.000, axis=1
-            )
-        if 'obp' not in batting_df.columns:
-            batting_df['obp'] = batting_df.apply(
-                lambda x: round((x['h'] + x['bb']) / (x['ab'] + x['bb']), 3) if (x['ab'] + x['bb']) > 0 else 0.000, axis=1
-            )
-        if 'slg' not in batting_df.columns:
-            batting_df['slg'] = batting_df.apply(
-                lambda x: round((x['h'] + x['doubles'] + 2*x['triples'] + 3*x['hr']) / x['ab'], 3) if x['ab'] > 0 else 0.000, axis=1
-            )
-        if 'ops' not in batting_df.columns:
-            batting_df['ops'] = (batting_df['obp'] + batting_df['slg']).round(3)
-
-        # Preparar datos de pitcheo
-        if 'players' in pitching_df.columns:
-            pitching_df['player_name'] = pitching_df['players'].apply(
-                lambda x: x.get('full_name', 'N/A') if isinstance(x, dict) else 'N/A'
-            )
-        elif 'player_name' not in pitching_df.columns:
-            pitching_df['player_name'] = 'Lanzador ' + pitching_df.index.astype(str)
-
-        # Asegurar columnas necesarias para pitcheo
-        for col in ['w', 'l', 'ip', 'er', 'h', 'bb', 'so', 'g', 'gs', 'sv', 'r']:
-            if col not in pitching_df.columns:
-                pitching_df[col] = 0 if col != 'ip' else 0.0
-
-        # Calcular estadísticas derivadas
-        if 'era' not in pitching_df.columns:
-            pitching_df['era'] = pitching_df.apply(
-                lambda x: round((x['er'] * 9) / x['ip'], 2) if x['ip'] > 0 else 0.00, axis=1
-            )
-        if 'whip' not in pitching_df.columns:
-            pitching_df['whip'] = pitching_df.apply(
-                lambda x: round((x['h'] + x['bb']) / x['ip'], 2) if x['ip'] > 0 else 0.00, axis=1
-            )
+        # Los datos ya vienen con todas las columnas y estadísticas calculadas
 
         col1, col2 = st.columns(2)
 
