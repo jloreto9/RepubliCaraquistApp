@@ -548,8 +548,8 @@ def get_batting_stats(team_id=695, limit=50, season=None):
             lambda x: x.get('full_name', 'N/A') if isinstance(x, dict) else 'N/A'
         )
 
-        # Agrupar por jugador y sumar estadísticas
-        grouped = df.groupby(['player_id', 'player_name']).agg({
+        # Agrupar por jugador y sumar estadísticas (incluir todas las columnas disponibles)
+        agg_dict = {
             'ab': 'sum',
             'r': 'sum',
             'h': 'sum',
@@ -560,7 +560,19 @@ def get_batting_stats(team_id=695, limit=50, season=None):
             'bb': 'sum',
             'so': 'sum',
             'sb': 'sum'
-        }).reset_index()
+        }
+
+        # Agregar columnas adicionales si existen
+        if 'cs' in df.columns:
+            agg_dict['cs'] = 'sum'
+        if 'hbp' in df.columns:
+            agg_dict['hbp'] = 'sum'
+        if 'sf' in df.columns:
+            agg_dict['sf'] = 'sum'
+        if 'sh' in df.columns:
+            agg_dict['sh'] = 'sum'
+
+        grouped = df.groupby(['player_id', 'player_name']).agg(agg_dict).reset_index()
 
         # Calcular estadísticas derivadas
         grouped['avg'] = (grouped['h'] / grouped['ab']).fillna(0).round(3)
@@ -608,8 +620,8 @@ def get_pitching_stats(team_id=695, limit=50, season=None):
         # Contar juegos (apariciones)
         df['g_count'] = 1
 
-        # Agrupar por jugador y sumar estadísticas
-        grouped = df.groupby(['player_id', 'player_name']).agg({
+        # Agrupar por jugador y sumar estadísticas (incluir todas las columnas disponibles)
+        agg_dict = {
             'ip_decimal': 'sum',
             'h': 'sum',
             'r': 'sum',
@@ -618,7 +630,17 @@ def get_pitching_stats(team_id=695, limit=50, season=None):
             'so': 'sum',
             'hr': 'sum',
             'g_count': 'sum'
-        }).reset_index()
+        }
+
+        # Agregar columnas adicionales si existen
+        if 'hbp' in df.columns:
+            agg_dict['hbp'] = 'sum'
+        if 'wp' in df.columns:
+            agg_dict['wp'] = 'sum'
+        if 'bk' in df.columns:
+            agg_dict['bk'] = 'sum'
+
+        grouped = df.groupby(['player_id', 'player_name']).agg(agg_dict).reset_index()
 
         # Renombrar columnas
         grouped = grouped.rename(columns={
