@@ -19,14 +19,18 @@ def get_current_season():
     month = now.month
     year = now.year
     
-    # La temporada 2025-2026 se guarda como 2026
-    if month >= 10:  # Oct-Dic
-        return year + 1
-    elif month <= 2:  # Ene-Feb
-        return year
+# Línea ~11: Cambiar temporada
+def get_current_season():
+    now = datetime.now()
+    if now.month >= 10:  # Oct-Dic
+        return now.year      # <- Era now.year + 1, cámbialo a now.year
+    elif now.month <= 2:
+        return now.year - 1  # <- Era now.year, cámbialo a now.year - 1
     else:
-        # Fuera de temporada (Mar-Sep)
-        return year
+        return now.year - 1
+
+# Línea ~147: Corregir campo HBP
+"hbp": pit.get("hitByPitch", 0),  # <- Era "hitBatsmen"
 
 def update_yesterdays_games():
     """Actualiza los juegos de ayer"""
@@ -167,7 +171,7 @@ def update_game_stats(game_id):
                         "bb": pit.get("baseOnBalls", 0),
                         "so": pit.get("strikeOuts", 0),
                         "hr": pit.get("homeRuns", 0),
-                        "hbp": pit.get("hitBatsmen", 0),
+                        "hbp": pit.get("hitByPitch", 0),  # NO "hitBatsmen",
                         "wp": pit.get("wildPitches", 0),
                         "bk": pit.get("balks", 0)
                     }
