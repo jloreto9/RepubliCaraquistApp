@@ -16,21 +16,12 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 def get_current_season():
     """Determina la temporada actual"""
     now = datetime.now()
-    month = now.month
-    year = now.year
-    
-# Línea ~11: Cambiar temporada
-def get_current_season():
-    now = datetime.now()
     if now.month >= 10:  # Oct-Dic
-        return now.year      # <- Era now.year + 1, cámbialo a now.year
+        return now.year
     elif now.month <= 2:
-        return now.year - 1  # <- Era now.year, cámbialo a now.year - 1
+        return now.year - 1
     else:
         return now.year - 1
-
-# Línea ~147: Corregir campo HBP
-"hbp": pit.get("hitByPitch", 0),  # <- Era "hitBatsmen"
 
 def update_yesterdays_games():
     """Actualiza los juegos de ayer"""
