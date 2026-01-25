@@ -54,10 +54,15 @@ with col1:
         display_text = f"{season-1}-{season}"
         season_options[display_text] = season
 
+    # Determinar índice de la temporada actual
+    current_season_display = f"{current_season-1}-{current_season}"
+    season_list = list(season_options.keys())
+    default_index = season_list.index(current_season_display) if current_season_display in season_list else 0
+
     selected_season_display = st.selectbox(
         "⚾ Seleccionar Temporada",
-        options=list(season_options.keys()),
-        index=0
+        options=season_list,
+        index=default_index
     )
 
     selected_season = season_options[selected_season_display]

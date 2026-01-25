@@ -145,23 +145,28 @@ with st.sidebar:
     # Selector de temporada con formato correcto
     current_season = get_current_season()
     available_seasons = get_available_seasons()
-    
+
     # Si no hay temporadas disponibles, usar la actual
     if not available_seasons:
         available_seasons = [current_season]
-    
+
     # Crear diccionario para el selector con formato legible
     season_options = {}
     for season in available_seasons:
         # Formato: "2025-2026" para mostrar, 2026 como valor
         display_text = f"{season-1}-{season}"
         season_options[display_text] = season
-    
+
+    # Determinar el índice de la temporada actual para seleccionarla por defecto
+    current_season_display = f"{current_season-1}-{current_season}"
+    season_list = list(season_options.keys())
+    default_index = season_list.index(current_season_display) if current_season_display in season_list else 0
+
     # Selector con formato de temporada
     selected_season_display = st.selectbox(
         "⚾ Temporada",
-        options=list(season_options.keys()),
-        index=0
+        options=season_list,
+        index=default_index
     )
     
     # Obtener el valor real de la temporada seleccionada
