@@ -35,11 +35,11 @@ with col1:
     # Crear diccionario para el selector con formato legible
     season_options = {}
     for season in available_seasons:
-        display_text = f"{season-1}-{season}"
+        display_text = f"{season}-{season+1}"
         season_options[display_text] = season
 
     # Determinar índice de la temporada actual
-    current_season_display = f"{current_season-1}-{current_season}"
+    current_season_display = f"{current_season}-{current_season+1}"
     season_list = list(season_options.keys())
     default_index = season_list.index(current_season_display) if current_season_display in season_list else 0
 

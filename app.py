@@ -153,12 +153,12 @@ with st.sidebar:
     # Crear diccionario para el selector con formato legible
     season_options = {}
     for season in available_seasons:
-        # Formato: "2025-2026" para mostrar, 2026 como valor
-        display_text = f"{season-1}-{season}"
+        # Formato: "2025-2026" para mostrar, 2025 como valor (año de inicio)
+        display_text = f"{season}-{season+1}"
         season_options[display_text] = season
 
     # Determinar el índice de la temporada actual para seleccionarla por defecto
-    current_season_display = f"{current_season-1}-{current_season}"
+    current_season_display = f"{current_season}-{current_season+1}"
     season_list = list(season_options.keys())
     default_index = season_list.index(current_season_display) if current_season_display in season_list else 0
 

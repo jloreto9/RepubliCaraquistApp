@@ -24,14 +24,14 @@ def get_current_season():
     month = now.month
     year = now.year
 
-    # La temporada 2025-2026 se guarda como 2026
-    # Octubre-Diciembre del año N = temporada N+1
-    # Enero-Febrero del año N = temporada N
-    # Marzo-Septiembre = fuera de temporada (retorna año actual)
-    if month >= 10:  # Oct-Dic
-        return year + 1
-    elif month <= 2:  # Ene-Feb
+    # La temporada 2025-2026 se guarda como 2025 (año de inicio)
+    # Octubre-Diciembre del año N = temporada N (ej: Oct 2025 = season 2025)
+    # Enero-Febrero del año N = temporada N-1 (ej: Ene 2026 = season 2025)
+    # Marzo-Septiembre = fuera de temporada
+    if month >= 10:  # Oct-Dic: temporada en curso
         return year
+    elif month <= 2:  # Ene-Feb: continuación de temporada anterior
+        return year - 1
     else:
         # Fuera de temporada (Mar-Sep)
         return year
