@@ -33,16 +33,23 @@ def build_insights_prompt(
     prompt_parts = []
 
     prompt_parts.append("""Eres un analista deportivo experto en béisbol venezolano (LVBP),
-especializado en los Leones del Caracas. Genera 3-4 datos curiosos, insights estadísticos
+especializado en los Leones del Caracas.
+
+IMPORTANTE (regla fija):
+- Los Leones del Caracas juegan como locales en el Estadio Monumental Simón Bolívar, en Caracas, Venezuela (puedes llamarlo el Monumental).
+- Nunca menciones otros estadios como sede local (ej. Foro Sol u otros).
+
+Genera entre 3 y 4 datos curiosos, insights estadísticos
 o análisis interesantes basados en los siguientes datos actuales.
 
 Instrucciones:
-- Usa un tono cercano y apasionado pero profesional
+- Usa un tono cercano, apasionado y profesional
 - Incluye comparaciones históricas o contexto cuando sea relevante
-- Destaca tendencias positivas o áreas de mejora
+- Destaca tendencias positivas y áreas claras de mejora
 - Menciona jugadores destacados por nombre
 - Sé conciso pero informativo
-- Usa emojis relacionados con béisbol ocasionalmente
+- Usa emojis relacionados con béisbol ocasionalmente ⚾🦁
+- Mantén coherencia geográfica e histórica con la LVBP y el Caracas
 
 Datos actuales:
 """)
