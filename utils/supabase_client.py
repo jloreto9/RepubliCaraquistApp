@@ -24,14 +24,14 @@ def get_current_season():
     month = now.month
     year = now.year
 
-    # La temporada 2025-2026 se guarda como 2026
-    # Octubre-Diciembre del año N = temporada N+1
-    # Enero-Febrero del año N = temporada N
-    # Marzo-Septiembre = fuera de temporada (retorna año actual)
-    if month >= 10:  # Oct-Dic
-        return year + 1
-    elif month <= 2:  # Ene-Feb
+    # La temporada 2025-2026 se guarda como 2025 (año de inicio)
+    # Octubre-Diciembre del año N = temporada N (ej: Oct 2025 = season 2025)
+    # Enero-Febrero del año N = temporada N-1 (ej: Ene 2026 = season 2025)
+    # Marzo-Septiembre = fuera de temporada
+    if month >= 10:  # Oct-Dic: temporada en curso
         return year
+    elif month <= 2:  # Ene-Feb: continuación de temporada anterior
+        return year - 1
     else:
         # Fuera de temporada (Mar-Sep)
         return year
@@ -40,19 +40,23 @@ def get_current_season():
 def get_available_seasons():
     """Obtiene todas las temporadas disponibles en la base de datos"""
     supabase = init_supabase()
-    
+    current = get_current_season()
+
     try:
         response = supabase.table('games') \
             .select('season') \
             .execute()
-        
+
         if response.data:
             seasons = list(set([g['season'] for g in response.data if g['season']]))
+            # Asegurar que la temporada actual siempre esté incluida
+            if current not in seasons:
+                seasons.append(current)
             # Ordenar de más reciente a más antigua
             return sorted(seasons, reverse=True)
     except:
         pass
-    
+
     # Retornar temporadas por defecto si no hay datos
     # 2015 = temporada 2014-2015, 2016 = temporada 2015-2016, etc.
     return [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015]

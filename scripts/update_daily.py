@@ -16,12 +16,17 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 def get_current_season():
     """Determina la temporada actual"""
     now = datetime.now()
-    if now.month >= 10:  # Oct-Dic
-        return now.year
-    elif now.month <= 2:
-        return now.year - 1
+    month = now.month
+    year = now.year
+
+    # La temporada 2025-2026 se guarda como 2025 (año de inicio)
+    if month >= 10:  # Oct-Dic: temporada en curso
+        return year
+    elif month <= 2:  # Ene-Feb: continuación de temporada anterior
+        return year - 1
     else:
-        return now.year - 1
+        # Fuera de temporada (Mar-Sep)
+        return year
 
 def update_yesterdays_games():
     """Actualiza los juegos de ayer"""
@@ -162,7 +167,7 @@ def update_game_stats(game_id):
                         "bb": pit.get("baseOnBalls", 0),
                         "so": pit.get("strikeOuts", 0),
                         "hr": pit.get("homeRuns", 0),
-                        "hbp": pit.get("hitByPitch", 0),  # NO "hitBatsmen",
+                        "hbp": pit.get("hitBatsmen", 0),
                         "wp": pit.get("wildPitches", 0),
                         "bk": pit.get("balks", 0)
                     }

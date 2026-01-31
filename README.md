@@ -24,10 +24,14 @@ Integra estadísticas tradicionales y sabermétricas, automatización diaria y u
 
 ### 🧠 4. Analista AI (OpenAI API)
 Un asistente inteligente que responde con análisis naturales:
+
+- **Datos Curiosos con IA**: Sección en la Home que genera insights estadísticos interesantes usando GPT-4.
 - Resumen del desempeño del equipo en la semana o el mes.
 - Identificación del mejor y peor jugador del período.
 - Proyección de clasificación usando **ELO Rating System + Monte Carlo Simulation**.
 - Diferenciación por fase: Regular / RR / Final.
+
+> **Nota**: La sección "Datos Curiosos con IA" requiere configurar `OPENAI_API_KEY` en las variables de entorno. Los insights se cachean por 1 hora para optimizar el uso de la API.
 
 ---
 
