@@ -2,10 +2,133 @@
 
 import streamlit as st
 import pandas as pd
+import numpy as np
+import requests
 from datetime import datetime
 import os
 from dotenv import load_dotenv
-from utils.supabase_client import get_standings, get_recent_games, get_current_season, get_available_seasons, get_leones_advanced_stats
+from utils.supabase_client import get_standings, get_recent_games, get_current_season, get_available_seasons, get_leones_advanced_stats, get_batting_stats, get_pitching_stats
+
+# Constantes para WPA
+TEAM_ID = 695  # Leones del Caracas
+
+# ========================================
+# FUNCIONES WPA PARA MVP DEL ÚLTIMO JUEGO
+# ========================================
+
+def calculate_wp(inning: int, diff: int) -> float:
+    """Calcula Win Probability simple basado en inning y diferencial"""
+    leverage = min(inning / 9.0, 1.0)
+    wp = 1.0 / (1.0 + np.exp(-0.75 * diff))
+    return max(0.0, min(1.0, wp + 0.25 * leverage * (wp - 0.5)))
+
+
+@st.cache_data(ttl=600)
+def get_game_wpa_mvp(game_pk: int) -> dict:
+    """Obtiene el MVP del juego basado en WPA"""
+    try:
+        # Obtener feed del juego
+        url = f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live"
+        response = requests.get(url, timeout=30)
+        feed = response.json()
+
+        # Identificar si Leones es local
+        home_id = feed["gameData"]["teams"]["home"]["id"]
+        leones_is_home = (home_id == TEAM_ID)
+
+        # Procesar jugadas
+        all_plays = feed.get("liveData", {}).get("plays", {}).get("allPlays", [])
+
+        if not all_plays:
+            return None
+
+        wpa_data = {}
+        prev_wp = 0.5
+        home_score = away_score = 0
+
+        for play in all_plays:
+            about = play.get("about", {})
+            matchup = play.get("matchup", {})
+
+            inning = about.get("inning", 1)
+            half = about.get("halfInning", "top")
+
+            # Calcular carreras
+            runs = sum(1 for runner in play.get("runners", [])
+                       if runner.get("movement", {}).get("end") == "score")
+
+            if half == "bottom":
+                home_score += runs
+            else:
+                away_score += runs
+
+            # Perspectiva Leones
+            leones_score = home_score if leones_is_home else away_score
+            opp_score = away_score if leones_is_home else home_score
+
+            # Calcular WPA
+            diff = leones_score - opp_score
+            wp_after = calculate_wp(inning, diff)
+            wpa = wp_after - prev_wp
+
+            # Acumular WPA por jugador
+            batter_id = matchup.get("batter", {}).get("id")
+            batter_name = matchup.get("batter", {}).get("fullName", "Desconocido")
+            pitcher_id = matchup.get("pitcher", {}).get("id")
+            pitcher_name = matchup.get("pitcher", {}).get("fullName", "Desconocido")
+
+            if batter_id:
+                if batter_id not in wpa_data:
+                    wpa_data[batter_id] = {"name": batter_name, "wpa_bat": 0, "wpa_pit": 0}
+                wpa_data[batter_id]["wpa_bat"] += wpa
+
+            if pitcher_id:
+                if pitcher_id not in wpa_data:
+                    wpa_data[pitcher_id] = {"name": pitcher_name, "wpa_bat": 0, "wpa_pit": 0}
+                wpa_data[pitcher_id]["wpa_pit"] += wpa
+
+            prev_wp = wp_after
+
+        # Obtener roster de Leones
+        try:
+            box_url = f"https://statsapi.mlb.com/api/v1/game/{game_pk}/boxscore"
+            box_response = requests.get(box_url, timeout=30)
+            box = box_response.json()
+
+            roster_ids = set()
+            for side in ["home", "away"]:
+                team_data = box.get("teams", {}).get(side, {})
+                if team_data.get("team", {}).get("id") == TEAM_ID:
+                    for player_id, _ in team_data.get("players", {}).items():
+                        try:
+                            roster_ids.add(int(player_id.replace("ID", "")))
+                        except:
+                            pass
+        except:
+            roster_ids = set()
+
+        # Calcular WPA total y filtrar solo Leones
+        mvp = None
+        max_wpa = -999
+
+        for player_id, data in wpa_data.items():
+            if roster_ids and player_id not in roster_ids:
+                continue
+
+            total_wpa = data["wpa_bat"] + data["wpa_pit"]
+            if total_wpa > max_wpa:
+                max_wpa = total_wpa
+                mvp = {
+                    "name": data["name"],
+                    "wpa_total": total_wpa,
+                    "wpa_bat": data["wpa_bat"],
+                    "wpa_pit": data["wpa_pit"]
+                }
+
+        return mvp
+
+    except Exception as e:
+        return None
 
 # Cargar variables de entorno
 load_dotenv()
@@ -363,11 +486,49 @@ with tab1:
             st.info("No hay juegos recientes disponibles")
     
     with col2:
-        st.markdown("### ⭐ Jugador del Juego")
-        st.info("""
-        **Por implementar**  
-        Estadísticas del mejor jugador
-        """)
+        st.markdown("### ⭐ MVP de Leones")
+
+        if not recent_games.empty:
+            last_game = recent_games.iloc[0]
+            game_pk = last_game.get('id')
+
+            if game_pk:
+                mvp_data = get_game_wpa_mvp(game_pk)
+
+                if mvp_data:
+                    wpa_color = "#196F3D" if mvp_data['wpa_total'] > 0 else "#922B21"
+
+                    st.markdown(f"""
+                    <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                                padding: 1.5rem; border-radius: 1rem; text-align: center;
+                                border: 2px solid #FDB827;'>
+                        <h2 style='color: #FDB827; margin: 0 0 0.5rem 0;'>
+                            {mvp_data['name']}
+                        </h2>
+                        <p style='font-size: 2rem; color: {wpa_color}; margin: 0.5rem 0; font-weight: bold;'>
+                            WPA: {mvp_data['wpa_total']:+.3f}
+                        </p>
+                        <div style='display: flex; justify-content: space-around; margin-top: 1rem;'>
+                            <div>
+                                <span style='color: #888; font-size: 0.8rem;'>Bateo</span><br>
+                                <span style='color: white; font-weight: bold;'>{mvp_data['wpa_bat']:+.3f}</span>
+                            </div>
+                            <div>
+                                <span style='color: #888; font-size: 0.8rem;'>Pitcheo</span><br>
+                                <span style='color: white; font-weight: bold;'>{mvp_data['wpa_pit']:+.3f}</span>
+                            </div>
+                        </div>
+                        <p style='color: #888; font-size: 0.75rem; margin-top: 1rem;'>
+                            Win Probability Added
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info("No hay datos de WPA disponibles para este juego")
+            else:
+                st.info("ID del juego no disponible")
+        else:
+            st.info("No hay juegos recientes")
 
 with tab2:
     st.markdown("### 📊 Últimos 10 Juegos")
@@ -426,29 +587,103 @@ with tab2:
         st.info("No hay datos de juegos recientes disponibles.")
 
 with tab3:
+    # Obtener estadísticas de bateo y pitcheo
+    batting_df = get_batting_stats(team_id=695, limit=10, season=selected_season)
+    pitching_df = get_pitching_stats(team_id=695, limit=10, season=selected_season)
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         st.markdown("### 🏏 Líderes de Bateo")
-        # TODO: Conectar con datos reales
-        batting_leaders = pd.DataFrame({
-            'Jugador': ['Por implementar'],
-            'AVG': [.000],
-            'HR': [0],
-            'RBI': [0]
-        })
-        st.dataframe(batting_leaders, use_container_width=True, hide_index=True)
-    
+        st.caption("Ordenados por OPS (mín. 10 AB)")
+
+        if not batting_df.empty:
+            # Filtrar jugadores con mínimo de AB
+            batting_filtered = batting_df[batting_df['ab'] >= 10].copy()
+
+            if not batting_filtered.empty:
+                # Preparar tabla de display
+                display_batting = batting_filtered.head(5)[['player_name', 'avg', 'hr', 'rbi', 'ops', 'ab', 'h']].copy()
+                display_batting.columns = ['Jugador', 'AVG', 'HR', 'RBI', 'OPS', 'AB', 'H']
+
+                # Formatear AVG y OPS
+                display_batting['AVG'] = display_batting['AVG'].apply(lambda x: f".{int(x*1000):03d}" if x < 1 else "1.000")
+                display_batting['OPS'] = display_batting['OPS'].apply(lambda x: f"{x:.3f}")
+
+                # Estilo para resaltar el líder
+                def highlight_leader(row):
+                    if row.name == display_batting.index[0]:
+                        return ['background-color: rgba(253, 184, 39, 0.3); font-weight: bold'] * len(row)
+                    return [''] * len(row)
+
+                st.dataframe(
+                    display_batting.style.apply(highlight_leader, axis=1),
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # Mostrar líder destacado
+                leader = batting_filtered.iloc[0]
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                            padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #FDB827;'>
+                    <span style='color: #FDB827; font-weight: bold;'>👑 Líder OPS:</span>
+                    <span style='color: white;'>{leader['player_name']}</span>
+                    <span style='color: #888;'>({leader['ops']:.3f})</span>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("No hay suficientes datos (mín. 10 AB)")
+        else:
+            st.info("No hay datos de bateo disponibles")
+
     with col2:
         st.markdown("### ⚾ Líderes de Pitcheo")
-        # TODO: Conectar con datos reales
-        pitching_leaders = pd.DataFrame({
-            'Jugador': ['Por implementar'],
-            'ERA': [0.00],
-            'SO': [0],
-            'WHIP': [0.00]
-        })
-        st.dataframe(pitching_leaders, use_container_width=True, hide_index=True)
+        st.caption("Ordenados por ERA (mín. 5 IP)")
+
+        if not pitching_df.empty:
+            # Filtrar pitchers con mínimo de IP
+            pitching_filtered = pitching_df[pitching_df['ip'] >= 5].copy()
+
+            if not pitching_filtered.empty:
+                # Ordenar por ERA (menor es mejor)
+                pitching_filtered = pitching_filtered.sort_values('era', ascending=True)
+
+                # Preparar tabla de display
+                display_pitching = pitching_filtered.head(5)[['player_name', 'era', 'so', 'whip', 'ip', 'bb']].copy()
+                display_pitching.columns = ['Jugador', 'ERA', 'K', 'WHIP', 'IP', 'BB']
+
+                # Formatear ERA y WHIP
+                display_pitching['ERA'] = display_pitching['ERA'].apply(lambda x: f"{x:.2f}")
+                display_pitching['WHIP'] = display_pitching['WHIP'].apply(lambda x: f"{x:.2f}")
+                display_pitching['IP'] = display_pitching['IP'].apply(lambda x: f"{x:.1f}")
+
+                # Estilo para resaltar el líder
+                def highlight_pitcher_leader(row):
+                    if row.name == display_pitching.index[0]:
+                        return ['background-color: rgba(253, 184, 39, 0.3); font-weight: bold'] * len(row)
+                    return [''] * len(row)
+
+                st.dataframe(
+                    display_pitching.style.apply(highlight_pitcher_leader, axis=1),
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # Mostrar líder destacado
+                leader_pit = pitching_filtered.iloc[0]
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                            padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #FDB827;'>
+                    <span style='color: #FDB827; font-weight: bold;'>👑 Líder ERA:</span>
+                    <span style='color: white;'>{leader_pit['player_name']}</span>
+                    <span style='color: #888;'>({leader_pit['era']:.2f})</span>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.info("No hay suficientes datos (mín. 5 IP)")
+        else:
+            st.info("No hay datos de pitcheo disponibles")
 
 st.markdown("---")
 
