@@ -475,7 +475,7 @@ st.markdown("### Leones del Caracas")
 
 # Sidebar - Selector de temporada y juego
 with st.sidebar:
-    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/8/89/Leones_del_Caracas_logo.svg/200px-Leones_del_Caracas_logo.svg.png", width=100)
+    st.image("logo.png", width=200)
 
     st.markdown("---")
 
