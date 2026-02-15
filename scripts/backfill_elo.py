@@ -19,6 +19,29 @@ from utils.elo import BASE_ELO, HOME_ADVANTAGE, K_BY_PHASE, update_elo
 VALID_PHASES = ["regular", "wildcard_playin", "round_robin", "final"]
 
 
+def get_error_code(error):
+    """Extrae el código de error PostgREST/PostgreSQL si existe."""
+    code = getattr(error, "code", None)
+    if code:
+        return str(code)
+
+    # Algunos clientes exponen detalles en args[0] como dict/string.
+    if getattr(error, "args", None):
+        payload = error.args[0]
+        if isinstance(payload, dict):
+            payload_code = payload.get("code")
+            if payload_code:
+                return str(payload_code)
+        payload_str = str(payload)
+        if "42703" in payload_str:
+            return "42703"
+    return ""
+
+
+def is_undefined_column_error(error):
+    return get_error_code(error) == "42703"
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Backfill ELO por temporada/fase")
     parser.add_argument("--season", type=int, required=True, help="Temporada (ej: 2025)")
@@ -52,20 +75,45 @@ def parse_phases(phases_raw):
     return phases
 
 
+def column_exists(supabase, table_name, column_name):
+    """Detecta existencia de columna evitando romper por 42703."""
+    try:
+        supabase.table(table_name).select(column_name).limit(1).execute()
+        return True
+    except Exception as e:
+        if is_undefined_column_error(e):
+            return False
+        raise
+
+
 def fetch_final_games(supabase, season, phase):
+    """Obtiene juegos finales por fase con fallback phase -> game_type."""
     base = (
         supabase.table("games")
         .select("id, game_datetime, game_date, home_team_id, away_team_id, home_score, away_score")
         .eq("season", season)
         .eq("status", "Final")
     )
-    try:
-        response = base.eq("phase", phase).execute()
-        games = response.data or []
-    except Exception:
-        # Fallback para esquemas que no tengan columna phase.
+
+    phase_exists = column_exists(supabase, "games", "phase")
+    game_type_exists = column_exists(supabase, "games", "game_type")
+
+    if phase_exists:
+        try:
+            response = base.eq("phase", phase).execute()
+            games = response.data or []
+        except Exception as e:
+            # Si phase falla por columna inexistente en runtime/caché, fallback.
+            if is_undefined_column_error(e) and game_type_exists:
+                response = base.eq("game_type", phase).execute()
+                games = response.data or []
+            else:
+                raise
+    elif game_type_exists:
         response = base.eq("game_type", phase).execute()
         games = response.data or []
+    else:
+        raise RuntimeError("La tabla games no tiene columnas phase ni game_type para filtrar fases")
 
     # Orden determinístico por game_datetime asc con fallback a game_date.
     games.sort(key=lambda g: (g.get("game_datetime") or g.get("game_date") or "", g.get("id") or 0))
@@ -105,8 +153,8 @@ def process_phase(supabase, season, phase, reset=False):
 
     games = fetch_final_games(supabase, season, phase)
     total_final_games = len(games)
-    processed = 0
-    skipped = 0
+    processed_count = 0
+    skipped_count = 0
 
     processed_ids = load_processed_ids(supabase, season, phase)
     ratings_map = load_ratings_map(supabase, season, phase)
@@ -114,7 +162,7 @@ def process_phase(supabase, season, phase, reset=False):
     for game in games:
         game_id = game.get("id")
         if game_id in processed_ids:
-            skipped += 1
+            skipped_count += 1
             continue
 
         home_team_id = game.get("home_team_id")
@@ -124,7 +172,7 @@ def process_phase(supabase, season, phase, reset=False):
         game_datetime = game.get("game_datetime") or game.get("game_date")
 
         if None in [home_team_id, away_team_id, home_score, away_score]:
-            skipped += 1
+            skipped_count += 1
             continue
 
         home_row = ratings_map.get(home_team_id, {})
@@ -192,10 +240,10 @@ def process_phase(supabase, season, phase, reset=False):
         ratings_map[home_team_id] = home_payload
         ratings_map[away_team_id] = away_payload
         processed_ids.add(game_id)
-        processed += 1
+        processed_count += 1
 
     print(
-        f"[{phase}] total_final_games={total_final_games} processed={processed} skipped={skipped}"
+        f"[{phase}] total_final_games={total_final_games} processed_count={processed_count} skipped_count={skipped_count}"
     )
 
 
