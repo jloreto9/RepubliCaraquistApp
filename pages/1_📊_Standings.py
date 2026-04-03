@@ -199,7 +199,7 @@ if not standings_df.empty:
                     pass
                 return ''
             
-            styled_df = styled_df.applymap(color_diff, subset=['DIF'])
+            styled_df = styled_df.map(color_diff, subset=['DIF'])
         
         st.dataframe(
             styled_df,
@@ -799,8 +799,8 @@ if not standings_df.empty:
                         else:
                             return 'color: #FEFAFA'
                     
-                    styled_df = upcoming_df.style.applymap(color_status, subset=['Estado'])
-                    styled_df = styled_df.applymap(color_estadio, subset=['Estadio'])
+                    styled_df = upcoming_df.style.map(color_status, subset=['Estado'])
+                    styled_df = styled_df.map(color_estadio, subset=['Estadio'])
                     
                     st.dataframe(styled_df, use_container_width=True, hide_index=True)
                 else:
@@ -881,7 +881,7 @@ if not standings_df.empty:
                         return ''
                     
                     st.dataframe(
-                        df_games.style.applymap(color_result, subset=['Resultado']),
+                        df_games.style.map(color_result, subset=['Resultado']),
                         use_container_width=True,
                         hide_index=True
                     )
