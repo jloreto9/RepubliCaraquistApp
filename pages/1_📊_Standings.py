@@ -16,7 +16,45 @@ try:
 except:
     from streamlit_app.utils.supabase_client import get_standings, get_recent_games, init_supabase, get_available_seasons, get_current_season
 
-st.set_page_config(page_title="Standings - RepubliCaraquistApp", page_icon="📊", layout="wide")
+ELO_PHASE_OPTIONS = {
+    "regular": "Temporada Regular",
+    "wildcard_playin": "Wild Card / Play-In",
+    "round_robin": "Round Robin",
+    "final": "Final",
+}
+
+
+def load_elo_ratings_for_phase(season, phase):
+    """Lee ratings ELO persistidos sin recalcular."""
+    supabase = init_supabase()
+    try:
+        response = supabase.table("elo_ratings") \
+            .select("team_id, elo, games_played, updated_at, teams(name, abbreviation)") \
+            .eq("season", season) \
+            .eq("phase", phase) \
+            .order("elo", desc=True) \
+            .execute()
+    except Exception as e:
+        st.error(f"Error cargando ELO: {str(e)}")
+        return pd.DataFrame()
+
+    if not response.data:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(response.data)
+    if "teams" in df.columns:
+        df["team_name"] = df["teams"].apply(
+            lambda x: x.get("name", "N/A") if isinstance(x, dict) else "N/A"
+        )
+    else:
+        df["team_name"] = "N/A"
+
+    df = df.sort_values("elo", ascending=False).reset_index(drop=True)
+    df.insert(0, "rank", range(1, len(df) + 1))
+    return df
+
+
+st.set_page_config(page_title="Standings - RepubliCaraquistApp", page_icon="\U0001F4CA", layout="wide")
 
 # Header
 st.title("📊 Standings y Resultados")
@@ -885,6 +923,25 @@ else:
                 st.write("No se encontraron equipos en la base de datos")
         except Exception as e:
             st.error(f"Error al consultar equipos: {str(e)}")
+
+st.markdown("---")
+st.markdown("### ELO Ratings (by phase)")
+elo_phase = st.selectbox(
+    "Seleccionar fase ELO",
+    options=list(ELO_PHASE_OPTIONS.keys()),
+    format_func=lambda x: ELO_PHASE_OPTIONS.get(x, x),
+    key="elo_phase_selector"
+)
+elo_df = load_elo_ratings_for_phase(selected_season, elo_phase)
+
+if elo_df.empty:
+    st.info("ELO not computed yet. Run daily update.")
+else:
+    display_df = elo_df[["rank", "team_name", "elo", "games_played", "updated_at"]].copy()
+    display_df.columns = ["#", "Equipo", "ELO", "JJ", "Actualizado"]
+    display_df["ELO"] = display_df["ELO"].astype(float).round(2)
+    display_df["Actualizado"] = pd.to_datetime(display_df["Actualizado"], errors="coerce").dt.strftime('%Y-%m-%d %H:%M')
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 # Footer
 st.markdown("---")

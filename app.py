@@ -580,7 +580,7 @@ with tab2:
             return f'background-color: {color}'
         
         st.dataframe(
-            df_games.style.applymap(color_result, subset=['Resultado']),
+            df_games.style.map(color_result, subset=['Resultado']),
             use_container_width=True,
             hide_index=True
         )
