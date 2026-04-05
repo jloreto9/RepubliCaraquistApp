@@ -90,8 +90,8 @@ def get_current_season():
     elif month <= 2:  # Ene-Feb: continuación de temporada anterior
         return year - 1
     else:
-        # Fuera de temporada (Mar-Sep)
-        return year
+        # Fuera de temporada (Mar-Sep): la última temporada fue año anterior
+        return year - 1
 
 def update_yesterdays_games():
     """Actualiza los juegos de ayer"""
