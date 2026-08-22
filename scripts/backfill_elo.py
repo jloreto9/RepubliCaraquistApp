@@ -86,34 +86,42 @@ def column_exists(supabase, table_name, column_name):
         raise
 
 
+PHASE_TO_GAME_TYPES = {
+    "regular": ["R", "regular"],
+    "wildcard_playin": ["D", "W", "wildcard_playin", "playin"],
+    "round_robin": ["L", "round_robin", "semifinal"],
+    "final": ["F", "final"]
+}
+
+
 def fetch_final_games(supabase, season, phase):
-    """Obtiene juegos finales por fase con fallback phase -> game_type."""
+    """Obtiene juegos finales por fase mapeando phase a los códigos de game_type de MLB."""
+    types = PHASE_TO_GAME_TYPES.get(phase, [phase])
     base = (
         supabase.table("games")
-        .select("id, game_datetime, game_date, home_team_id, away_team_id, home_score, away_score")
+        .select("id, game_datetime, game_date, home_team_id, away_team_id, home_score, away_score, status, game_type")
         .eq("season", season)
-        .eq("status", "Final")
+        .in_("status", ["Final", "Completed Early"])
     )
 
     phase_exists = column_exists(supabase, "games", "phase")
     game_type_exists = column_exists(supabase, "games", "game_type")
 
+    games = []
     if phase_exists:
         try:
             response = base.eq("phase", phase).execute()
             games = response.data or []
+        except Exception:
+            games = []
+
+    if not games and game_type_exists:
+        try:
+            response = base.in_("game_type", types).execute()
+            games = response.data or []
         except Exception as e:
-            # Si phase falla por columna inexistente en runtime/caché, fallback.
-            if is_undefined_column_error(e) and game_type_exists:
-                response = base.eq("game_type", phase).execute()
-                games = response.data or []
-            else:
+            if not is_undefined_column_error(e):
                 raise
-    elif game_type_exists:
-        response = base.eq("game_type", phase).execute()
-        games = response.data or []
-    else:
-        raise RuntimeError("La tabla games no tiene columnas phase ni game_type para filtrar fases")
 
     # Orden determinístico por game_datetime asc con fallback a game_date.
     games.sort(key=lambda g: (g.get("game_datetime") or g.get("game_date") or "", g.get("id") or 0))

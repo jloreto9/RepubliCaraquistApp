@@ -74,12 +74,14 @@ with col1:
     season_options = {}
     for season in available_seasons:
         display_text = f"{season}-{season+1}"
-        season_options[display_text] = season
-
-    # Determinar índice de la temporada actual
+        season_options[display_text] = season    # Determinar índice de la temporada (por defecto 2025-2026 si existe)
     current_season_display = f"{current_season}-{current_season+1}"
     season_list = list(season_options.keys())
-    default_index = season_list.index(current_season_display) if current_season_display in season_list else 0
+    default_index = 0
+    for idx, s in enumerate(available_seasons):
+        if s == 2025:
+            default_index = idx
+            break
 
     # Selector de temporada
     selected_season_display = st.selectbox(
@@ -103,20 +105,18 @@ LVBP_TEAMS = {
     697: "Bravos de Margarita"
 }
 
-# Obtener standings
+# Obtener standings de la base de datos
 standings_df = get_standings(selected_season)
 
 if not standings_df.empty:
-    # Filtrar solo equipos LVBP
-    standings_df = standings_df[standings_df['team_id'].isin(LVBP_TEAMS.keys())]
     
-    # Si no hay datos para estos equipos, intentar por nombre
-    if standings_df.empty:
-        standings_df = get_standings(selected_season)
-        lvbp_names = list(LVBP_TEAMS.values())
+    # Filtrar solo equipos de LVBP si hay otros
+    if 'team_id' in standings_df.columns:
+        standings_df = standings_df[standings_df['team_id'].isin(LVBP_TEAMS.keys())]
+    elif 'team_name' in standings_df.columns:
         standings_df = standings_df[standings_df['team_name'].str.contains('|'.join([
             'Leones', 'Tiburones', 'Navegantes', 'Tigres', 
-            'Águilas', 'Cardenales', 'Caribes', 'Bravos'
+            'Águilas', 'Aguilas', 'Cardenales', 'Caribes', 'Bravos'
         ]), case=False, na=False)]
     
     # Limitar a 8 equipos máximo
@@ -134,7 +134,7 @@ if not standings_df.empty:
         )
     
     # Tabs para diferentes vistas
-    tab1, tab_pyth, tab2, tab3, tab4 = st.tabs(["📊 Tabla General", "🧮 Sabermetría Pitagórica", "📈 Gráficos", "🆚 Head to Head", "📅 Calendario"])
+    tab1, tab_pyth, tab_elo, tab2, tab3, tab4 = st.tabs(["📊 Tabla General", "🧮 Sabermetría Pitagórica", "⚡ ELO Ratings", "📈 Gráficos", "🆚 Head to Head", "📅 Calendario"])
     
     with tab1:
         # Formatear tabla de posiciones
@@ -331,6 +331,80 @@ if not standings_df.empty:
             st.plotly_chart(fig_pyth_scatter, use_container_width=True)
         else:
             st.info("Datos de carreras no disponibles para el cálculo pitagórico.")
+            
+    with tab_elo:
+        st.subheader("⚡ Clasificación y Ratings ELO por Fase")
+        st.markdown(
+            "El sistema ELO evalúa la fuerza relativa de cada equipo de forma dinámica tras cada partido, "
+            "ponderando según el nivel del rival y la ventaja de localía (+35 pts). Base inicial: 1500."
+        )
+        
+        elo_phase = st.selectbox(
+            "🏆 Seleccionar Fase del Torneo",
+            options=list(ELO_PHASE_OPTIONS.keys()),
+            format_func=lambda x: ELO_PHASE_OPTIONS.get(x, x),
+            key="elo_phase_selector_main"
+        )
+        elo_df = load_elo_ratings_for_phase(selected_season, elo_phase)
+        
+        if elo_df.empty:
+            st.info(f"No hay registros de ELO calculados para la fase '{ELO_PHASE_OPTIONS.get(elo_phase, elo_phase)}' en {selected_season_display}.")
+        else:
+            # Métricas para Leones
+            leones_elo = elo_df[elo_df['team_name'].str.contains('Leones', case=False, na=False)]
+            if not leones_elo.empty:
+                l_elo_row = leones_elo.iloc[0]
+                e1, e2, e3, e4 = st.columns(4)
+                with e1:
+                    st.metric("🏆 Posición ELO", f"#{int(l_elo_row['rank'])} / {len(elo_df)}")
+                with e2:
+                    st.metric("⚡ Rating ELO", f"{float(l_elo_row['elo']):.2f}")
+                with e3:
+                    delta_base = float(l_elo_row['elo']) - 1500.0
+                    st.metric("Diferencial vs Base 1500", f"{delta_base:+.2f}")
+                with e4:
+                    st.metric("Juegos Evaluados", f"{int(l_elo_row['games_played'])} JJ")
+                st.markdown("---")
+                
+            col_elo_chart, col_elo_tbl = st.columns([5, 7])
+            
+            with col_elo_chart:
+                st.markdown("#### 📊 Comparativa de ELO por Equipo")
+                elo_chart_df = elo_df.sort_values('elo', ascending=True).copy()
+                fig_elo = px.bar(
+                    elo_chart_df,
+                    x='elo',
+                    y='team_name',
+                    orientation='h',
+                    color='elo',
+                    color_continuous_scale='RdYlGn',
+                    text_auto='.1f'
+                )
+                fig_elo.add_vline(x=1500, line_dash="dash", line_color="#ffffff", annotation_text="Base 1500", annotation_position="top")
+                fig_elo.update_layout(
+                    template='plotly_dark',
+                    height=360,
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    coloraxis_showscale=False,
+                    xaxis_title="Rating ELO",
+                    yaxis_title=""
+                )
+                st.plotly_chart(fig_elo, use_container_width=True)
+                
+            with col_elo_tbl:
+                st.markdown("#### 📋 Tabla Oficial de Ratings ELO")
+                display_df = elo_df[["rank", "team_name", "elo", "games_played", "updated_at"]].copy()
+                display_df["delta"] = (display_df["elo"].astype(float) - 1500.0).round(2)
+                display_df["delta_str"] = display_df["delta"].apply(lambda x: f"{x:+.2f}")
+                display_df["elo_str"] = display_df["elo"].apply(lambda x: f"{float(x):.2f}")
+                display_df["updated_str"] = pd.to_datetime(display_df["updated_at"], errors="coerce").dt.strftime('%d/%m/%Y %H:%M')
+                
+                table_out = display_df[["rank", "team_name", "elo_str", "delta_str", "games_played", "updated_str"]].rename(columns={
+                    "rank": "#", "team_name": "Equipo", "elo_str": "Rating ELO", "delta_str": "Dif vs 1500",
+                    "games_played": "JJ", "updated_str": "Última Actualización"
+                })
+                
+                st.dataframe(table_out, use_container_width=True, hide_index=True)
     
     with tab2:
         col1, col2 = st.columns(2)
@@ -1015,25 +1089,6 @@ else:
                 st.write("No se encontraron equipos en la base de datos")
         except Exception as e:
             st.error(f"Error al consultar equipos: {str(e)}")
-
-st.markdown("---")
-st.markdown("### ELO Ratings (by phase)")
-elo_phase = st.selectbox(
-    "Seleccionar fase ELO",
-    options=list(ELO_PHASE_OPTIONS.keys()),
-    format_func=lambda x: ELO_PHASE_OPTIONS.get(x, x),
-    key="elo_phase_selector"
-)
-elo_df = load_elo_ratings_for_phase(selected_season, elo_phase)
-
-if elo_df.empty:
-    st.info("ELO not computed yet. Run daily update.")
-else:
-    display_df = elo_df[["rank", "team_name", "elo", "games_played", "updated_at"]].copy()
-    display_df.columns = ["#", "Equipo", "ELO", "JJ", "Actualizado"]
-    display_df["ELO"] = display_df["ELO"].astype(float).round(2)
-    display_df["Actualizado"] = pd.to_datetime(display_df["Actualizado"], errors="coerce").dt.strftime('%Y-%m-%d %H:%M')
-    st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 # Footer
 st.markdown("---")

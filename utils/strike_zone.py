@@ -1,4 +1,4 @@
-﻿# utils/strike_zone.py
+# utils/strike_zone.py
 import requests
 import numpy as np
 import pandas as pd
@@ -40,6 +40,9 @@ CALL_COLORS = {
 def convert_pitch_coordinates(x_raw: float, y_raw: float, sz_top: float = 3.4, sz_bot: float = 1.5) -> tuple[float, float]:
     """
     Convierte coordenadas de pitch Gameday a pies centrados en home plate.
+    Calibración empírica exacta:
+    - Centro horizontal del plato: x0 = 110.0 (ancho de zona 17 in = 1.417 ft -> 35 unidades)
+    - Altura vertical: top de zona y=136, bottom de zona y=176 (40 unidades)
     Retorna (x_ft, z_ft).
     """
     if x_raw is None or y_raw is None:
@@ -48,11 +51,11 @@ def convert_pitch_coordinates(x_raw: float, y_raw: float, sz_top: float = 3.4, s
     top = float(sz_top) if sz_top and not np.isnan(sz_top) else 3.4
     bot = float(sz_bot) if sz_bot and not np.isnan(sz_bot) else 1.5
     
-    # 42 unidades en Gameday ~ ancho del home plate (17 in = 1.417 ft)
-    x_ft = (float(x_raw) - 125.0) * (1.417 / 42.0)
+    # 35 unidades en Gameday ~ ancho del home plate (17 in = 1.417 ft)
+    x_ft = (float(x_raw) - 110.0) * (1.417 / 35.0)
     
-    # 50 unidades de altura en Gameday ~ altura de zona
-    z_ft = bot + (top - bot) * ((195.0 - float(y_raw)) / 50.0)
+    # 40 unidades de altura en Gameday ~ altura de zona (y=136 top, y=176 bot)
+    z_ft = bot + (top - bot) * ((176.0 - float(y_raw)) / 40.0)
     
     return round(x_ft, 2), round(z_ft, 2)
 
