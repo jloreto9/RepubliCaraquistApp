@@ -1,4 +1,4 @@
-﻿# pages/7_🛡️_Bullpen_y_Lineups.py
+# pages/7_🛡️_Bullpen_y_Lineups.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -108,61 +108,229 @@ with tab_bp:
 # ================= TAB 2: LINEUPS =================
 with tab_lu:
     st.subheader("📋 Tracker de Alineaciones Titulares y Récord W-L")
-    st.markdown("Rastrea las alineaciones empleadas durante la temporada y su récord de victorias y derrotas.")
+    st.markdown("Analiza la estructura del orden al bate empleada por los Leones del Caracas a lo largo de la temporada.")
     
     if lineups_data:
-        # Agrupar por alineación
+        # Preparar data agregada
         lineup_records = []
+        starters_flat = []
+        
         for item in lineups_data:
-            lineup_records.append({
-                "game_date": item["game_date"],
-                "opposing_team": item["opposing_team"],
-                "won": 1 if item["leones_won"] else 0,
-                "lost": 0 if item["leones_won"] else 1,
-                "lineup_summary": item["lineup_summary"]
-            })
+            g_date = item["game_date"]
+            opp = item["opposing_team"]
+            won = item["leones_won"]
+            score_leo = item.get("leones_score", 0)
+            score_opp = item.get("opposing_score", 0)
+            starters = item.get("starters", [])
             
-        df_lu = pd.DataFrame(lineup_records)
-        
-        # Resumen por alineación única
-        lu_agg = df_lu.groupby("lineup_summary").agg(
-            Juegos=("won", "count"),
-            Victorias=("won", "sum"),
-            Derrotas=("lost", "sum")
-        ).reset_index()
-        
-        lu_agg["Pct_Victorias"] = (lu_agg["Victorias"] / lu_agg["Juegos"]).apply(lambda x: f"{x:.3f}".replace("0.", "."))
-        lu_agg = lu_agg.sort_values(by=["Juegos", "Victorias"], ascending=[False, False])
-        
-        col_k1, col_k2, col_k3 = st.columns(3)
-        with col_k1:
-            st.metric("Total Juegos Analizados", f"{len(df_lu)}")
-        with col_k2:
-            st.metric("Alineaciones Únicas Usadas", f"{len(lu_agg)}")
-        with col_k3:
-            most_used_games = lu_agg.iloc[0]["Juegos"] if not lu_agg.empty else 0
-            st.metric("Alineación Más Utilizada", f"{most_used_games} juegos", f"{lu_agg.iloc[0]['Victorias']}-{lu_agg.iloc[0]['Derrotas']} W-L" if not lu_agg.empty else None)
+            game_entry = {
+                "game_pk": item["game_pk"],
+                "game_date": g_date,
+                "opposing_team": opp,
+                "won": 1 if won else 0,
+                "lost": 0 if won else 1,
+                "score_str": f"{score_leo}-{score_opp}",
+                "result_str": "VICTORIA" if won else "DERROTA",
+                "starters": starters
+            }
+            lineup_records.append(game_entry)
             
-        st.markdown("---")
-        st.markdown("#### 🌟 Alineaciones Más Utilizadas")
-        st.dataframe(lu_agg, use_container_width=True, hide_index=True)
-        
-        # Desglose por posición en el orden al bate (1ro al 9no)
-        st.markdown("#### 🔢 Jugadores Más Frecuentes por Turno al Bate (1ro al 9no)")
-        order_rows = []
-        for item in lineups_data:
-            for st_player in item["starters"]:
-                order_rows.append({
-                    "Turno": f"Turno {st_player['order']}",
-                    "Jugador": st_player["player_name"],
-                    "Posicion": st_player["position"]
+            for s in starters:
+                starters_flat.append({
+                    "Jugador": s["player_name"],
+                    "Turno_Num": s["order"],
+                    "Turno": f"{s['order']}º Bate",
+                    "Posicion": s["position"],
+                    "game_date": g_date,
+                    "opposing_team": opp,
+                    "won": 1 if won else 0,
+                    "lost": 0 if won else 1
                 })
                 
-        if order_rows:
-            df_order = pd.DataFrame(order_rows)
-            order_summary = df_order.groupby(["Turno", "Jugador"]).size().reset_index(name="Juegos Titular")
-            order_summary = order_summary.sort_values(by=["Turno", "Juegos Titular"], ascending=[True, False])
+        df_starters = pd.DataFrame(starters_flat)
+        df_games_lu = pd.DataFrame(lineup_records)
+        
+        # Métricas Globales
+        tot_juegos = len(df_games_lu)
+        tot_jugadores = df_starters["Jugador"].nunique()
+        top_titular = df_starters["Jugador"].value_counts().index[0]
+        top_titular_jj = df_starters["Jugador"].value_counts().iloc[0]
+        
+        # Jugador 4to bate más frecuente
+        cleanups = df_starters[df_starters["Turno_Num"] == 4]["Jugador"].value_counts()
+        top_cleanup = cleanups.index[0] if not cleanups.empty else "N/A"
+        top_cleanup_jj = cleanups.iloc[0] if not cleanups.empty else 0
+        
+        k1, k2, k3, k4 = st.columns(4)
+        with k1:
+            st.metric("Juegos Analizados", f"{tot_juegos} JJ")
+        with k2:
+            st.metric("Jugadores Titulares Usados", f"{tot_jugadores}")
+        with k3:
+            st.metric("Más Titularidades", f"{top_titular}", f"{top_titular_jj} JJ")
+        with k4:
+            st.metric("4to Bate (Cleanup)", f"{top_cleanup}", f"{top_cleanup_jj} veces titular")
             
-            st.dataframe(order_summary, use_container_width=True, hide_index=True)
+        st.markdown("---")
+        
+        # Vistas de Alineación
+        subtab_card, subtab_matrix, subtab_player = st.tabs([
+            "🎴 Tarjeta de Alineación por Juego (Lineup Card)",
+            "📊 Matriz de Calor (Turnos 1 al 9)",
+            "👤 Impacto por Jugador Titular"
+        ])
+        
+        # ---- VISTA 1: TARJETA DE ALINEACIÓN POR JUEGO ----
+        with subtab_card:
+            st.markdown("#### 🏟️ Explorador de Tarjeta de Juego (Dugout Scorecard)")
+            st.markdown("Selecciona un partido para visualizar el orden al bate completo del 1ro al 9no bate.")
+            
+            # Selector de partido
+            game_options = {}
+            for g in lineup_records:
+                symbol = "✅ Victoria" if g["won"] == 1 else "❌ Derrota"
+                label = f"📅 {g['game_date']} | vs {g['opposing_team']} ({symbol} {g['score_str']})"
+                game_options[label] = g
+                
+            selected_game_label = st.selectbox("Seleccionar Partido", list(game_options.keys()), key="lineup_game_sel")
+            selected_game = game_options[selected_game_label]
+            
+            # Renderizar tarjeta estilo Dugout
+            st.markdown(f"""
+            <div style='background-color: #1e293b; padding: 16px; border-radius: 10px; border-left: 6px solid {'#10b981' if selected_game['won'] == 1 else '#ef4444'}; margin-bottom: 20px;'>
+                <h3 style='margin: 0; color: #ffffff;'>🦁 Alineación Titular — Leones del Caracas</h3>
+                <p style='margin: 4px 0 0 0; color: #94a3b8;'>📅 Fecha: <b>{selected_game['game_date']}</b> | Rival: <b>{selected_game['opposing_team']}</b> | Marcador: <b>{selected_game['score_str']}</b> ({selected_game['result_str']})</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            starters_sorted = sorted(selected_game["starters"], key=lambda x: x["order"])
+            
+            col_order_left, col_order_right = st.columns(2)
+            
+            pos_names = {
+                "1B": "Primera Base", "2B": "Segunda Base", "3B": "Tercera Base",
+                "SS": "Campocorto", "LF": "Jardín Izquierdo", "CF": "Jardín Central",
+                "RF": "Jardín Derecho", "C": "Receptor", "DH": "Bateador Designado"
+            }
+            
+            # 1ro al 5to
+            with col_order_left:
+                for s in starters_sorted[:5]:
+                    pos_full = pos_names.get(s['position'], s['position'])
+                    badge_color = "#3b82f6" if s['order'] <= 3 else ("#f59e0b" if s['order'] == 4 else "#8b5cf6")
+                    st.markdown(f"""
+                    <div style='background: #0f172a; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #334155;'>
+                        <div>
+                            <span style='background: {badge_color}; color: white; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 14px; margin-right: 12px;'>#{s['order']}</span>
+                            <span style='font-size: 16px; font-weight: 600; color: #f8fafc;'>{s['player_name']}</span>
+                        </div>
+                        <div>
+                            <span style='background: #334155; color: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 13px;'>{s['position']} • {pos_full}</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+            # 6to al 9no
+            with col_order_right:
+                for s in starters_sorted[5:]:
+                    pos_full = pos_names.get(s['position'], s['position'])
+                    st.markdown(f"""
+                    <div style='background: #0f172a; padding: 12px 16px; border-radius: 8px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #334155;'>
+                        <div>
+                            <span style='background: #64748b; color: white; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 14px; margin-right: 12px;'>#{s['order']}</span>
+                            <span style='font-size: 16px; font-weight: 600; color: #f8fafc;'>{s['player_name']}</span>
+                        </div>
+                        <div>
+                            <span style='background: #334155; color: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 13px;'>{s['position']} • {pos_full}</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+        # ---- VISTA 2: MATRIZ DE CALOR (HEATMAP 1-9) ----
+        with subtab_matrix:
+            st.markdown("#### 📊 Distribución de Titularidades en el Orden al Bate (1ro al 9no)")
+            st.markdown("Muestra cuántas veces inició cada jugador en cada posición del orden ofensivo.")
+            
+            # Pivot table
+            pivot_matrix = df_starters.pivot_table(index="Jugador", columns="Turno_Num", aggfunc="size", fill_value=0)
+            
+            # Renombrar columnas
+            col_map = {i: f"{i}º Bate" for i in range(1, 10)}
+            pivot_matrix = pivot_matrix.rename(columns=col_map)
+            
+            # Ordenar columnas del 1ro al 9no
+            ordered_cols = [f"{i}º Bate" for i in range(1, 10) if f"{i}º Bate" in pivot_matrix.columns]
+            pivot_matrix = pivot_matrix[ordered_cols]
+            
+            pivot_matrix["Total Titular"] = pivot_matrix.sum(axis=1)
+            pivot_matrix = pivot_matrix.sort_values(by="Total Titular", ascending=False)
+            
+            # Plotly Heatmap
+            top_players = pivot_matrix.head(15).iloc[::-1] # Invertir para visualización
+            
+            fig_heat = px.imshow(
+                top_players[ordered_cols].values,
+                x=ordered_cols,
+                y=top_players.index.tolist(),
+                color_continuous_scale="Blues",
+                text_auto=True,
+                labels=dict(x="Turno al Bate", y="Jugador", color="Juegos Titular")
+            )
+            fig_heat.update_layout(
+                template="plotly_dark",
+                height=520,
+                margin=dict(l=10, r=10, t=10, b=10),
+                xaxis_title="Turno en el Orden al Bate",
+                yaxis_title=""
+            )
+            st.plotly_chart(fig_heat, use_container_width=True)
+            
+            st.markdown("#### 📋 Tabla Completa de Titularidades por Turno")
+            st.dataframe(pivot_matrix, use_container_width=True)
+            
+        # ---- VISTA 3: IMPACTO POR JUGADOR ----
+        with subtab_player:
+            st.markdown("#### 👤 Análisis de Titularidad y Récord por Jugador")
+            st.markdown("Selecciona un jugador para ver en qué turnos alineó y el récord de victorias/derrotas del equipo.")
+            
+            all_starters_list = sorted(df_starters["Jugador"].unique().tolist())
+            sel_player = st.selectbox("Seleccionar Jugador Titular", all_starters_list, key="player_lu_sel")
+            
+            df_p_lu = df_starters[df_starters["Jugador"] == sel_player]
+            
+            # Resumen por turno para este jugador
+            p_turnos = df_p_lu.groupby("Turno").agg(
+                Titularidades=("won", "count"),
+                Victorias=("won", "sum"),
+                Derrotas=("lost", "sum")
+            ).reset_index()
+            p_turnos["% Victorias"] = (p_turnos["Victorias"] / p_turnos["Titularidades"]).apply(lambda x: f"{x:.3f}".replace("0.", "."))
+            p_turnos = p_turnos.sort_values(by="Titularidades", ascending=False)
+            
+            pk1, pk2, pk3 = st.columns(3)
+            tot_p_games = len(df_p_lu)
+            tot_p_w = int(df_p_lu["won"].sum())
+            tot_p_l = int(df_p_lu["lost"].sum())
+            pct_p = tot_p_w / tot_p_games if tot_p_games > 0 else 0
+            
+            with pk1:
+                st.metric(f"Titularidades con {sel_player}", f"{tot_p_games} JJ")
+            with pk2:
+                st.metric("Récord del Equipo", f"{tot_p_w} - {tot_p_l}")
+            with pk3:
+                st.metric("% Efectividad", f".{int(pct_p*1000):03d}")
+                
+            st.markdown("##### 🔢 Desglose por Turno al Bate")
+            st.dataframe(p_turnos, use_container_width=True, hide_index=True)
+            
+            st.markdown("##### 📅 Historial de Partidos como Titular")
+            disp_p_games = df_p_lu[["game_date", "opposing_team", "Turno", "Posicion", "won"]].copy()
+            disp_p_games["Resultado"] = disp_p_games["won"].apply(lambda x: "V" if x == 1 else "D")
+            disp_p_games = disp_p_games.rename(columns={
+                "game_date": "Fecha", "opposing_team": "Rival", "Turno": "Turno al Bate", "Posicion": "Posición Defensiva"
+            })[["Fecha", "Rival", "Turno al Bate", "Posición Defensiva", "Resultado"]]
+            
+            st.dataframe(disp_p_games, use_container_width=True, hide_index=True)
+            
     else:
         st.info("No se encontraron datos de alineaciones para la temporada.")
