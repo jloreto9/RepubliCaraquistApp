@@ -28,11 +28,20 @@ st.markdown("""
         border-left: 4px solid #3b82f6;
         margin-bottom: 10px;
     }
+    .atbat-banner {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        border: 1px solid #334155;
+        border-left: 5px solid #FDB827;
+        border-radius: 8px;
+        padding: 12px 18px;
+        margin-bottom: 15px;
+        color: #f8fafc;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 st.title("🎯 Disciplina en el Plato y Localización de Pitcheos")
-st.markdown("Análisis avanzado de toma de decisiones en el plato (O-Swing%, Z-Swing%, Whiff Rate, CSW%) y visualización de Zona de Strike.")
+st.markdown("Análisis avanzado de toma de decisiones en el plato (O-Swing%, Z-Swing%, Whiff Rate, CSW%), visualización de Zona de Strike y desglose turno a turno.")
 
 # Sidebar
 st.sidebar.header("⚙️ Configuración")
@@ -53,7 +62,7 @@ if st.sidebar.button("🔄 Recargar Datos / Limpiar Caché"):
     st.rerun()
 
 with st.spinner("Cargando lanzamientos de la temporada desde MLB Stats API..."):
-    df_pitches = fetch_season_pitches(selected_season, team_id=LEONES_TEAM_ID, cache_version="v2_calibrated")
+    df_pitches = fetch_season_pitches(selected_season, team_id=LEONES_TEAM_ID, cache_version="v3_at_bats_opponents")
 
 if df_pitches.empty:
     st.warning(f"⚠️ No se encontraron datos de lanzamientos para la temporada {selected_season_str}.")
@@ -66,11 +75,17 @@ rol_view = st.sidebar.radio("👥 Perspectiva de Análisis", ["Bateadores de Leo
 if rol_view == "Bateadores de Leones":
     df_pool = df_pitches[df_pitches["is_batter_leones"] == True].copy()
     player_col = "batter_name"
-    team_title = "Leones del Caracas (Ofensiva Completa)"
+    opp_col = "pitcher_name"
+    opp_label = "⚾ Lanzador que lanzaba"
+    all_opp_label = "🌟 Todos los lanzadores rivales"
+    team_title = "Leones del Caracas (Ofensiva)"
 else:
     df_pool = df_pitches[df_pitches["is_pitcher_leones"] == True].copy()
     player_col = "pitcher_name"
-    team_title = "Leones del Caracas (Cuerpo de Pitcheo)"
+    opp_col = "batter_name"
+    opp_label = "🏏 Bateador contrario"
+    all_opp_label = "🌟 Todos los bateadores contrarios"
+    team_title = "Leones del Caracas (Pitcheo)"
 
 # Filtro Temporal
 df_pool["game_date_dt"] = pd.to_datetime(df_pool["game_date"])
@@ -94,13 +109,17 @@ elif tipo_temporal == "Por Juego Específico":
     df_time = df_pool[df_pool["game_pk"] == sel_pk]
     suffix = f" - {sel_g_label.replace('📅 ', '')}"
 
-# Selector de Jugador
+# Selector de Jugador Principal (Leones)
 counts = df_time[player_col].value_counts()
 player_list = [f"{name} ({c} pitcheos)" for name, c in counts.items()]
 player_map = {f"{name} ({c} pitcheos)": name for name, c in counts.items()}
 
 all_label = f"🌟 Todos ({team_title})"
-sel_player_display = st.sidebar.selectbox("👤 Seleccionar Jugador", [all_label] + player_list)
+sel_player_display = st.sidebar.selectbox(
+    f"👤 Seleccionar Jugador ({'Bateador' if rol_view == 'Bateadores de Leones' else 'Lanzador'})",
+    [all_label] + player_list,
+    key=f"player_sel_{rol_view}"
+)
 
 if sel_player_display == all_label:
     df_subject = df_time.copy()
@@ -109,6 +128,76 @@ else:
     chosen = player_map[sel_player_display]
     df_subject = df_time[df_time[player_col] == chosen].copy()
     current_name = f"{chosen}{suffix}"
+
+# Selector de Rival / Oponente Enfrentado
+st.sidebar.markdown("---")
+st.sidebar.header("⚔️ Rival Enfrentado")
+opp_counts = df_subject[opp_col].value_counts()
+opp_list = [f"{name} ({c} pitcheos)" for name, c in opp_counts.items()]
+opp_map = {f"{name} ({c} pitcheos)": name for name, c in opp_counts.items()}
+
+sel_opp_display = st.sidebar.selectbox(
+    opp_label,
+    [all_opp_label] + opp_list,
+    key=f"opp_sel_{rol_view}"
+)
+if sel_opp_display != all_opp_label:
+    chosen_opp = opp_map[sel_opp_display]
+    df_subject = df_subject[df_subject[opp_col] == chosen_opp].copy()
+    current_name += f" vs {chosen_opp}"
+
+# Selector de Turno al Bate / Enfrentamiento
+st.sidebar.markdown("---")
+st.sidebar.header("🎯 Selección de Turnos")
+
+# Construir opciones de turnos
+at_bats_list = []
+at_bats_dict = {}
+
+if not df_subject.empty:
+    # Agrupar ordenado por fecha e índice de turno
+    grouped_ab = df_subject.groupby(["game_pk", "at_bat_index"], sort=False)
+    for (g_pk, ab_idx), ab_df in grouped_ab:
+        first = ab_df.iloc[0]
+        try:
+            d_str = pd.to_datetime(first["game_date"]).strftime("%d/%m")
+        except:
+            d_str = str(first.get("game_date", ""))
+        inn = first.get("inning", 1)
+        half_sym = "▲" if first.get("half") == "top" else "▼"
+        opp_n = first.get(opp_col, "Rival")
+        ev = first.get("play_event", "En juego")
+        p_count = len(ab_df)
+        label = f"📅 {d_str} | {half_sym}Inn {inn} vs {opp_n} ➔ {ev} ({p_count} lanz.)"
+        
+        at_bats_list.append(label)
+        at_bats_dict[label] = {
+            "game_pk": g_pk,
+            "at_bat_index": ab_idx,
+            "desc": first.get("play_desc", ""),
+            "event": ev,
+            "opp": opp_n,
+            "batter": first.get("batter_name", ""),
+            "pitcher": first.get("pitcher_name", ""),
+            "inning": inn,
+            "pitches": p_count
+        }
+
+all_turnos_label = f"🌟 Todos los turnos ({len(at_bats_list)} turnos)"
+sel_turno_display = st.sidebar.selectbox(
+    "🎯 Turno al Bate / Enfrentamiento",
+    [all_turnos_label] + at_bats_list,
+    key=f"turno_sel_{rol_view}"
+)
+
+selected_single_turno = None
+if sel_turno_display != all_turnos_label and sel_turno_display in at_bats_dict:
+    selected_single_turno = at_bats_dict[sel_turno_display]
+    df_subject = df_subject[
+        (df_subject["game_pk"] == selected_single_turno["game_pk"]) &
+        (df_subject["at_bat_index"] == selected_single_turno["at_bat_index"])
+    ].copy()
+    current_name += f" (Turno Inn {selected_single_turno['inning']} - {selected_single_turno['event']})"
 
 # Filtros adicionales
 st.sidebar.markdown("---")
@@ -139,6 +228,23 @@ llamadas_sel = st.sidebar.multiselect(
 if llamadas_sel:
     df_subject = df_subject[df_subject["call_group"].isin(llamadas_sel)]
 
+# Banner descriptivo si se escogió un turno individual
+if selected_single_turno:
+    opp_title = f"Lanzador que lanzaba: **{selected_single_turno['pitcher']}**" if rol_view == "Bateadores de Leones" else f"Bateador contrario: **{selected_single_turno['batter']}**"
+    st.markdown(f"""
+    <div class="atbat-banner">
+        <h4 style="margin: 0 0 5px 0; color: #FDB827;">🎯 Detalle del Turno al Bate Seleccionado</h4>
+        <p style="margin: 0 0 5px 0; font-size: 1.05rem;">
+            <b>Inning {selected_single_turno['inning']}</b> | {opp_title} | 
+            Resultado: <b style="color: #38bdf8;">{selected_single_turno['event']}</b> | 
+            Total: <b>{selected_single_turno['pitches']} pitcheos</b>
+        </p>
+        <p style="margin: 0; font-size: 0.9rem; color: #cbd5e1; font-style: italic;">
+            📝 {selected_single_turno['desc']}
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
 # Cálculo de Métricas
 m = calculate_discipline_metrics(df_subject)
 
@@ -165,7 +271,12 @@ st.markdown("---")
 col_left, col_right = st.columns([7, 5])
 
 with col_left:
-    fig_zone = create_strike_zone_figure(df_subject, title_player=current_name)
+    fig_zone = create_strike_zone_figure(
+        df_subject,
+        title_player=current_name,
+        rol_view=rol_view,
+        show_sequence_numbers=(selected_single_turno is not None)
+    )
     st.plotly_chart(fig_zone, use_container_width=True)
 
 with col_right:
@@ -226,17 +337,19 @@ with col_right:
     st.plotly_chart(fig_bar, use_container_width=True)
 
 # Tabla expandible
-with st.expander("📋 Registro Detallado de Lanzamientos", expanded=False):
+with st.expander("📋 Registro Detallado de Lanzamientos y Secuencia", expanded=False):
     if not df_subject.empty:
-        disp_cols = ["game_date", "inning", "batter_name", "pitcher_name", "count_str", "call_es", "pitch_type", "x_ft", "z_ft"]
+        disp_cols = ["game_date", "inning", "pitch_number", "batter_name", "pitcher_name", "count_str", "call_es", "pitch_type", "play_event", "x_ft", "z_ft"]
         rename_map = {
             "game_date": "Fecha",
             "inning": "Inning",
+            "pitch_number": "Pitcheo #",
             "batter_name": "Bateador",
-            "pitcher_name": "Lanzador",
+            "pitcher_name": "Lanzador que lanzaba" if rol_view == "Bateadores de Leones" else "Lanzador (Leones)",
             "count_str": "Cuenta",
-            "call_es": "Llamada",
+            "call_es": "Resultado Lanzamiento",
             "pitch_type": "Tipo Pitcheo",
+            "play_event": "Resultado del Turno",
             "x_ft": "X (ft)",
             "z_ft": "Z (ft)"
         }

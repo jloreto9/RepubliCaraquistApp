@@ -125,12 +125,17 @@ def fetch_single_game_pitches(game_pk: int) -> list[dict]:
             about = play.get("about", {})
             inning = about.get("inning", 1)
             half = about.get("halfInning", "top")
+            at_bat_index = play.get("atBatIndex", about.get("atBatIndex", 0))
+            result = play.get("result", {})
+            play_event = result.get("event", "En juego")
+            play_desc = result.get("description", "")
             
             batter_team_id = away_id if half == "top" else home_id
             pitcher_team_id = home_id if half == "top" else away_id
             
             for ev in play.get("playEvents", []):
                 if ev.get("isPitch"):
+                    pitch_number = ev.get("pitchNumber", 1)
                     details = ev.get("details", {})
                     call_desc = details.get("description", "")
                     pitch_type = details.get("type", {}).get("description", "Sin dato")
@@ -175,22 +180,32 @@ def fetch_single_game_pitches(game_pk: int) -> list[dict]:
                         balls = count.get("balls", 0)
                         strikes = count.get("strikes", 0)
                         
+                        batter_name = batter.get("fullName", "Desconocido")
+                        pitcher_name = pitcher.get("fullName", "Desconocido")
+                        is_batter_leones = (batter_team_id == LEONES_TEAM_ID)
+                        opponent_name = pitcher_name if is_batter_leones else batter_name
+                        
                         records.append({
                             "game_pk": game_pk,
                             "game_date": game_date,
                             "home_team": home_team,
                             "away_team": away_team,
+                            "at_bat_index": at_bat_index,
+                            "pitch_number": pitch_number,
+                            "play_event": play_event,
+                            "play_desc": play_desc,
                             "inning": inning,
                             "half": half,
                             "batter_id": batter.get("id"),
-                            "batter_name": batter.get("fullName", "Desconocido"),
+                            "batter_name": batter_name,
                             "batter_team_id": batter_team_id,
-                            "is_batter_leones": (batter_team_id == LEONES_TEAM_ID),
+                            "is_batter_leones": is_batter_leones,
                             "bat_side": bat_side,
                             "pitcher_id": pitcher.get("id"),
-                            "pitcher_name": pitcher.get("fullName", "Desconocido"),
+                            "pitcher_name": pitcher_name,
                             "pitcher_team_id": pitcher_team_id,
                             "is_pitcher_leones": (pitcher_team_id == LEONES_TEAM_ID),
+                            "opponent_name": opponent_name,
                             "pitch_hand": pitch_hand,
                             "pitch_type": pitch_type,
                             "call_desc": call_desc,
@@ -218,7 +233,7 @@ def fetch_single_game_pitches(game_pk: int) -> list[dict]:
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def fetch_season_pitches(season: int, team_id: int = LEONES_TEAM_ID, cache_version: str = "v2_calibrated") -> pd.DataFrame:
+def fetch_season_pitches(season: int, team_id: int = LEONES_TEAM_ID, cache_version: str = "v3_at_bats_opponents") -> pd.DataFrame:
     """Descarga todos los lanzamientos de la temporada con multithreading."""
     sched_url = f"https://statsapi.mlb.com/api/v1/schedule?sportId=17&leagueId=135&season={season}&teamId={team_id}"
     try:
@@ -324,8 +339,13 @@ def calculate_discipline_metrics(df: pd.DataFrame) -> dict:
     }
 
 
-def create_strike_zone_figure(df: pd.DataFrame, title_player: str = "Leones del Caracas") -> go.Figure:
-    """Genera la figura de Zona de Strike con cuadrícula 3x3 y lanzamientos."""
+def create_strike_zone_figure(
+    df: pd.DataFrame,
+    title_player: str = "Leones del Caracas",
+    rol_view: str = "Bateadores de Leones",
+    show_sequence_numbers: bool = False
+) -> go.Figure:
+    """Genera la figura de Zona de Strike con cuadrícula 3x3 y lanzamientos con detalle de rival y turno."""
     fig = go.Figure()
     
     # Dimensiones estándar de zona en pies
@@ -386,6 +406,10 @@ def create_strike_zone_figure(df: pd.DataFrame, title_player: str = "Leones del 
         )
         return fig
         
+    # Preparar campos seguros
+    play_events = df["play_event"] if "play_event" in df.columns else pd.Series([""] * len(df))
+    pitch_nums = df["pitch_number"] if "pitch_number" in df.columns else pd.Series([1] * len(df))
+    
     # Preparar Customdata para hover
     customdata = np.stack((
         df["batter_name"],
@@ -396,47 +420,75 @@ def create_strike_zone_figure(df: pd.DataFrame, title_player: str = "Leones del 
         df["game_date"],
         df["pitch_type"],
         df["x_ft"],
-        df["z_ft"]
+        df["z_ft"],
+        play_events,
+        pitch_nums
     ), axis=-1)
     
-    hovertemplate = (
-        "<b>Bateador:</b> %{customdata[0]}<br>"
-        "<b>Lanzador:</b> %{customdata[1]}<br>"
-        "<b>Resultado:</b> %{customdata[2]}<br>"
-        "<b>Cuenta:</b> %{customdata[3]} | <b>Inning:</b> %{customdata[4]}<br>"
-        "<b>Fecha:</b> %{customdata[5]}<br>"
-        "<b>Tipo Pitcheo:</b> %{customdata[6]}<br>"
-        "<b>Ubicación:</b> X=%{customdata[7]} ft, Z=%{customdata[8]} ft"
-        "<extra></extra>"
-    )
+    if rol_view == "Bateadores de Leones":
+        hovertemplate = (
+            "<b>🦁 Bateador:</b> %{customdata[0]}<br>"
+            "<b>⚾ Lanzador que lanzaba:</b> %{customdata[1]}<br>"
+            "<b>🎯 Turno:</b> Inning %{customdata[4]} (%{customdata[9]}) | <b>Pitcheo #:</b> %{customdata[10]}<br>"
+            "<b>Resultado:</b> %{customdata[2]}<br>"
+            "<b>Cuenta:</b> %{customdata[3]}<br>"
+            "<b>Fecha:</b> %{customdata[5]}<br>"
+            "<b>Tipo Pitcheo:</b> %{customdata[6]}<br>"
+            "<b>Ubicación:</b> X=%{customdata[7]} ft, Z=%{customdata[8]} ft"
+            "<extra></extra>"
+        )
+    else:
+        hovertemplate = (
+            "<b>🦁 Lanzador:</b> %{customdata[1]}<br>"
+            "<b>🏏 Bateador contrario:</b> %{customdata[0]}<br>"
+            "<b>🎯 Enfrentamiento:</b> Inning %{customdata[4]} (%{customdata[9]}) | <b>Pitcheo #:</b> %{customdata[10]}<br>"
+            "<b>Resultado:</b> %{customdata[2]}<br>"
+            "<b>Cuenta:</b> %{customdata[3]}<br>"
+            "<b>Fecha:</b> %{customdata[5]}<br>"
+            "<b>Tipo Pitcheo:</b> %{customdata[6]}<br>"
+            "<b>Ubicación:</b> X=%{customdata[7]} ft, Z=%{customdata[8]} ft"
+            "<extra></extra>"
+        )
     
     # Trazar puntos agrupados por llamada
     groups = [
-        ("Whiff", "Swing y Abanicado (Whiff)", "#e74c3c", 10, "circle"),
-        ("Called Strike", "Strike Cantado", "#f39c12", 9, "diamond"),
-        ("In Play", "En Juego (Contacto)", "#2ecc71", 9, "square"),
-        ("Foul", "Foul", "#3498db", 8, "triangle-up"),
-        ("Ball", "Bola", "rgba(148, 163, 184, 0.6)", 7, "circle-open")
+        ("Whiff", "Swing y Abanicado (Whiff)", "#e74c3c", 11, "circle"),
+        ("Called Strike", "Strike Cantado", "#f39c12", 10, "diamond"),
+        ("In Play", "En Juego (Contacto)", "#2ecc71", 10, "square"),
+        ("Foul", "Foul", "#3498db", 9, "triangle-up"),
+        ("Ball", "Bola", "rgba(148, 163, 184, 0.65)", 8, "circle-open")
     ]
+    
+    is_single_turn = (show_sequence_numbers or len(df) <= 12)
     
     for group_key, label, color, size, symbol in groups:
         sub_df = df[df["call_group"] == group_key]
         if not sub_df.empty:
             sub_customdata = customdata[df["call_group"] == group_key]
-            fig.add_trace(go.Scatter(
+            
+            trace_kwargs = dict(
                 x=sub_df["x_ft"],
                 y=sub_df["z_ft"],
-                mode="markers",
                 name=f"{label} ({len(sub_df)})",
                 marker=dict(
-                    size=size,
+                    size=size if not is_single_turn else size + 4,
                     color=color,
                     symbol=symbol,
-                    line=dict(width=1, color="#ffffff" if group_key != "Ball" else "rgba(255,255,255,0.2)")
+                    line=dict(width=1.2, color="#ffffff" if group_key != "Ball" else "rgba(255,255,255,0.3)")
                 ),
                 customdata=sub_customdata,
                 hovertemplate=hovertemplate
-            ))
+            )
+            
+            if is_single_turn and "pitch_number" in sub_df.columns:
+                trace_kwargs["mode"] = "markers+text"
+                trace_kwargs["text"] = sub_df["pitch_number"].astype(str)
+                trace_kwargs["textposition"] = "middle center"
+                trace_kwargs["textfont"] = dict(color="#ffffff", size=10, family="Arial Black")
+            else:
+                trace_kwargs["mode"] = "markers"
+                
+            fig.add_trace(go.Scatter(**trace_kwargs))
             
     fig.update_layout(
         title=dict(
