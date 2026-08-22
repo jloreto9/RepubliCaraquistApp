@@ -1,206 +1,77 @@
-# pages/3_📈_Análisis_WPA.py
+﻿# pages/3_📈_Análisis_WPA.py
+"""
+Módulo de Análisis Avanzado de Win Probability Added (WPA), Leverage Index (LI)
+y Modelado de Situaciones Críticas para los Leones del Caracas (LVBP).
+"""
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-import requests
 from datetime import datetime
 import sys
 import os
 
-# Agregar el directorio padre al path
+# Path imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Importar funciones de Supabase
 try:
     from utils.supabase_client import init_supabase, get_available_seasons, get_current_season
-except:
+    from utils.wpa_engine import (
+        process_game_wpa_advanced,
+        calculate_player_game_wpa,
+        get_season_wpa_leaderboard,
+        format_base_state
+    )
+except Exception:
     from streamlit_app.utils.supabase_client import init_supabase, get_available_seasons, get_current_season
+    from streamlit_app.utils.wpa_engine import (
+        process_game_wpa_advanced,
+        calculate_player_game_wpa,
+        get_season_wpa_leaderboard,
+        format_base_state
+    )
 
-# Configuración de la página
 st.set_page_config(
-    page_title="Análisis WPA - RepubliCaraquistApp",
+    page_title="Análisis WPA & Apalancamiento - RepubliCaraquistApp",
     page_icon="📈",
     layout="wide"
 )
 
-# Constantes
 TEAM_ID = 695  # Leones del Caracas
 LEONES_GOLD = "#FDB827"
 LEONES_RED = "#CE1141"
+LEONES_NAVY = "#0C2340"
 
-# ========================================
-# FUNCIONES DE CÁLCULO WPA
-# ========================================
-
-def calculate_wp(inning: int, diff: int) -> float:
-    """Calcula Win Probability simple basado en inning y diferencial"""
-    leverage = min(inning / 9.0, 1.0)
-    wp = 1.0 / (1.0 + np.exp(-0.75 * diff))
-    return max(0.0, min(1.0, wp + 0.25 * leverage * (wp - 0.5)))
+TEAM_NAMES = {
+    695: "Leones del Caracas",
+    698: "Tiburones de La Guaira",
+    696: "Navegantes del Magallanes",
+    699: "Tigres de Aragua",
+    692: "Águilas del Zulia",
+    693: "Cardenales de Lara",
+    694: "Caribes de Anzoátegui",
+    697: "Bravos de Margarita"
+}
 
 
 @st.cache_data(ttl=300)
 def get_leones_games_from_supabase(season: int) -> pd.DataFrame:
-    """Obtiene todos los juegos de Leones desde Supabase"""
+    """Obtiene todos los juegos finalizados de Leones desde Supabase"""
     supabase = init_supabase()
-
     try:
         response = supabase.table('games') \
             .select('*') \
             .eq('season', season) \
-            .in_('status', ['Final', 'Completed', 'Completed Early']) \
+            .in_('status', ['Final', 'Completed', 'Completed Early', 'Game Over']) \
             .or_(f'home_team_id.eq.{TEAM_ID},away_team_id.eq.{TEAM_ID}') \
             .order('game_date', desc=True) \
             .execute()
-
         if response.data:
-            df = pd.DataFrame(response.data)
-            return df
+            return pd.DataFrame(response.data)
     except Exception as e:
         st.error(f"Error obteniendo juegos: {str(e)}")
-
     return pd.DataFrame()
-
-
-@st.cache_data(ttl=600)
-def process_game_feed(game_pk: int) -> tuple:
-    """Procesa el feed del juego desde la API de MLB y calcula WPA"""
-    try:
-        url = f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live"
-        response = requests.get(url, timeout=30)
-        feed = response.json()
-    except Exception as e:
-        return pd.DataFrame(), False, str(e)
-
-    # Identificar si Leones es local o visitante
-    try:
-        home_id = feed["gameData"]["teams"]["home"]["id"]
-        leones_is_home = (home_id == TEAM_ID)
-
-        home_name = feed["gameData"]["teams"]["home"]["name"]
-        away_name = feed["gameData"]["teams"]["away"]["name"]
-    except:
-        return pd.DataFrame(), False, "Error en datos del juego"
-
-    # Procesar jugadas
-    all_plays = feed.get("liveData", {}).get("plays", {}).get("allPlays", [])
-
-    if not all_plays:
-        return pd.DataFrame(), leones_is_home, "No hay jugadas disponibles"
-
-    wpa_rows = []
-    prev_wp = 0.5
-    home_score = away_score = 0
-
-    for idx, play in enumerate(all_plays):
-        about = play.get("about", {})
-        result = play.get("result", {})
-        matchup = play.get("matchup", {})
-
-        inning = about.get("inning", 1)
-        half = about.get("halfInning", "top")
-
-        # Calcular carreras anotadas
-        runs = sum(1 for runner in play.get("runners", [])
-                   if runner.get("movement", {}).get("end") == "score")
-
-        # Actualizar score
-        if half == "bottom":
-            home_score += runs
-        else:
-            away_score += runs
-
-        # Perspectiva Leones
-        leones_score = home_score if leones_is_home else away_score
-        opp_score = away_score if leones_is_home else home_score
-
-        # Calcular WPA
-        diff = leones_score - opp_score
-        wp_after = calculate_wp(inning, diff)
-        wpa = wp_after - prev_wp
-
-        # Determinar si el bateador/pitcher es de Leones
-        batter_team = matchup.get("batter", {}).get("parentTeamId")
-        pitcher_team = matchup.get("pitcher", {}).get("parentTeamId")
-
-        wpa_rows.append({
-            "atbat_index": idx,
-            "inning": inning,
-            "halfInning": half,
-            "batter_id": matchup.get("batter", {}).get("id"),
-            "batter": matchup.get("batter", {}).get("fullName", "Desconocido"),
-            "pitcher_id": matchup.get("pitcher", {}).get("id"),
-            "pitcher": matchup.get("pitcher", {}).get("fullName", "Desconocido"),
-            "eventType": result.get("event", ""),
-            "description": result.get("description", ""),
-            "leones_before": leones_score - (runs if half == ("bottom" if leones_is_home else "top") else 0),
-            "opp_before": opp_score - (runs if half != ("bottom" if leones_is_home else "top") else 0),
-            "leones_after": leones_score,
-            "opp_after": opp_score,
-            "wp_before": prev_wp,
-            "wp_after": wp_after,
-            "wpa": wpa,
-            "batter_is_leones": batter_team == TEAM_ID if batter_team else None,
-            "pitcher_is_leones": pitcher_team == TEAM_ID if pitcher_team else None
-        })
-
-        prev_wp = wp_after
-
-    # Ajustar WPA final
-    if wpa_rows:
-        final_diff = wpa_rows[-1]["leones_after"] - wpa_rows[-1]["opp_after"]
-        final_wp = 1.0 if final_diff > 0 else 0.0
-        wpa_rows[-1]["wp_after"] = final_wp
-        wpa_rows[-1]["wpa"] = final_wp - wpa_rows[-1]["wp_before"]
-
-    return pd.DataFrame(wpa_rows), leones_is_home, None
-
-
-@st.cache_data(ttl=600)
-def get_game_roster(game_pk: int) -> set:
-    """Obtiene los IDs de jugadores de Leones que participaron en el juego"""
-    try:
-        url = f"https://statsapi.mlb.com/api/v1/game/{game_pk}/boxscore"
-        response = requests.get(url, timeout=30)
-        box = response.json()
-
-        players = set()
-
-        for side in ["home", "away"]:
-            team_data = box.get("teams", {}).get(side, {})
-            if team_data.get("team", {}).get("id") == TEAM_ID:
-                for player_id, player_data in team_data.get("players", {}).items():
-                    players.add(player_data.get("person", {}).get("id"))
-
-        return players
-    except:
-        return set()
-
-
-def calculate_player_wpa(df_wpa: pd.DataFrame, roster_ids: set) -> pd.DataFrame:
-    """Calcula WPA total por jugador"""
-    # WPA como bateador
-    wpa_bat = df_wpa.groupby(["batter_id", "batter"])["wpa"].sum().reset_index()
-    wpa_bat.columns = ["player_id", "player", "wpa_bat"]
-
-    # WPA como pitcher (invertido - bueno para el pitcher si el bateador hace negativo)
-    wpa_pit = df_wpa.groupby(["pitcher_id", "pitcher"])["wpa"].sum().reset_index()
-    wpa_pit.columns = ["player_id", "player", "wpa_pit"]
-
-    # Combinar
-    wpa_total = pd.merge(wpa_bat, wpa_pit, on=["player_id", "player"], how="outer").fillna(0)
-
-    # Filtrar solo jugadores de Leones si tenemos el roster
-    if roster_ids:
-        wpa_total = wpa_total[wpa_total["player_id"].isin(roster_ids)]
-
-    wpa_total["WPA_total"] = wpa_total["wpa_bat"] + wpa_total["wpa_pit"]
-    wpa_total = wpa_total.sort_values("WPA_total", ascending=False)
-
-    return wpa_total
 
 
 # ========================================
@@ -208,38 +79,35 @@ def calculate_player_wpa(df_wpa: pd.DataFrame, roster_ids: set) -> pd.DataFrame:
 # ========================================
 
 def create_wp_evolution_chart(df_wpa: pd.DataFrame, game_info: dict) -> go.Figure:
-    """Crea gráfico de evolución de Win Probability"""
-    # Preparar datos
+    """Crea gráfico de evolución de Win Probability con datos de apalancamiento y bases"""
     df_plot = df_wpa.copy()
-    df_plot['play_number'] = range(len(df_plot))
+    df_plot['play_number'] = range(1, len(df_plot) + 1)
 
-    # Agregar punto inicial
-    initial_row = pd.DataFrame({
-        'play_number': [-1],
-        'wp_after': [0.5],
-        'inning': [1]
-    })
+    # Punto inicial
+    initial_row = pd.DataFrame([{
+        'play_number': 0,
+        'wp_after': 0.50,
+        'inning': 1,
+        'halfInning': 'top',
+        'score_str': '0-0',
+        'batter': 'Inicio del juego',
+        'pitcher': 'Abridor',
+        'eventType': 'Play Ball',
+        'base_icons': '◇ ◇ ◇',
+        'outs_before': 0,
+        'li': 1.0,
+        'wpa': 0.0
+    }])
     df_plot = pd.concat([initial_row, df_plot], ignore_index=True)
-    df_plot = df_plot.sort_values('play_number').reset_index(drop=True)
 
     fig = go.Figure()
 
-    # Línea principal de WP
-    fig.add_trace(go.Scatter(
-        x=df_plot['play_number'],
-        y=df_plot['wp_after'],
-        mode='lines',
-        name='Win Probability',
-        line=dict(color=LEONES_GOLD, width=3),
-        hovertemplate='Jugada %{x}<br>WP: %{y:.1%}<extra></extra>'
-    ))
-
-    # Área de ventaja Leones
+    # Área de ventaja Leones (> 50%)
     fig.add_trace(go.Scatter(
         x=df_plot['play_number'],
         y=df_plot['wp_after'].where(df_plot['wp_after'] >= 0.5, 0.5),
         fill='tonexty',
-        fillcolor='rgba(253, 184, 39, 0.3)',
+        fillcolor='rgba(253, 184, 39, 0.25)',
         line=dict(width=0),
         name='Ventaja Leones',
         showlegend=True,
@@ -251,191 +119,176 @@ def create_wp_evolution_chart(df_wpa: pd.DataFrame, game_info: dict) -> go.Figur
         x=df_plot['play_number'],
         y=[0.5] * len(df_plot),
         mode='lines',
-        line=dict(color='gray', width=1, dash='dash'),
-        name='50%',
+        line=dict(color='rgba(150, 150, 150, 0.6)', width=1.5, dash='dash'),
+        name='Empate (50%)',
         showlegend=False,
         hoverinfo='skip'
     ))
 
-    # Área de ventaja rival
+    # Área de ventaja rival (< 50%)
     fig.add_trace(go.Scatter(
         x=df_plot['play_number'],
         y=df_plot['wp_after'].where(df_plot['wp_after'] < 0.5, 0.5),
         fill='tonexty',
-        fillcolor='rgba(139, 0, 0, 0.3)',
+        fillcolor='rgba(206, 17, 65, 0.20)',
         line=dict(width=0),
         name='Ventaja Rival',
         showlegend=True,
         hoverinfo='skip'
     ))
 
-    # Marcar jugadas clave positivas
-    top_positive = df_wpa.nlargest(3, 'wpa')
-    for _, play in top_positive.iterrows():
-        play_num = play['atbat_index'] + 1
-        wp_val = play['wp_after']
+    # Línea principal de Win Probability
+    custom_text = [
+        f"<b>Jugada #{r['play_number']}</b> ({'▲' if r['halfInning']=='top' else '▼'}Inn {r['inning']})<br>"
+        f"⚾ <b>{r['batter']}</b> vs {r['pitcher']}<br>"
+        f"📌 Evento: <b>{r['eventType']}</b><br>"
+        f"🏃 Bases: {r.get('base_icons', '◇ ◇ ◇')} | Outs: {r.get('outs_before', 0)}<br>"
+        f"🔢 Marcador: <b>{r['score_str']}</b><br>"
+        f"📈 WP: <b>{r['wp_after']:.1%}</b> (WPA: <b>{r['wpa']:+.3f}</b>)<br>"
+        f"⚡ Apalancamiento (LI): <b>{r['li']:.2f}x</b>"
+        for _, r in df_plot.iterrows()
+    ]
+
+    fig.add_trace(go.Scatter(
+        x=df_plot['play_number'],
+        y=df_plot['wp_after'],
+        mode='lines',
+        name='Win Probability (Leones)',
+        line=dict(color=LEONES_GOLD, width=3.5),
+        hovertext=custom_text,
+        hoverinfo='text'
+    ))
+
+    # Jugadas de alto impacto positivo
+    top_pos = df_wpa[df_wpa['wpa'] >= 0.08]
+    if not top_pos.empty:
         fig.add_trace(go.Scatter(
-            x=[play_num],
-            y=[wp_val],
-            mode='markers+text',
-            marker=dict(color='green', size=12, symbol='triangle-up'),
-            text=[f"{play['batter'][:10]}<br>+{play['wpa']:.2f}"],
-            textposition='top center',
-            textfont=dict(size=9, color='darkgreen'),
-            name=f"+ {play['batter'][:15]}",
-            showlegend=False
+            x=top_pos['atbat_index'] + 1,
+            y=top_pos['wp_after'],
+            mode='markers',
+            marker=dict(color='#28a745', size=11, symbol='triangle-up', line=dict(color='white', width=1.5)),
+            name='Impacto Positivo (+WPA)',
+            hoverinfo='skip'
         ))
 
-    # Marcar jugadas clave negativas
-    top_negative = df_wpa[df_wpa['wpa'] < -0.05].nsmallest(3, 'wpa')
-    for _, play in top_negative.iterrows():
-        play_num = play['atbat_index'] + 1
-        wp_val = play['wp_after']
+    # Jugadas de alto impacto negativo
+    top_neg = df_wpa[df_wpa['wpa'] <= -0.08]
+    if not top_neg.empty:
         fig.add_trace(go.Scatter(
-            x=[play_num],
-            y=[wp_val],
-            mode='markers+text',
-            marker=dict(color='red', size=12, symbol='triangle-down'),
-            text=[f"{play['batter'][:10]}<br>{play['wpa']:.2f}"],
-            textposition='bottom center',
-            textfont=dict(size=9, color='darkred'),
-            name=f"- {play['batter'][:15]}",
-            showlegend=False
+            x=top_neg['atbat_index'] + 1,
+            y=top_neg['wp_after'],
+            mode='markers',
+            marker=dict(color='#dc3545', size=11, symbol='triangle-down', line=dict(color='white', width=1.5)),
+            name='Impacto Negativo (-WPA)',
+            hoverinfo='skip'
         ))
 
-    # Configuración del layout
     final_wp = df_plot.iloc[-1]['wp_after']
-    result_text = "GANARON" if final_wp == 1.0 else "PERDIERON"
-    result_color = LEONES_GOLD if final_wp == 1.0 else LEONES_RED
+    res_str = "VICTORIA LEONES" if final_wp >= 0.5 else "DERROTA LEONES"
+    res_color = "#28a745" if final_wp >= 0.5 else "#dc3545"
 
     fig.update_layout(
         title=dict(
-            text=f"Evolución Win Probability - Leones del Caracas<br><sub>{game_info.get('matchup', '')}</sub>",
+            text=f"<b>Curva de Probabilidad de Victoria (Win Probability)</b><br><sub>{game_info.get('matchup', '')}</sub>",
             font=dict(size=16)
         ),
-        xaxis_title="Progreso del Juego (Jugadas)",
-        yaxis_title="Win Probability",
+        xaxis_title="Secuencia de Jugadas (Play-by-Play)",
+        yaxis_title="Probabilidad de Ganar (Leones)",
         yaxis=dict(
             tickformat='.0%',
-            range=[-0.05, 1.05],
-            tickvals=[0, 0.25, 0.5, 0.75, 1.0]
+            range=[-0.02, 1.02],
+            tickvals=[0, 0.25, 0.5, 0.75, 1.0],
+            gridcolor='rgba(200, 200, 200, 0.2)'
         ),
-        height=500,
+        xaxis=dict(gridcolor='rgba(200, 200, 200, 0.2)'),
+        height=480,
         showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-        hovermode='x unified',
+        hovermode='closest',
         annotations=[
             dict(
                 x=0.98, y=0.95,
                 xref='paper', yref='paper',
-                text=f"<b>Leones {result_text}</b>",
+                text=f"<b>{res_str}</b>",
                 showarrow=False,
-                font=dict(size=14, color=result_color),
-                bgcolor='rgba(255,255,255,0.8)',
-                bordercolor=result_color,
+                font=dict(size=13, color=res_color),
+                bgcolor='rgba(255, 255, 255, 0.9)',
+                bordercolor=res_color,
                 borderwidth=2,
                 borderpad=4
             )
         ]
     )
-
     return fig
 
 
 def create_wpa_by_inning_chart(df_wpa: pd.DataFrame) -> go.Figure:
     """Crea gráfico de WPA acumulado por inning"""
-    wpa_by_inning = df_wpa.groupby('inning')['wpa'].sum().reset_index()
-
-    colors = [LEONES_GOLD if x > 0 else LEONES_RED for x in wpa_by_inning['wpa']]
+    wpa_by_inn = df_wpa.groupby('inning')['wpa'].sum().reset_index()
+    colors = [LEONES_GOLD if x > 0 else LEONES_RED for x in wpa_by_inn['wpa']]
 
     fig = go.Figure()
-
     fig.add_trace(go.Bar(
-        x=wpa_by_inning['inning'],
-        y=wpa_by_inning['wpa'],
+        x=wpa_by_inn['inning'],
+        y=wpa_by_inn['wpa'],
         marker_color=colors,
-        text=wpa_by_inning['wpa'].apply(lambda x: f'{x:+.2f}' if abs(x) > 0.01 else ''),
+        text=wpa_by_inn['wpa'].apply(lambda x: f"{x:+.3f}"),
         textposition='outside',
-        textfont=dict(size=10, color='white'),
-        hovertemplate='Inning %{x}<br>WPA: %{y:+.3f}<extra></extra>'
+        textfont=dict(size=11),
+        hovertemplate='Inning %{x}<br>WPA Neto: <b>%{y:+.3f}</b><extra></extra>'
     ))
-
-    fig.add_hline(y=0, line_dash="solid", line_color="black", line_width=1)
-
+    fig.add_hline(y=0, line_dash="solid", line_color="gray", line_width=1)
     fig.update_layout(
-        title="WPA Acumulado por Inning",
+        title="<b>WPA Neto Acumulado por Inning</b>",
         xaxis_title="Inning",
-        yaxis_title="WPA",
+        yaxis_title="WPA Neto",
         height=350,
         showlegend=False,
         xaxis=dict(tickmode='linear', tick0=1, dtick=1)
     )
-
     return fig
 
 
-def create_score_evolution_chart(df_wpa: pd.DataFrame) -> go.Figure:
-    """Crea gráfico de evolución del marcador"""
-    score_by_inning = df_wpa.groupby('inning').agg({
-        'leones_after': 'last',
-        'opp_after': 'last'
-    }).reset_index()
+def create_leverage_by_inning_chart(df_wpa: pd.DataFrame) -> go.Figure:
+    """Crea gráfico de Leverage Index promedio por Inning"""
+    li_by_inn = df_wpa.groupby('inning')['li'].mean().reset_index()
+    colors = ['#dc3545' if x >= 1.5 else ('#ffc107' if x >= 0.85 else '#17a2b8') for x in li_by_inn['li']]
 
     fig = go.Figure()
-
-    fig.add_trace(go.Scatter(
-        x=score_by_inning['inning'],
-        y=score_by_inning['leones_after'],
-        mode='lines+markers+text',
-        name='Leones',
-        line=dict(color=LEONES_GOLD, width=3),
-        marker=dict(size=10),
-        text=score_by_inning['leones_after'].astype(int),
-        textposition='top center',
-        textfont=dict(color=LEONES_GOLD, size=10)
+    fig.add_trace(go.Bar(
+        x=li_by_inn['inning'],
+        y=li_by_inn['li'],
+        marker_color=colors,
+        text=li_by_inn['li'].apply(lambda x: f"{x:.2f}x"),
+        textposition='outside',
+        textfont=dict(size=11),
+        hovertemplate='Inning %{x}<br>Apalancamiento Promedio: <b>%{y:.2f}x</b><extra></extra>'
     ))
-
-    fig.add_trace(go.Scatter(
-        x=score_by_inning['inning'],
-        y=score_by_inning['opp_after'],
-        mode='lines+markers+text',
-        name='Rival',
-        line=dict(color=LEONES_RED, width=3),
-        marker=dict(size=10, symbol='square'),
-        text=score_by_inning['opp_after'].astype(int),
-        textposition='bottom center',
-        textfont=dict(color=LEONES_RED, size=10)
-    ))
-
+    fig.add_hline(y=1.0, line_dash="dash", line_color="black", line_width=1.5, annotation_text="Promedio Liga (1.0x)")
     fig.update_layout(
-        title="Evolución del Marcador",
+        title="<b>Nivel de Tensión / Apalancamiento (LI) por Inning</b>",
         xaxis_title="Inning",
-        yaxis_title="Carreras",
+        yaxis_title="Leverage Index (LI)",
         height=350,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02),
-        xaxis=dict(tickmode='linear', tick0=1, dtick=1),
-        yaxis=dict(rangemode='tozero')
+        showlegend=False,
+        xaxis=dict(tickmode='linear', tick0=1, dtick=1)
     )
-
     return fig
 
 
 def create_heroes_villains_chart(wpa_total: pd.DataFrame) -> go.Figure:
-    """Crea gráfico de héroes y villanos"""
+    """Crea gráfico de barras horizontal de Héroes y Villanos WPA"""
     if wpa_total.empty:
         return go.Figure()
 
-    # Top 5 mejores y peores
     top_5_best = wpa_total.nlargest(5, 'WPA_total')
     top_5_worst = wpa_total[wpa_total['WPA_total'] < -0.01].nsmallest(5, 'WPA_total')
 
     top_players = pd.concat([top_5_best, top_5_worst]).drop_duplicates().sort_values('WPA_total')
-
     if top_players.empty:
         return go.Figure()
 
     colors = [LEONES_GOLD if x > 0 else LEONES_RED for x in top_players['WPA_total']]
-
     fig = go.Figure()
 
     fig.add_trace(go.Bar(
@@ -443,370 +296,361 @@ def create_heroes_villains_chart(wpa_total: pd.DataFrame) -> go.Figure:
         x=top_players['WPA_total'],
         orientation='h',
         marker_color=colors,
-        text=top_players['WPA_total'].apply(lambda x: f'{x:+.3f}'),
+        text=top_players['WPA_total'].apply(lambda x: f"{x:+.3f}"),
         textposition='outside',
-        textfont=dict(size=10),
-        hovertemplate='%{y}<br>WPA Total: %{x:+.3f}<extra></extra>'
+        textfont=dict(size=11),
+        hovertemplate='<b>%{y}</b><br>WPA Total: <b>%{x:+.3f}</b><extra></extra>'
     ))
-
     fig.add_vline(x=0, line_dash="solid", line_color="black", line_width=1)
-
-    # Calcular límites del eje X
-    x_max = max(abs(top_players['WPA_total'].max()), abs(top_players['WPA_total'].min())) * 1.3
+    x_max = max(abs(top_players['WPA_total'].max()), abs(top_players['WPA_total'].min()), 0.1) * 1.35
 
     fig.update_layout(
-        title="Héroes y Villanos - Contribución WPA",
-        xaxis_title="WPA Total",
+        title="<b>Héroes y Villanos del Juego (WPA Total)</b>",
+        xaxis_title="WPA Total Aportado",
         yaxis_title="",
         height=400,
         showlegend=False,
         xaxis=dict(range=[-x_max, x_max])
     )
-
     return fig
 
 
 # ========================================
-# INTERFAZ PRINCIPAL
+# PÁGINA PRINCIPAL
 # ========================================
 
-st.title("📈 Análisis WPA (Win Probability Added)")
-st.markdown("### Leones del Caracas")
+st.title("📈 Análisis WPA & Sabermetría de Apalancamiento")
+st.markdown("### Leones del Caracas — Métricas de Probabilidad de Victoria (Win Expectancy)")
 
-# Sidebar - Selector de temporada y juego
+# Selector de modo principal
+modo_vista = st.radio(
+    "Selecciona la perspectiva de análisis:",
+    ["🏟️ Análisis Juego a Juego", "🏆 Líderes de Temporada (Clutch & Impacto)"],
+    horizontal=True
+)
+
+st.markdown("---")
+
+current_season = get_current_season()
+available_seasons = get_available_seasons() or [current_season]
+season_options = {f"{s}-{s+1}": s for s in available_seasons}
+current_display = f"{current_season}-{current_season+1}"
+
 with st.sidebar:
     st.image("logo.png", width=200)
-
     st.markdown("---")
-
-    # Selector de temporada
-    current_season = get_current_season()
-    available_seasons = get_available_seasons()
-
-    if not available_seasons:
-        available_seasons = [current_season]
-
-    season_options = {f"{s}-{s+1}": s for s in available_seasons}
-    season_list = list(season_options.keys())
-    current_display = f"{current_season}-{current_season+1}"
-    default_idx = season_list.index(current_display) if current_display in season_list else 0
-
+    
     selected_season_display = st.selectbox(
         "Temporada",
-        options=season_list,
-        index=default_idx
+        options=list(season_options.keys()),
+        index=list(season_options.keys()).index(current_display) if current_display in season_options else 0
     )
     selected_season = season_options[selected_season_display]
-
+    
     st.markdown("---")
-
-    # Información
-    with st.expander("ℹ️ ¿Qué es WPA?"):
+    with st.expander("ℹ️ Glosario Sabermétrico WPA & LI"):
         st.markdown("""
-        **Win Probability Added (WPA)** mide cuánto contribuyó cada jugada al resultado final del juego.
-
-        - **WPA positivo**: La jugada aumentó las probabilidades de ganar de Leones
-        - **WPA negativo**: La jugada disminuyó las probabilidades
-
-        Un jugador con alto WPA fue decisivo en la victoria, mientras que WPA negativo indica jugadas que costaron el juego.
+        * **Win Expectancy (WE):** Probabilidad instantánea de ganar según los 24 estados de base-out, marcador e inning.
+        * **WPA (Win Probability Added):** Cuánto aumentó (+) o disminuyó (-) la probabilidad de ganar tras una jugada.
+        * **LI (Leverage Index):** Nivel de tensión y dramatismo de la situación ($1.0 = \text{Promedio}$, $>1.5 = \text{Alta Presión}$).
+        * **WPA/LI:** Contribución libre de contexto situacional.
+        * **Clutch:** Medida de oportunismo ($WPA - WPA/LI$). Valores positivos indican rendimiento superior bajo máxima presión.
         """)
 
-# Obtener juegos de Supabase
-df_games = get_leones_games_from_supabase(selected_season)
+# ==============================================================================
+# MODO 1: ANÁLISIS JUEGO A JUEGO
+# ==============================================================================
+if modo_vista == "🏟️ Análisis Juego a Juego":
+    df_games = get_leones_games_from_supabase(selected_season)
+    if df_games.empty:
+        st.warning(f"No hay juegos finalizados registrados para la temporada {selected_season_display}")
+        st.stop()
 
-if df_games.empty:
-    st.warning(f"No hay juegos finalizados para la temporada {selected_season_display}")
-    st.stop()
+    game_options = []
+    for _, game in df_games.iterrows():
+        try:
+            fecha = pd.to_datetime(game['game_date']).strftime('%d/%m/%Y')
+        except:
+            fecha = str(game.get('game_date', 'N/A'))[:10]
 
-# Diccionario de nombres de equipos
-TEAM_NAMES = {
-    695: "Leones",
-    698: "Tiburones",
-    696: "Magallanes",
-    699: "Tigres",
-    692: "Águilas",
-    693: "Cardenales",
-    694: "Caribes",
-    697: "Margarita"
-}
-
-# Preparar opciones de juegos
-game_options = []
-for _, game in df_games.iterrows():
-    try:
-        fecha = pd.to_datetime(game['game_date']).strftime('%d/%m/%Y')
-    except:
-        fecha = str(game.get('game_date', 'N/A'))[:10]
-
-    is_home = game['home_team_id'] == TEAM_ID
-
-    if is_home:
-        rival_id = game['away_team_id']
+        is_home = (game['home_team_id'] == TEAM_ID)
+        rival_id = game['away_team_id'] if is_home else game['home_team_id']
         rival_name = TEAM_NAMES.get(rival_id, f"Equipo {rival_id}")
-        matchup = f"vs {rival_name}"
-        score = f"{game.get('home_score', '?')}-{game.get('away_score', '?')}"
-    else:
-        rival_id = game['home_team_id']
-        rival_name = TEAM_NAMES.get(rival_id, f"Equipo {rival_id}")
-        matchup = f"@ {rival_name}"
-        score = f"{game.get('away_score', '?')}-{game.get('home_score', '?')}"
+        
+        leo_score = game.get('home_score', 0) if is_home else game.get('away_score', 0)
+        opp_score = game.get('away_score', 0) if is_home else game.get('home_score', 0)
+        result = "V" if leo_score > opp_score else "D"
+        result_emoji = "✅" if result == "V" else "❌"
+        
+        matchup_label = f"vs {rival_name}" if is_home else f"@ {rival_name}"
+        score_str = f"{leo_score}-{opp_score}"
 
-    # Determinar resultado
-    leones_score = game['home_score'] if is_home else game['away_score']
-    opp_score = game['away_score'] if is_home else game['home_score']
-    result = "V" if leones_score > opp_score else "D"
-    result_emoji = "✅" if result == "V" else "❌"
+        game_options.append({
+            'id': game['id'],
+            'display': f"{fecha} | {matchup_label} | {score_str} {result_emoji}",
+            'matchup': f"{fecha} — Leones {matchup_label} ({score_str})",
+            'is_home': is_home,
+            'rival': rival_name
+        })
 
-    game_options.append({
-        'id': game['id'],
-        'display': f"{fecha} | {matchup} | {score} {result_emoji}",
-        'matchup': f"{fecha} - Leones {matchup} ({score})",
-        'is_home': is_home,
-        'rival': rival_name
-    })
-
-# Selector de juego
-st.markdown("### Seleccionar Juego")
-
-col1, col2 = st.columns([3, 1])
-
-with col1:
-    selected_game_display = st.selectbox(
-        "Juego a analizar",
-        options=[g['display'] for g in game_options],
-        index=0,
-        label_visibility="collapsed"
-    )
-
-# Encontrar el juego seleccionado
-selected_game = next((g for g in game_options if g['display'] == selected_game_display), None)
-
-if selected_game is None:
-    st.error("Error seleccionando juego")
-    st.stop()
-
-game_pk = selected_game['id']
-
-with col2:
-    analyze_btn = st.button("🔍 Analizar", type="primary", use_container_width=True)
-
-# Procesar juego
-if analyze_btn or 'last_game_pk' not in st.session_state or st.session_state.last_game_pk != game_pk:
-    st.session_state.last_game_pk = game_pk
-
-    with st.spinner("Procesando datos del juego..."):
-        df_wpa, leones_is_home, error = process_game_feed(game_pk)
-
-        if error:
-            st.error(f"Error procesando juego: {error}")
-            st.stop()
-
-        if df_wpa.empty:
-            st.warning("No hay datos de jugadas disponibles para este juego")
-            st.stop()
-
-        # Obtener roster
-        roster_ids = get_game_roster(game_pk)
-
-        # Calcular WPA por jugador
-        wpa_total = calculate_player_wpa(df_wpa, roster_ids)
-
-        # Guardar en session state
-        st.session_state.df_wpa = df_wpa
-        st.session_state.wpa_total = wpa_total
-        st.session_state.leones_is_home = leones_is_home
-        st.session_state.game_info = selected_game
-
-# Mostrar resultados si hay datos
-if 'df_wpa' in st.session_state and not st.session_state.df_wpa.empty:
-    df_wpa = st.session_state.df_wpa
-    wpa_total = st.session_state.wpa_total
-    game_info = st.session_state.game_info
-
-    # Resultado del juego
-    final_leones = df_wpa.iloc[-1]['leones_after']
-    final_opp = df_wpa.iloc[-1]['opp_after']
-    won = final_leones > final_opp
-
-    # Métricas principales
-    st.markdown("---")
-
-    col1, col2, col3, col4, col5 = st.columns(5)
-
+    col1, col2 = st.columns([4, 1])
     with col1:
-        result_text = "VICTORIA" if won else "DERROTA"
-        result_color = "normal" if won else "inverse"
-        st.metric("Resultado", result_text, f"{int(final_leones)}-{int(final_opp)}")
+        selected_display = st.selectbox(
+            "Seleccionar Partido:",
+            options=[g['display'] for g in game_options],
+            index=0
+        )
+    selected_game = next((g for g in game_options if g['display'] == selected_display), None)
+    
+    if selected_game:
+        game_pk = selected_game['id']
+        with st.spinner("Procesando matriz estocástica de Win Expectancy..."):
+            df_wpa, is_home_leo, err = process_game_wpa_advanced(game_pk)
+            
+        if err or df_wpa.empty:
+            st.error(f"Error cargando jugadas del partido: {err}")
+            st.stop()
+            
+        wpa_players = calculate_player_game_wpa(df_wpa)
+        
+        # Tarjeta de Marcador y KPIs
+        final_leones = df_wpa.iloc[-1]['leones_score_after']
+        final_opp = df_wpa.iloc[-1]['opp_score_after']
+        won = (final_leones > final_opp)
+        
+        st.markdown("---")
+        kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+        with kpi1:
+            st.metric("Resultado Final", "VICTORIA ✅" if won else "DERROTA ❌", f"{final_leones} - {final_opp}")
+        with kpi2:
+            st.metric("WP Máximo", f"{df_wpa['wp_after'].max():.1%}")
+        with kpi3:
+            st.metric("WP Mínimo", f"{df_wpa['wp_after'].min():.1%}")
+        with kpi4:
+            high_li_count = int((df_wpa['li'] >= 1.5).sum())
+            st.metric("Jugadas High-LI (≥1.5x)", f"{high_li_count}", f"de {len(df_wpa)} jugadas")
+        with kpi5:
+            if not wpa_players.empty:
+                mvp_p = wpa_players.iloc[0]
+                st.metric("MVP del Juego", mvp_p['player'][:16], f"WPA: {mvp_p['WPA_total']:+.3f}")
 
-    with col2:
-        wp_max = df_wpa['wp_after'].max()
-        st.metric("WP Máximo", f"{wp_max:.1%}")
+        st.markdown("---")
+        
+        # Tabs de Juego
+        t1, t2, t3, t4 = st.tabs([
+            "📈 Evolución Win Probability",
+            "📊 Por Inning & Apalancamiento",
+            "🦸 Héroes & Villanos (WPA & Clutch)",
+            "📋 Registro Completo de Jugadas"
+        ])
+        
+        with t1:
+            fig_wp = create_wp_evolution_chart(df_wpa, selected_game)
+            st.plotly_chart(fig_wp, use_container_width=True)
+            
+            c_pos, c_neg = st.columns(2)
+            with c_pos:
+                st.markdown("#### 🔥 Momentos Más Valiosos (+WPA)")
+                top_pos_plays = df_wpa.nlargest(5, 'wpa')[['inning', 'halfInning', 'outs_before', 'base_icons', 'batter', 'eventType', 'wpa', 'li']].copy()
+                top_pos_plays['halfInning'] = top_pos_plays['halfInning'].map({'top': '▲', 'bottom': '▼'})
+                top_pos_plays['wpa'] = top_pos_plays['wpa'].apply(lambda x: f"+{x:.3f}")
+                top_pos_plays['li'] = top_pos_plays['li'].apply(lambda x: f"{x:.2f}x")
+                top_pos_plays.columns = ['Inn', '', 'Outs', 'Bases', 'Bateador', 'Evento', 'WPA', 'LI']
+                st.dataframe(top_pos_plays, use_container_width=True, hide_index=True)
+                
+            with c_neg:
+                st.markdown("#### 💔 Momentos Más Costosos (-WPA)")
+                top_neg_plays = df_wpa.nsmallest(5, 'wpa')[['inning', 'halfInning', 'outs_before', 'base_icons', 'batter', 'eventType', 'wpa', 'li']].copy()
+                top_neg_plays['halfInning'] = top_neg_plays['halfInning'].map({'top': '▲', 'bottom': '▼'})
+                top_neg_plays['wpa'] = top_neg_plays['wpa'].apply(lambda x: f"{x:.3f}")
+                top_neg_plays['li'] = top_neg_plays['li'].apply(lambda x: f"{x:.2f}x")
+                top_neg_plays.columns = ['Inn', '', 'Outs', 'Bases', 'Bateador', 'Evento', 'WPA', 'LI']
+                st.dataframe(top_neg_plays, use_container_width=True, hide_index=True)
 
-    with col3:
-        wp_min = df_wpa['wp_after'].min()
-        st.metric("WP Mínimo", f"{wp_min:.1%}")
+        with t2:
+            ci1, ci2 = st.columns(2)
+            with ci1:
+                fig_inn_wpa = create_wpa_by_inning_chart(df_wpa)
+                st.plotly_chart(fig_inn_wpa, use_container_width=True)
+            with ci2:
+                fig_inn_li = create_leverage_by_inning_chart(df_wpa)
+                st.plotly_chart(fig_inn_li, use_container_width=True)
 
-    with col4:
-        big_plays = (df_wpa['wpa'].abs() > 0.1).sum()
-        st.metric("Jugadas Grandes", big_plays, "(|WPA| > 0.1)")
+        with t3:
+            if not wpa_players.empty:
+                ch1, ch2 = st.columns([2, 1])
+                with ch1:
+                    fig_hv = create_heroes_villains_chart(wpa_players)
+                    st.plotly_chart(fig_hv, use_container_width=True)
+                with ch2:
+                    st.markdown("#### 🌟 Desempeño Destacado")
+                    mvp = wpa_players.iloc[0]
+                    st.success(f"**MVP:** {mvp['player']}\n\n* **WPA Total:** `{mvp['WPA_total']:+.3f}`\n* **Clutch:** `{mvp['Clutch']:+.3f}`")
+                    
+                    if wpa_players['WPA_total'].min() < -0.05:
+                        lvp = wpa_players.iloc[-1]
+                        st.error(f"**LVP:** {lvp['player']}\n\n* **WPA Total:** `{lvp['WPA_total']:+.3f}`\n* **Clutch:** `{lvp['Clutch']:+.3f}`")
+                
+                st.markdown("#### 📋 Matriz de Impacto por Jugador (Leones)")
+                tbl_disp = wpa_players[['player', 'wpa_bat', 'wpa_pit', 'WPA_total', 'WPA_LI_total', 'Clutch']].copy()
+                tbl_disp['wpa_bat'] = tbl_disp['wpa_bat'].apply(lambda x: f"{x:+.3f}" if abs(x) > 0.0001 else "-")
+                tbl_disp['wpa_pit'] = tbl_disp['wpa_pit'].apply(lambda x: f"{x:+.3f}" if abs(x) > 0.0001 else "-")
+                tbl_disp['WPA_total'] = tbl_disp['WPA_total'].apply(lambda x: f"{x:+.3f}")
+                tbl_disp['WPA_LI_total'] = tbl_disp['WPA_LI_total'].apply(lambda x: f"{x:+.3f}")
+                tbl_disp['Clutch'] = tbl_disp['Clutch'].apply(lambda x: f"{x:+.3f}")
+                tbl_disp.columns = ['Jugador', 'WPA Bateo', 'WPA Pitcheo', 'WPA Total', 'WPA/LI', 'Clutch']
+                st.dataframe(tbl_disp, use_container_width=True, hide_index=True)
 
-    with col5:
-        if not wpa_total.empty:
-            mvp = wpa_total.iloc[0]
-            st.metric("MVP", mvp['player'][:15], f"WPA: {mvp['WPA_total']:+.3f}")
+        with t4:
+            st.markdown("#### 📋 Registro Detallado de Jugadas")
+            f_col1, f_col2, f_col3 = st.columns(3)
+            with f_col1:
+                inn_filter = st.multiselect("Filtrar por Inning:", options=sorted(df_wpa['inning'].unique()), default=[])
+            with f_col2:
+                li_filter = st.selectbox("Nivel de Apalancamiento (LI):", ["Todos", "🔥 Alto (LI ≥ 1.5x)", "⚡ Medio (0.8x - 1.5x)", "❄️ Bajo (< 0.8x)"])
+            with f_col3:
+                evt_filter = st.multiselect("Tipo de Evento:", options=sorted(df_wpa['eventType'].unique()), default=[])
+                
+            df_filtered = df_wpa.copy()
+            if inn_filter:
+                df_filtered = df_filtered[df_filtered['inning'].isin(inn_filter)]
+            if li_filter == "🔥 Alto (LI ≥ 1.5x)":
+                df_filtered = df_filtered[df_filtered['li'] >= 1.5]
+            elif li_filter == "⚡ Medio (0.8x - 1.5x)":
+                df_filtered = df_filtered[(df_filtered['li'] >= 0.8) & (df_filtered['li'] < 1.5)]
+            elif li_filter == "❄️ Bajo (< 0.8x)":
+                df_filtered = df_filtered[df_filtered['li'] < 0.8]
+            if evt_filter:
+                df_filtered = df_filtered[df_filtered['eventType'].isin(evt_filter)]
+                
+            tbl_all = df_filtered[['inning', 'halfInning', 'outs_before', 'base_icons', 'score_str', 'batter', 'pitcher', 'eventType', 'wpa', 'li', 'wp_after']].copy()
+            tbl_all['halfInning'] = tbl_all['halfInning'].map({'top': '▲', 'bottom': '▼'})
+            tbl_all['wpa'] = tbl_all['wpa'].apply(lambda x: f"{x:+.3f}")
+            tbl_all['li'] = tbl_all['li'].apply(lambda x: f"{x:.2f}x")
+            tbl_all['wp_after'] = tbl_all['wp_after'].apply(lambda x: f"{x:.1%}")
+            tbl_all.columns = ['Inn', '', 'Outs', 'Bases', 'Marcador', 'Bateador', 'Lanzador', 'Evento', 'WPA', 'LI', 'WP Leones']
+            st.dataframe(tbl_all, use_container_width=True, hide_index=True, height=450)
+            st.caption(f"Mostrando {len(tbl_all)} de {len(df_wpa)} jugadas.")
 
-    st.markdown("---")
-
-    # Tabs de visualización
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📈 Evolución WP",
-        "📊 Por Inning",
-        "🦸 Héroes/Villanos",
-        "📋 Detalle Jugadas"
-    ])
-
-    with tab1:
-        # Gráfico principal de evolución
-        fig_wp = create_wp_evolution_chart(df_wpa, game_info)
-        st.plotly_chart(fig_wp, use_container_width=True)
-
-        # Jugadas clave
-        st.markdown("#### ⚡ Jugadas Clave")
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.markdown("**🔥 Mejores Jugadas**")
-            top_plays = df_wpa.nlargest(5, 'wpa')[['inning', 'batter', 'eventType', 'wpa']].copy()
-            top_plays['wpa'] = top_plays['wpa'].apply(lambda x: f"+{x:.3f}")
-            top_plays.columns = ['Inning', 'Bateador', 'Resultado', 'WPA']
-            st.dataframe(top_plays, use_container_width=True, hide_index=True)
-
-        with col2:
-            st.markdown("**💔 Peores Jugadas**")
-            bottom_plays = df_wpa.nsmallest(5, 'wpa')[['inning', 'batter', 'eventType', 'wpa']].copy()
-            bottom_plays['wpa'] = bottom_plays['wpa'].apply(lambda x: f"{x:.3f}")
-            bottom_plays.columns = ['Inning', 'Bateador', 'Resultado', 'WPA']
-            st.dataframe(bottom_plays, use_container_width=True, hide_index=True)
-
-    with tab2:
-        col1, col2 = st.columns(2)
-
-        with col1:
-            fig_inning = create_wpa_by_inning_chart(df_wpa)
-            st.plotly_chart(fig_inning, use_container_width=True)
-
-        with col2:
-            fig_score = create_score_evolution_chart(df_wpa)
-            st.plotly_chart(fig_score, use_container_width=True)
-
-        # Innings críticos
-        wpa_by_inning = df_wpa.groupby('inning')['wpa'].sum()
-        critical_innings = wpa_by_inning[wpa_by_inning.abs() > 0.15]
-
-        if not critical_innings.empty:
-            st.markdown("#### ⚡ Innings Críticos (|WPA| > 0.15)")
-            for inning, wpa in critical_innings.items():
-                emoji = "🔥" if wpa > 0 else "💔"
-                color = "green" if wpa > 0 else "red"
-                st.markdown(f"{emoji} **{inning}° inning**: WPA <span style='color:{color}'>{wpa:+.3f}</span>", unsafe_allow_html=True)
-
-    with tab3:
-        if not wpa_total.empty:
-            col1, col2 = st.columns([2, 1])
-
-            with col1:
-                fig_heroes = create_heroes_villains_chart(wpa_total)
-                st.plotly_chart(fig_heroes, use_container_width=True)
-
-            with col2:
-                st.markdown("#### 🏆 Ranking WPA")
-
-                # MVP
-                mvp = wpa_total.iloc[0]
-                st.success(f"**MVP**: {mvp['player']}\n\nWPA: {mvp['WPA_total']:+.3f}")
-
-                # LVP
-                if wpa_total['WPA_total'].min() < -0.05:
-                    lvp = wpa_total.iloc[-1]
-                    st.error(f"**LVP**: {lvp['player']}\n\nWPA: {lvp['WPA_total']:+.3f}")
-
-            # Tabla completa
-            st.markdown("#### 📋 WPA por Jugador (Leones)")
-
-            display_wpa = wpa_total.head(15).copy()
-            display_wpa['wpa_bat'] = display_wpa['wpa_bat'].apply(lambda x: f"{x:+.3f}" if x != 0 else "0.000")
-            display_wpa['wpa_pit'] = display_wpa['wpa_pit'].apply(lambda x: f"{x:+.3f}" if x != 0 else "0.000")
-            display_wpa['WPA_total'] = display_wpa['WPA_total'].apply(lambda x: f"{x:+.3f}" if x != 0 else "0.000")
-
-            display_wpa = display_wpa[['player', 'wpa_bat', 'wpa_pit', 'WPA_total']]
-            display_wpa.columns = ['Jugador', 'WPA Bateo', 'WPA Pitcheo', 'WPA Total']
-
-            st.dataframe(display_wpa, use_container_width=True, hide_index=True)
-        else:
-            st.info("No hay datos de WPA por jugador disponibles")
-
-    with tab4:
-        st.markdown("#### 📋 Todas las Jugadas")
-
-        # Filtros
-        col1, col2, col3 = st.columns(3)
-
-        with col1:
-            inning_filter = st.multiselect(
-                "Filtrar por Inning",
-                options=sorted(df_wpa['inning'].unique()),
-                default=[]
-            )
-
-        with col2:
-            min_wpa = st.slider(
-                "WPA mínimo (absoluto)",
-                min_value=0.0,
-                max_value=0.5,
-                value=0.0,
-                step=0.01
-            )
-
-        with col3:
-            event_filter = st.multiselect(
-                "Tipo de Evento",
-                options=sorted(df_wpa['eventType'].unique()),
-                default=[]
-            )
-
-        # Aplicar filtros
-        df_filtered = df_wpa.copy()
-
-        if inning_filter:
-            df_filtered = df_filtered[df_filtered['inning'].isin(inning_filter)]
-
-        if min_wpa > 0:
-            df_filtered = df_filtered[df_filtered['wpa'].abs() >= min_wpa]
-
-        if event_filter:
-            df_filtered = df_filtered[df_filtered['eventType'].isin(event_filter)]
-
-        # Mostrar tabla
-        display_cols = ['inning', 'halfInning', 'batter', 'pitcher', 'eventType', 'wpa', 'wp_after']
-        df_display = df_filtered[display_cols].copy()
-        df_display['wpa'] = df_display['wpa'].apply(lambda x: f"{x:+.3f}")
-        df_display['wp_after'] = df_display['wp_after'].apply(lambda x: f"{x:.1%}")
-        df_display['halfInning'] = df_display['halfInning'].map({'top': '▲', 'bottom': '▼'})
-        df_display.columns = ['Inn', '', 'Bateador', 'Pitcher', 'Evento', 'WPA', 'WP']
-
-        st.dataframe(df_display, use_container_width=True, hide_index=True, height=400)
-
-        st.caption(f"Mostrando {len(df_filtered)} de {len(df_wpa)} jugadas")
-
+# ==============================================================================
+# MODO 2: LÍDERES DE LA TEMPORADA
+# ==============================================================================
 else:
-    st.info("👆 Selecciona un juego y presiona **Analizar** para ver el análisis WPA")
+    st.markdown(f"### 🏆 Líderes de Temporada — Win Probability Added & Clutch ({selected_season_display})")
+    
+    with st.spinner("Compilando métricas acumuladas de la temporada..."):
+        season_data = get_season_wpa_leaderboard(selected_season)
+        
+    if not season_data:
+        st.warning(f"No se pudieron compilar datos acumulados para la temporada {selected_season_display}")
+        st.stop()
+        
+    batters_df = season_data.get("batters", pd.DataFrame())
+    pitchers_df = season_data.get("pitchers", pd.DataFrame())
+    top_pos_plays = season_data.get("top_positive_plays", pd.DataFrame())
+    top_neg_plays = season_data.get("top_negative_plays", pd.DataFrame())
+    
+    k1, k2, k3, k4 = st.columns(4)
+    with k1:
+        st.metric("Juegos Analizados", f"{season_data.get('total_games', 0)} JJ")
+    with k2:
+        st.metric("Jugadas Procesadas", f"{season_data.get('total_plays', 0):,}")
+    with k3:
+        if not batters_df.empty:
+            b_leader = batters_df.iloc[0]
+            st.metric("Líder WPA Bateo", b_leader['batter'][:15], f"+{b_leader['WPA']:.2f} WPA")
+    with k4:
+        if not pitchers_df.empty:
+            p_leader = pitchers_df.iloc[0]
+            st.metric("Líder WPA Pitcheo", p_leader['pitcher'][:15], f"+{p_leader['WPA']:.2f} WPA")
+            
+    st.markdown("---")
+    
+    st_tab1, st_tab2, st_tab3 = st.tabs([
+        "🏏 Bateadores (WPA & Clutch)",
+        "🎯 Lanzadores (WPA & Apalancamiento)",
+        "⚡ Top 10 Momentos Clave del Año"
+    ])
+    
+    with st_tab1:
+        st.markdown("#### 🏏 Ranking de Bateadores por Win Probability Added (WPA)")
+        if not batters_df.empty:
+            b_disp = batters_df.head(20).copy()
+            b_disp['WPA'] = b_disp['WPA'].apply(lambda x: f"{x:+.3f}")
+            b_disp['WPA_LI'] = b_disp['WPA_LI'].apply(lambda x: f"{x:+.3f}")
+            b_disp['Clutch'] = b_disp['Clutch'].apply(lambda x: f"{x:+.3f}")
+            b_disp['LI_avg'] = b_disp['LI_avg'].apply(lambda x: f"{x:.2f}x")
+            b_disp.columns = ['ID', 'Bateador', 'JJ', 'Turnos (PA)', 'WPA Acumulado', 'WPA/LI', 'LI Promedio', 'Turnos High-LI (≥1.5x)', 'Clutch']
+            st.dataframe(b_disp[['Bateador', 'JJ', 'Turnos (PA)', 'WPA Acumulado', 'WPA/LI', 'LI Promedio', 'Turnos High-LI (≥1.5x)', 'Clutch']], use_container_width=True, hide_index=True)
+            
+            # Gráfico de WPA de Bateo
+            fig_bat = px.bar(
+                batters_df.head(12),
+                x='batter',
+                y='WPA',
+                title="<b>Top 12 Bateadores con Mayor WPA de la Temporada</b>",
+                color='WPA',
+                color_continuous_scale=[[0, LEONES_RED], [0.5, '#f5deb3'], [1, LEONES_GOLD]],
+                labels={'batter': 'Bateador', 'WPA': 'WPA Total'}
+            )
+            fig_bat.update_layout(height=400, showlegend=False)
+            st.plotly_chart(fig_bat, use_container_width=True)
+        else:
+            st.info("No hay datos de bateo disponibles.")
+            
+    with st_tab2:
+        st.markdown("#### 🎯 Ranking de Lanzadores por Win Probability Added (WPA)")
+        if not pitchers_df.empty:
+            p_disp = pitchers_df.head(20).copy()
+            p_disp['WPA'] = p_disp['WPA'].apply(lambda x: f"{x:+.3f}")
+            p_disp['WPA_LI'] = p_disp['WPA_LI'].apply(lambda x: f"{x:+.3f}")
+            p_disp['Clutch'] = p_disp['Clutch'].apply(lambda x: f"{x:+.3f}")
+            p_disp['LI_avg'] = p_disp['LI_avg'].apply(lambda x: f"{x:.2f}x")
+            p_disp.columns = ['ID', 'Lanzador', 'JJ', 'Bateadores Enfrentados (BF)', 'WPA Acumulado', 'WPA/LI', 'LI Promedio', 'Enfrentamientos High-LI', 'Clutch']
+            st.dataframe(p_disp[['Lanzador', 'JJ', 'Bateadores Enfrentados (BF)', 'WPA Acumulado', 'WPA/LI', 'LI Promedio', 'Enfrentamientos High-LI', 'Clutch']], use_container_width=True, hide_index=True)
+            
+            # Gráfico de WPA de Pitcheo
+            fig_pit = px.bar(
+                pitchers_df.head(12),
+                x='pitcher',
+                y='WPA',
+                title="<b>Top 12 Lanzadores con Mayor WPA de la Temporada</b>",
+                color='WPA',
+                color_continuous_scale=[[0, LEONES_RED], [0.5, '#f5deb3'], [1, '#28a745']],
+                labels={'pitcher': 'Lanzador', 'WPA': 'WPA Total'}
+            )
+            fig_pit.update_layout(height=400, showlegend=False)
+            st.plotly_chart(fig_pit, use_container_width=True)
+        else:
+            st.info("No hay datos de pitcheo disponibles.")
+
+    with st_tab3:
+        st.markdown("#### ⚡ Las 10 Jugadas Más Decisivas de Toda la Temporada")
+        st.markdown("##### 🔥 Mayores Swings Positivos a Favor de Leones (+WPA)")
+        if not top_pos_plays.empty:
+            tp_disp = top_pos_plays[['game_date', 'inning', 'halfInning', 'score_str', 'batter', 'pitcher', 'eventType', 'description', 'wpa', 'li']].copy()
+            tp_disp['game_date'] = pd.to_datetime(tp_disp['game_date']).dt.strftime('%d/%m/%Y')
+            tp_disp['halfInning'] = tp_disp['halfInning'].map({'top': '▲', 'bottom': '▼'})
+            tp_disp['wpa'] = tp_disp['wpa'].apply(lambda x: f"+{x:.3f}")
+            tp_disp['li'] = tp_disp['li'].apply(lambda x: f"{x:.2f}x")
+            tp_disp.columns = ['Fecha', 'Inn', '', 'Marcador', 'Bateador', 'Pitcher', 'Evento', 'Descripción', 'WPA', 'LI']
+            st.dataframe(tp_disp, use_container_width=True, hide_index=True)
+            
+        st.markdown("##### 💔 Mayores Swings Negativos en Contra de Leones (-WPA)")
+        if not top_neg_plays.empty:
+            tn_disp = top_neg_plays[['game_date', 'inning', 'halfInning', 'score_str', 'batter', 'pitcher', 'eventType', 'description', 'wpa', 'li']].copy()
+            tn_disp['game_date'] = pd.to_datetime(tn_disp['game_date']).dt.strftime('%d/%m/%Y')
+            tn_disp['halfInning'] = tn_disp['halfInning'].map({'top': '▲', 'bottom': '▼'})
+            tn_disp['wpa'] = tn_disp['wpa'].apply(lambda x: f"{x:.3f}")
+            tn_disp['li'] = tn_disp['li'].apply(lambda x: f"{x:.2f}x")
+            tn_disp.columns = ['Fecha', 'Inn', '', 'Marcador', 'Bateador', 'Pitcher', 'Evento', 'Descripción', 'WPA', 'LI']
+            st.dataframe(tn_disp, use_container_width=True, hide_index=True)
 
 # Footer
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #666;'>
-    <p>📈 Análisis WPA | Datos: MLB Stats API</p>
-    <p>Win Probability calculado con modelo simplificado basado en inning y diferencial</p>
+<div style='text-align: center; color: #888; font-size: 0.85rem;'>
+    <p>📈 <b>RepubliCaraquistApp — Suite Sabermétrica de Win Expectancy & WPA</b></p>
+    <p>Modelo estocástico de 24 estados Base-Out (RE24) y Apalancamiento (Leverage Index) | Fuente: MLB Stats API</p>
 </div>
 """, unsafe_allow_html=True)
