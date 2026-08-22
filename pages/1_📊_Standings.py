@@ -13,8 +13,22 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Importar funciones
 try:
     from utils.supabase_client import get_standings, get_recent_games, init_supabase, get_available_seasons, get_current_season
+    from utils.elo import (
+        calculate_matchup_win_prob,
+        simulate_monte_carlo_projections,
+        BASE_ELO,
+        HOME_ADVANTAGE,
+        LVBP_TEAMS
+    )
 except:
     from streamlit_app.utils.supabase_client import get_standings, get_recent_games, init_supabase, get_available_seasons, get_current_season
+    from streamlit_app.utils.elo import (
+        calculate_matchup_win_prob,
+        simulate_monte_carlo_projections,
+        BASE_ELO,
+        HOME_ADVANTAGE,
+        LVBP_TEAMS
+    )
 
 ELO_PHASE_OPTIONS = {
     "regular": "1. Temporada Regular",
@@ -54,7 +68,35 @@ def load_elo_ratings_for_phase(season, phase):
     return df
 
 
-st.set_page_config(page_title="Standings - RepubliCaraquistApp", page_icon="\U0001F4CA", layout="wide")
+@st.cache_data(ttl=600, show_spinner=False)
+def run_elo_simulations_cached(season: int, simulate_from_scratch: bool = False) -> dict:
+    """Ejecuta y cachea simulaciones Monte Carlo basadas en ELO y standings."""
+    standings_df = get_standings(season, phase="regular")
+    elo_df = load_elo_ratings_for_phase(season, "regular")
+
+    elo_dict = {}
+    if not elo_df.empty:
+        for _, r in elo_df.iterrows():
+            try:
+                tid = int(r["team_id"])
+                elo_dict[tid] = float(r["elo"])
+            except:
+                pass
+
+    # Fallback si falta algún equipo
+    for tid in LVBP_TEAMS.keys():
+        if tid not in elo_dict:
+            elo_dict[tid] = float(BASE_ELO)
+
+    return simulate_monte_carlo_projections(
+        standings_df=standings_df,
+        elo_dict=elo_dict,
+        n_simulations=5000,
+        simulate_from_scratch=simulate_from_scratch
+    )
+
+
+st.set_page_config(page_title="Standings - RepubliCaraquistApp", page_icon="📊", layout="wide")
 
 # Header
 st.title("📊 Standings y Resultados")
@@ -150,7 +192,7 @@ if not standings_df.empty:
         )
     
     # Tabs para diferentes vistas
-    tab1, tab_pyth, tab_elo, tab2, tab3, tab4 = st.tabs(["📊 Tabla General", "🧮 Sabermetría Pitagórica", "⚡ ELO Ratings", "📈 Gráficos", "🆚 Head to Head", "📅 Calendario"])
+    tab1, tab_pyth, tab_elo, tab2, tab3, tab4 = st.tabs(["📊 Tabla General", "🧮 Sabermetría Pitagórica", "⚡ ELO & Proyecciones", "📈 Gráficos", "🆚 Head to Head", "📅 Calendario"])
     
     with tab1:
         # Formatear tabla de posiciones
@@ -349,81 +391,312 @@ if not standings_df.empty:
             st.info("Datos de carreras no disponibles para el cálculo pitagórico.")
             
     with tab_elo:
-        st.subheader("⚡ Clasificación y Ratings ELO por Fase")
+        st.subheader("⚡ Suite ELO & Simulaciones Probabilísticas Monte Carlo")
         st.markdown(
-            "El sistema ELO evalúa la fuerza relativa de cada equipo de forma dinámica tras cada partido, "
-            "ponderando según el nivel del rival y la ventaja de localía (+35 pts). Base inicial: 1500."
+            "El sistema ELO evalúa la fuerza relativa de cada equipo de forma dinámica tras cada partido (+35 pts por localía). "
+            "Mediante 5,000 iteraciones Monte Carlo, modelamos las probabilidades de clasificación regular, Wild Card, Round Robin y Campeonato LVBP."
         )
-        
-        elo_phase = st.selectbox(
-            "🏆 Seleccionar Fase del Torneo",
-            options=list(ELO_PHASE_OPTIONS.keys()),
-            format_func=lambda x: ELO_PHASE_OPTIONS.get(x, x),
-            key="elo_phase_selector_main"
-        )
-        elo_df = load_elo_ratings_for_phase(selected_season, elo_phase)
-        
-        if elo_df.empty:
-            st.info(f"No hay registros de ELO calculados para la fase '{ELO_PHASE_OPTIONS.get(elo_phase, elo_phase)}' en {selected_season_display}.")
-        else:
-            # Métricas destacadas
-            leones_elo = elo_df[elo_df['team_name'].str.contains('Leones', case=False, na=False)]
-            leader_elo = elo_df.iloc[0]
-            
-            e1, e2, e3, e4 = st.columns(4)
-            with e1:
-                st.metric("🥇 Líder ELO Fase", f"{leader_elo['team_name']}")
-            with e2:
-                st.metric("⚡ Rating del Líder", f"{float(leader_elo['elo']):.2f}")
-            with e3:
-                if not leones_elo.empty:
-                    l_elo_row = leones_elo.iloc[0]
-                    st.metric("🦁 Rating Leones", f"{float(l_elo_row['elo']):.2f}", f"#{int(l_elo_row['rank'])} / {len(elo_df)}")
-                else:
-                    st.metric("🦁 Leones del Caracas", "No participó", "Fase posterior")
-            with e4:
-                st.metric("Juegos Evaluados", f"{int(leader_elo['games_played'])} JJ")
+
+        elo_subtab1, elo_subtab2, elo_subtab3 = st.tabs([
+            "🎲 Simulaciones Monte Carlo (Playoff & Campeón)",
+            "🔮 Predictor de Partidos (Matchup Win %)",
+            "⚡ Ratings ELO Oficiales"
+        ])
+
+        with elo_subtab1:
+            st.markdown("#### 🎲 Proyecciones Monte Carlo de Temporada y Postemporada (5,000 Iteraciones)")
+            st.caption(
+                "Estructura reglamentaria LVBP: Puestos 1°-4° clasifican directo al Round Robin (16 JJ) | "
+                "Puestos 5°-6° disputan la Serie del Comodín (el 5to necesita 1 victoria, el 6to necesita 2) | "
+                "Los 2 mejores del Round Robin avanzan a la Gran Final (Serie de 7 JJ)."
+            )
+
+            col_opt1, col_opt2 = st.columns([3, 1])
+            with col_opt1:
+                sim_mode = st.radio(
+                    "Modo de Simulación:",
+                    [
+                        "🏁 Proyección a partir del Standing Actual (Récord + ELO)",
+                        "⚡ Baseline ELO de Temporada Completa (True-Talent 56 JJ)"
+                    ],
+                    horizontal=True,
+                    key="elo_sim_mode_radio"
+                )
+            with col_opt2:
+                recalc_btn = st.button("🔄 Re-ejecutar 5,000 Simulaciones", key="recalc_sim_btn")
+
+            sim_scratch = "True-Talent" in sim_mode
+            if recalc_btn:
+                run_elo_simulations_cached.clear()
+
+            with st.spinner("Ejecutando 5,000 simulaciones Monte Carlo..."):
+                sim_results = run_elo_simulations_cached(selected_season, simulate_from_scratch=sim_scratch)
+
+            df_proj = sim_results["projections"].copy()
+            df_mat = sim_results["position_matrix"].copy()
+
+            # Métricas destacadas de Leones del Caracas
+            leones_sim = df_proj[df_proj["team_id"] == 695]
+            if not leones_sim.empty:
+                l_row = leones_sim.iloc[0]
+                st.markdown("##### 🦁 Probabilidades de los Leones del Caracas")
+                lm1, lm2, lm3, lm4, lm5 = st.columns(5)
+                with lm1:
+                    st.metric("Top 4 Directo (RR)", f"{l_row['top4_prob']:.1%}")
+                with lm2:
+                    st.metric("Serie Comodín (5°-6°)", f"{l_row['wc_prob']:.1%}")
+                with lm3:
+                    st.metric("Pase Total a Round Robin", f"{l_row['rr_prob']:.1%}")
+                with lm4:
+                    st.metric("Llegar a la Gran Final", f"{l_row['final_prob']:.1%}")
+                with lm5:
+                    st.metric("🏆 Ser Campeón LVBP", f"{l_row['champ_prob']:.1%}")
+
             st.markdown("---")
-                
-            col_elo_chart, col_elo_tbl = st.columns([5, 7])
+
+            # 1. Matriz de Probabilidades de Posición Final (1° al 8°)
+            st.markdown("#### 🎯 Matriz de Probabilidad de Posición Final (Ronda Regular 1° al 8°)")
             
-            with col_elo_chart:
-                st.markdown("#### 📊 Comparativa de ELO por Equipo")
-                elo_chart_df = elo_df.sort_values('elo', ascending=True).copy()
-                fig_elo = px.bar(
-                    elo_chart_df,
-                    x='elo',
-                    y='team_name',
-                    orientation='h',
-                    color='elo',
-                    color_continuous_scale='RdYlGn',
-                    text_auto='.1f'
+            # Formato visual
+            disp_mat = df_mat.copy()
+            for pos in range(1, 9):
+                col_name = f"{pos}°"
+                if col_name in disp_mat.columns:
+                    disp_mat[col_name] = disp_mat[col_name].apply(lambda x: f"{x:.1%}")
+            
+            disp_mat_tbl = disp_mat[["team_name", "elo", "1°", "2°", "3°", "4°", "5°", "6°", "7°", "8°"]].rename(columns={
+                "team_name": "Equipo", "elo": "Rating ELO"
+            })
+            disp_mat_tbl["Rating ELO"] = disp_mat_tbl["Rating ELO"].apply(lambda x: f"{x:.1f}")
+            st.dataframe(disp_mat_tbl, use_container_width=True, hide_index=True)
+
+            # 2. Tabla de Probabilidades de Postemporada
+            st.markdown("#### 🏆 Probabilidades de Avance por Ronda de Postemporada")
+            disp_proj = df_proj.copy()
+            disp_proj["elo_fmt"] = disp_proj["elo"].apply(lambda x: f"{x:.1f}")
+            disp_proj["top4_fmt"] = disp_proj["top4_prob"].apply(lambda x: f"{x:.1%}")
+            disp_proj["wc_fmt"] = disp_proj["wc_prob"].apply(lambda x: f"{x:.1%}")
+            disp_proj["rr_fmt"] = disp_proj["rr_prob"].apply(lambda x: f"{x:.1%}")
+            disp_proj["final_fmt"] = disp_proj["final_prob"].apply(lambda x: f"{x:.1%}")
+            disp_proj["champ_fmt"] = disp_proj["champ_prob"].apply(lambda x: f"{x:.1%}")
+
+            disp_proj_tbl = disp_proj[["team_name", "elo_fmt", "top4_fmt", "wc_fmt", "rr_fmt", "final_fmt", "champ_fmt"]].rename(columns={
+                "team_name": "Equipo",
+                "elo_fmt": "Rating ELO",
+                "top4_fmt": "Top 4 Directo (RR)",
+                "wc_fmt": "Wild Card (5°-6°)",
+                "rr_fmt": "Pase Total Round Robin",
+                "final_fmt": "Gran Finalista",
+                "champ_fmt": "🏆 Campeón LVBP"
+            })
+            st.dataframe(disp_proj_tbl, use_container_width=True, hide_index=True)
+
+            # Gráfico de Campeonato
+            fig_champ = px.bar(
+                df_proj,
+                x="team_name",
+                y="champ_prob",
+                title=f"<b>Probabilidad de Coronarse Campeón de la LVBP ({selected_season_display})</b>",
+                labels={"team_name": "Equipo", "champ_prob": "Probabilidad de Campeón"},
+                color="champ_prob",
+                color_continuous_scale="Viridis",
+                text=df_proj["champ_prob"].apply(lambda x: f"{x:.1%}")
+            )
+            fig_champ.update_layout(
+                template="plotly_dark",
+                height=380,
+                xaxis_title="",
+                yaxis_title="Probabilidad",
+                yaxis=dict(tickformat=".0%"),
+                showlegend=False
+            )
+            st.plotly_chart(fig_champ, use_container_width=True)
+
+        with elo_subtab2:
+            st.markdown("#### 🔮 Predictor de Partidos Head-to-Head (Basado en ELO)")
+            st.markdown(
+                "Calcula la probabilidad de victoria para cualquier enfrentamiento entre equipos de la LVBP, "
+                "incluyendo la ventaja reglamentaria de localía (+35 puntos ELO)."
+            )
+
+            # Cargar ELOs actuales
+            current_elos = {}
+            elo_regular_df = load_elo_ratings_for_phase(selected_season, "regular")
+            if not elo_regular_df.empty:
+                for _, r in elo_regular_df.iterrows():
+                    try:
+                        current_elos[int(r["team_id"])] = float(r["elo"])
+                    except:
+                        pass
+            for tid in LVBP_TEAMS.keys():
+                if tid not in current_elos:
+                    current_elos[tid] = float(BASE_ELO)
+
+            col_h, col_vs, col_a = st.columns([5, 1, 5])
+            
+            team_ids = list(LVBP_TEAMS.keys())
+            team_names_list = [LVBP_TEAMS[t] for t in team_ids]
+
+            with col_h:
+                st.markdown("##### 🏠 Equipo Local (Home)")
+                home_team_name = st.selectbox(
+                    "Seleccionar Local:",
+                    options=team_names_list,
+                    index=team_names_list.index("Leones del Caracas") if "Leones del Caracas" in team_names_list else 0,
+                    key="pred_home_team"
                 )
-                fig_elo.add_vline(x=1500, line_dash="dash", line_color="#ffffff", annotation_text="Base 1500", annotation_position="top")
-                fig_elo.update_layout(
-                    template='plotly_dark',
-                    height=360,
-                    margin=dict(l=10, r=10, t=10, b=10),
-                    coloraxis_showscale=False,
-                    xaxis_title="Rating ELO",
-                    yaxis_title=""
+                home_tid = next(t for t, name in LVBP_TEAMS.items() if name == home_team_name)
+                home_elo_default = current_elos.get(home_tid, BASE_ELO)
+                home_elo = st.number_input(f"Rating ELO {home_team_name}:", value=float(round(home_elo_default, 1)), step=1.0, key="pred_home_elo")
+
+            with col_vs:
+                st.markdown("<div style='text-align: center; padding-top: 50px; font-size: 1.8rem; font-weight: bold;'>VS</div>", unsafe_allow_html=True)
+
+            with col_a:
+                st.markdown("##### ✈️ Equipo Visitante (Away)")
+                away_options = [n for n in team_names_list if n != home_team_name]
+                away_team_name = st.selectbox(
+                    "Seleccionar Visitante:",
+                    options=away_options,
+                    index=away_options.index("Navegantes del Magallanes") if "Navegantes del Magallanes" in away_options else 0,
+                    key="pred_away_team"
                 )
-                st.plotly_chart(fig_elo, use_container_width=True)
+                away_tid = next(t for t, name in LVBP_TEAMS.items() if name == away_team_name)
+                away_elo_default = current_elos.get(away_tid, BASE_ELO)
+                away_elo = st.number_input(f"Rating ELO {away_team_name}:", value=float(round(away_elo_default, 1)), step=1.0, key="pred_away_elo")
+
+            # Cálculo de probabilidades
+            p_home, p_away = calculate_matchup_win_prob(home_elo, away_elo, HOME_ADVANTAGE)
+            diff_eff = (home_elo + HOME_ADVANTAGE) - away_elo
+
+            st.markdown("---")
+            st.markdown(f"##### 📊 Resultado del Pronóstico: **{home_team_name} (Local) vs. {away_team_name} (Visitante)**")
+
+            cp1, cp2, cp3 = st.columns(3)
+            with cp1:
+                st.metric(f"🏠 Probabilidad {home_team_name}", f"{p_home:.1%}", f"{home_elo:.1f} ELO (+35 Local)")
+            with cp2:
+                st.metric(f"✈️ Probabilidad {away_team_name}", f"{p_away:.1%}", f"{away_elo:.1f} ELO")
+            with cp3:
+                fav = home_team_name if p_home >= 0.5 else away_team_name
+                fav_prob = max(p_home, p_away)
+                st.metric("🏆 Favorito", f"{fav}", f"{fav_prob:.1%} prob.")
+
+            # Barra visual comparativa
+            fig_match = go.Figure()
+            fig_match.add_trace(go.Bar(
+                y=["Enfrentamiento"],
+                x=[p_home],
+                name=f"🏠 {home_team_name} ({p_home:.1%})",
+                orientation='h',
+                marker=dict(color="#FDB827" if "Leones" in home_team_name else "#196F3D"),
+                text=f"<b>{home_team_name} (Local): {p_home:.1%}</b>",
+                textposition='inside',
+                insidetextanchor='middle',
+                textfont=dict(size=14, color="white")
+            ))
+            fig_match.add_trace(go.Bar(
+                y=["Enfrentamiento"],
+                x=[p_away],
+                name=f"✈️ {away_team_name} ({p_away:.1%})",
+                orientation='h',
+                marker=dict(color="#003B57" if "Navegantes" in away_team_name else "#CE1141"),
+                text=f"<b>{away_team_name} (Visitante): {p_away:.1%}</b>",
+                textposition='inside',
+                insidetextanchor='middle',
+                textfont=dict(size=14, color="white")
+            ))
+            fig_match.update_layout(
+                barmode='stack',
+                template='plotly_dark',
+                height=180,
+                margin=dict(l=10, r=10, t=10, b=10),
+                xaxis=dict(tickformat='.0%', range=[0, 1], showgrid=False),
+                yaxis=dict(visible=False),
+                legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="center", x=0.5)
+            )
+            st.plotly_chart(fig_match, use_container_width=True)
+
+            st.caption(
+                f"ℹ️ El equipo local ({home_team_name}) recibe +35 puntos ELO por localía. "
+                f"Diferencial efectivo: **{diff_eff:+.1f} puntos** a favor de {'Local' if diff_eff > 0 else 'Visitante'}."
+            )
+
+        with elo_subtab3:
+            st.markdown("#### ⚡ Clasificación Oficial y Ratings ELO por Fase")
+            st.markdown(
+                "El sistema ELO evalúa la fuerza relativa de cada equipo de forma dinámica tras cada partido, "
+                "ponderando según el nivel del rival y la ventaja de localía (+35 pts). Base inicial: 1500."
+            )
+            
+            elo_phase = st.selectbox(
+                "🏆 Seleccionar Fase del Torneo",
+                options=list(ELO_PHASE_OPTIONS.keys()),
+                format_func=lambda x: ELO_PHASE_OPTIONS.get(x, x),
+                key="elo_phase_selector_main"
+            )
+            elo_df = load_elo_ratings_for_phase(selected_season, elo_phase)
+            
+            if elo_df.empty:
+                st.info(f"No hay registros de ELO calculados para la fase '{ELO_PHASE_OPTIONS.get(elo_phase, elo_phase)}' en {selected_season_display}.")
+            else:
+                leones_elo = elo_df[elo_df['team_name'].str.contains('Leones', case=False, na=False)]
+                leader_elo = elo_df.iloc[0]
                 
-            with col_elo_tbl:
-                st.markdown("#### 📋 Tabla Oficial de Ratings ELO")
-                display_df = elo_df[["rank", "team_name", "elo", "games_played", "updated_at"]].copy()
-                display_df["delta"] = (display_df["elo"].astype(float) - 1500.0).round(2)
-                display_df["delta_str"] = display_df["delta"].apply(lambda x: f"{x:+.2f}")
-                display_df["elo_str"] = display_df["elo"].apply(lambda x: f"{float(x):.2f}")
-                display_df["updated_str"] = pd.to_datetime(display_df["updated_at"], errors="coerce").dt.strftime('%d/%m/%Y %H:%M')
+                e1, e2, e3, e4 = st.columns(4)
+                with e1:
+                    st.metric("🥇 Líder ELO Fase", f"{leader_elo['team_name']}")
+                with e2:
+                    st.metric("⚡ Rating del Líder", f"{float(leader_elo['elo']):.2f}")
+                with e3:
+                    if not leones_elo.empty:
+                        l_elo_row = leones_elo.iloc[0]
+                        st.metric("🦁 Rating Leones", f"{float(l_elo_row['elo']):.2f}", f"#{int(l_elo_row['rank'])} / {len(elo_df)}")
+                    else:
+                        st.metric("🦁 Leones del Caracas", "No participó", "Fase posterior")
+                with e4:
+                    st.metric("Juegos Evaluados", f"{int(leader_elo['games_played'])} JJ")
+                st.markdown("---")
+                    
+                col_elo_chart, col_elo_tbl = st.columns([5, 7])
                 
-                table_out = display_df[["rank", "team_name", "elo_str", "delta_str", "games_played", "updated_str"]].rename(columns={
-                    "rank": "#", "team_name": "Equipo", "elo_str": "Rating ELO", "delta_str": "Dif vs 1500",
-                    "games_played": "JJ", "updated_str": "Última Actualización"
-                })
-                
-                st.dataframe(table_out, use_container_width=True, hide_index=True)
+                with col_elo_chart:
+                    st.markdown("##### 📊 Comparativa de ELO por Equipo")
+                    elo_chart_df = elo_df.sort_values('elo', ascending=True).copy()
+                    fig_elo = px.bar(
+                        elo_chart_df,
+                        x='elo',
+                        y='team_name',
+                        orientation='h',
+                        color='elo',
+                        color_continuous_scale='RdYlGn',
+                        text_auto='.1f'
+                    )
+                    fig_elo.add_vline(x=1500, line_dash="dash", line_color="#ffffff", annotation_text="Base 1500", annotation_position="top")
+                    fig_elo.update_layout(
+                        template='plotly_dark',
+                        height=360,
+                        margin=dict(l=10, r=10, t=10, b=10),
+                        coloraxis_showscale=False,
+                        xaxis_title="Rating ELO",
+                        yaxis_title=""
+                    )
+                    st.plotly_chart(fig_elo, use_container_width=True)
+                    
+                with col_elo_tbl:
+                    st.markdown("##### 📋 Tabla Oficial de Ratings ELO")
+                    display_df = elo_df[["rank", "team_name", "elo", "games_played", "updated_at"]].copy()
+                    display_df["delta"] = (display_df["elo"].astype(float) - 1500.0).round(2)
+                    display_df["delta_str"] = display_df["delta"].apply(lambda x: f"{x:+.2f}")
+                    display_df["elo_str"] = display_df["elo"].apply(lambda x: f"{float(x):.2f}")
+                    display_df["updated_str"] = pd.to_datetime(display_df["updated_at"], errors="coerce").dt.strftime('%d/%m/%Y %H:%M')
+                    
+                    table_out = display_df[["rank", "team_name", "elo_str", "delta_str", "games_played", "updated_str"]].rename(columns={
+                        "rank": "#", "team_name": "Equipo", "elo_str": "Rating ELO", "delta_str": "Dif vs 1500",
+                        "games_played": "JJ", "updated_str": "Última Actualización"
+                    })
+                    
+                    st.dataframe(table_out, use_container_width=True, hide_index=True)
     
     with tab2:
         col1, col2 = st.columns(2)
