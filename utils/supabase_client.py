@@ -321,7 +321,7 @@ def parse_single_game_advanced(game):
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def get_leones_advanced_stats(season=None):
+def get_leones_advanced_stats(season=None, cache_version="v2_days"):
     """Calcula estadísticas avanzadas de los Leones del Caracas con precisión de MLB Stats API"""
     if season is None:
         season = get_current_season()
@@ -400,6 +400,18 @@ def get_leones_advanced_stats(season=None):
             except Exception:
                 pass
                 
+        # Por día de semana (0=Lunes, 1=Martes, ..., 6=Domingo)
+        days_records = {i: {"w": 0, "l": 0} for i in range(7)}
+        for p in parsed_clean:
+            try:
+                wd = pd.to_datetime(p["game_date"]).weekday()
+                if p["won"]:
+                    days_records[wd]["w"] += 1
+                else:
+                    days_records[wd]["l"] += 1
+            except Exception:
+                pass
+                
         # Últimos 10
         last_10 = sorted(parsed_clean, key=lambda x: x["game_date"], reverse=True)[:10]
         l10_wins = sum(1 for p in last_10 if p["won"])
@@ -438,7 +450,14 @@ def get_leones_advanced_stats(season=None):
             'saves': f"{saves}",
             'oct': f"{oct_wins}G-{oct_losses}P",
             'nov': f"{nov_wins}G-{nov_losses}P",
-            'dec': f"{dec_wins}G-{dec_losses}P"
+            'dec': f"{dec_wins}G-{dec_losses}P",
+            'lunes': f"{days_records[0]['w']}G-{days_records[0]['l']}P",
+            'martes': f"{days_records[1]['w']}G-{days_records[1]['l']}P",
+            'miercoles': f"{days_records[2]['w']}G-{days_records[2]['l']}P",
+            'jueves': f"{days_records[3]['w']}G-{days_records[3]['l']}P",
+            'viernes': f"{days_records[4]['w']}G-{days_records[4]['l']}P",
+            'sabado': f"{days_records[5]['w']}G-{days_records[5]['l']}P",
+            'domingo': f"{days_records[6]['w']}G-{days_records[6]['l']}P"
         }
     except Exception as e:
         st.error(f"Error calculando estadísticas avanzadas: {str(e)}")

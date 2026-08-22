@@ -689,35 +689,45 @@ with tab3:
 st.markdown("---")
 
 with tab4:
-    st.markdown("### 🦁 Leones del Caracas 25-26")
+    st.markdown(f"### 🦁 Estadísticas de Situación — Leones del Caracas ({selected_season_display})")
     
     # Obtener estadísticas avanzadas
-    advanced_stats = get_leones_advanced_stats(selected_season)
+    advanced_stats = get_leones_advanced_stats(selected_season, cache_version="v2_days")
     
     if advanced_stats:
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         
         with col1:
-            st.markdown(f"**Juego N°{advanced_stats['total_games']} ({advanced_stats['record']})**")
-            st.markdown(f"**Home Club:** {advanced_stats['home_record']}")
-            st.markdown(f"**Visitante:** {advanced_stats['away_record']}")
-            st.markdown(f"**De noche:** {advanced_stats['night_record']}")
-            st.markdown(f"**Blanqueo:** {advanced_stats['shutouts']}")
-            st.markdown(f"**Racha:** {advanced_stats['streak']}")
-            st.markdown(f"**En extrainning:** {advanced_stats['extra_inning']}")
-            st.markdown(f"**Ult-10J:** {advanced_stats['last_10']}")
+            st.markdown(f"**Juego N°{advanced_stats.get('total_games', 0)} ({advanced_stats.get('record', '')})**")
+            st.markdown(f"**Home Club:** {advanced_stats.get('home_record', '')}")
+            st.markdown(f"**Visitante:** {advanced_stats.get('away_record', '')}")
+            st.markdown(f"**De noche:** {advanced_stats.get('night_record', '')}")
+            st.markdown(f"**Blanqueo:** {advanced_stats.get('shutouts', '')}")
+            st.markdown(f"**Racha:** {advanced_stats.get('streak', '')}")
+            st.markdown(f"**En extrainning:** {advanced_stats.get('extra_inning', '')}")
+            st.markdown(f"**Ult-10J:** {advanced_stats.get('last_10', '')}")
         
         with col2:
-            st.markdown(f"**Por 1 Carrera:** {advanced_stats['one_run']}")
-            st.markdown(f"**Remontados:** {advanced_stats['remontados']}")
-            st.markdown(f"**Arriba:** {advanced_stats['up']}")
-            st.markdown(f"**Terreneadas:** {advanced_stats['blown_leads']}")
-            st.markdown(f"**Abridores:** {advanced_stats['starters']}")
-            st.markdown(f"**Relevistas:** {advanced_stats['relievers']}")
-            st.markdown(f"**Salvados:** {advanced_stats['saves']}")
-            st.markdown(f"**OCT:** {advanced_stats['oct']}")
-            st.markdown(f"**NOV:** {advanced_stats['nov']}")
-            st.markdown(f"**DEC:** {advanced_stats['dec']}")
+            st.markdown(f"**Por 1 Carrera:** {advanced_stats.get('one_run', '')}")
+            st.markdown(f"**Remontados:** {advanced_stats.get('remontados', '')}")
+            st.markdown(f"**Arriba:** {advanced_stats.get('up', '')}")
+            st.markdown(f"**Terreneadas:** {advanced_stats.get('blown_leads', '')}")
+            st.markdown(f"**Abridores:** {advanced_stats.get('starters', '')}")
+            st.markdown(f"**Relevistas:** {advanced_stats.get('relievers', '')}")
+            st.markdown(f"**Salvados:** {advanced_stats.get('saves', '')}")
+            st.markdown(f"**OCT:** {advanced_stats.get('oct', '')}")
+            st.markdown(f"**NOV:** {advanced_stats.get('nov', '')}")
+            st.markdown(f"**DEC:** {advanced_stats.get('dec', '')}")
+            
+        with col3:
+            st.markdown("**📅 Por Día de Semana:**")
+            st.markdown(f"**Lunes:** {advanced_stats.get('lunes', '0G-0P')}")
+            st.markdown(f"**Martes:** {advanced_stats.get('martes', '0G-0P')}")
+            st.markdown(f"**Miércoles:** {advanced_stats.get('miercoles', '0G-0P')}")
+            st.markdown(f"**Jueves:** {advanced_stats.get('jueves', '0G-0P')}")
+            st.markdown(f"**Viernes:** {advanced_stats.get('viernes', '0G-0P')}")
+            st.markdown(f"**Sábado:** {advanced_stats.get('sabado', '0G-0P')}")
+            st.markdown(f"**Domingo:** {advanced_stats.get('domingo', '0G-0P')}")
     else:
         st.info("No hay datos disponibles para estadísticas avanzadas.")
 
