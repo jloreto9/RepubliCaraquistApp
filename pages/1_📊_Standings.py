@@ -96,6 +96,73 @@ def run_elo_simulations_cached(season: int, simulate_from_scratch: bool = False)
     )
 
 
+@st.cache_data(ttl=300, show_spinner=False)
+def get_calendar_games_with_elo_projections(season: int) -> pd.DataFrame:
+    """Obtiene partidos del calendario oficial y calcula probabilidades ELO reales."""
+    supabase = init_supabase()
+    elo_regular_df = load_elo_ratings_for_phase(season, "regular")
+    current_elos = {}
+    if not elo_regular_df.empty:
+        for _, r in elo_regular_df.iterrows():
+            try:
+                current_elos[int(r["team_id"])] = float(r["elo"])
+            except:
+                pass
+    for tid in LVBP_TEAMS.keys():
+        if tid not in current_elos:
+            current_elos[tid] = float(BASE_ELO)
+
+    try:
+        cal_games_res = supabase.table('games') \
+            .select('*') \
+            .eq('season', season) \
+            .order('game_date', desc=True) \
+            .limit(100) \
+            .execute()
+        cal_games = cal_games_res.data or []
+    except Exception:
+        cal_games = []
+
+    if not cal_games:
+        return pd.DataFrame()
+
+    cal_rows = []
+    for g in cal_games:
+        h_id = g.get('home_team_id')
+        a_id = g.get('away_team_id')
+        if h_id in LVBP_TEAMS and a_id in LVBP_TEAMS:
+            h_elo = current_elos.get(h_id, BASE_ELO)
+            a_elo = current_elos.get(a_id, BASE_ELO)
+            p_h, p_a = calculate_matchup_win_prob(h_elo, a_elo, HOME_ADVANTAGE)
+            
+            h_name = LVBP_TEAMS[h_id]
+            a_name = LVBP_TEAMS[a_id]
+            fav_name = h_name if p_h >= 0.5 else a_name
+            fav_pct = max(p_h, p_a)
+            
+            st_val = g.get('status', 'Final')
+            is_fin = st_val in ['Final', 'Completed Early', 'Game Over']
+            h_sc = g.get('home_score', 0)
+            a_sc = g.get('away_score', 0)
+            real_res = f"{h_sc} - {a_sc}" if is_fin else st_val
+            
+            cal_rows.append({
+                'id': g.get('id'),
+                'game_date': str(g.get('game_date', ''))[:10],
+                'home_id': h_id,
+                'away_id': a_id,
+                'Local': h_name,
+                'Visitante': a_name,
+                'ELO Local': f"{h_elo:.1f}",
+                'ELO Visitante': f"{a_elo:.1f}",
+                'Prob. Local': f"{p_h:.1%}",
+                'Prob. Visitante': f"{p_a:.1%}",
+                'Favorito ELO': f"{fav_name} ({fav_pct:.1%})",
+                'Marcador / Estado': real_res
+            })
+    return pd.DataFrame(cal_rows)
+
+
 st.set_page_config(page_title="Standings - RepubliCaraquistApp", page_icon="📊", layout="wide")
 
 # Header
@@ -513,13 +580,13 @@ if not standings_df.empty:
             st.plotly_chart(fig_champ, use_container_width=True)
 
         with elo_subtab2:
-            st.markdown("#### 🔮 Predictor de Partidos Head-to-Head (Basado en ELO)")
+            st.markdown("#### 🔮 Predictor de Partidos & Probabilidades del Calendario Real (Basado en ELO)")
             st.markdown(
-                "Calcula la probabilidad de victoria para cualquier enfrentamiento entre equipos de la LVBP, "
-                "incluyendo la ventaja reglamentaria de localía (+35 puntos ELO)."
+                "Calcula la probabilidad real de victoria para cualquier enfrentamiento consultando los ratings ELO oficiales "
+                "almacenados en la base de datos, incorporando la ventaja reglamentaria de localía (+35 pts ELO)."
             )
 
-            # Cargar ELOs actuales
+            # Cargar ELOs reales actuales
             current_elos = {}
             elo_regular_df = load_elo_ratings_for_phase(selected_season, "regular")
             if not elo_regular_df.empty:
@@ -531,6 +598,40 @@ if not standings_df.empty:
             for tid in LVBP_TEAMS.keys():
                 if tid not in current_elos:
                     current_elos[tid] = float(BASE_ELO)
+
+            # 1. Pronósticos sobre el Calendario Real de la Temporada
+            st.markdown("##### 📅 Pronóstico de Partidos del Calendario Oficial")
+            
+            df_cal_pred = get_calendar_games_with_elo_projections(selected_season)
+
+            if not df_cal_pred.empty:
+                # Filtro rápido
+                filtro_cal = st.radio(
+                    "Filtrar partidos del calendario:",
+                    ["🦁 Solo Juegos de Leones del Caracas", "⚾ Todos los Juegos de la Liga"],
+                    horizontal=True,
+                    key="cal_pred_filter"
+                )
+                
+                if "Leones" in filtro_cal:
+                    df_cal_disp = df_cal_pred[(df_cal_pred['home_id'] == 695) | (df_cal_pred['away_id'] == 695)]
+                else:
+                    df_cal_disp = df_cal_pred
+                    
+                st.dataframe(
+                    df_cal_disp[['game_date', 'Local', 'Visitante', 'ELO Local', 'ELO Visitante', 'Prob. Local', 'Prob. Visitante', 'Favorito ELO', 'Marcador / Estado']].rename(columns={'game_date': 'Fecha'}),
+                    use_container_width=True,
+                    hide_index=True,
+                    height=300
+                )
+            else:
+                st.info("No se encontraron partidos registrados en el calendario para esta temporada.")
+
+            st.markdown("---")
+
+            # 2. Simulador de Enfrentamiento Directo Personalizado (100% ELO Real)
+            st.markdown("##### 🆚 Simulador de Enfrentamiento Directo (Datos 100% Reales)")
+            st.caption("Selecciona cualquier combinación de local y visitante para evaluar las probabilidades exactas con los ratings ELO reales.")
 
             col_h, col_vs, col_a = st.columns([5, 1, 5])
             
@@ -546,8 +647,8 @@ if not standings_df.empty:
                     key="pred_home_team"
                 )
                 home_tid = next(t for t, name in LVBP_TEAMS.items() if name == home_team_name)
-                home_elo_default = current_elos.get(home_tid, BASE_ELO)
-                home_elo = st.number_input(f"Rating ELO {home_team_name}:", value=float(round(home_elo_default, 1)), step=1.0, key="pred_home_elo")
+                home_elo = current_elos.get(home_tid, BASE_ELO)
+                st.info(f"⚡ **Rating ELO Real:** `{home_elo:.2f}` *(+35.0 pts localía = `{home_elo + HOME_ADVANTAGE:.2f}` efectivo)*")
 
             with col_vs:
                 st.markdown("<div style='text-align: center; padding-top: 50px; font-size: 1.8rem; font-weight: bold;'>VS</div>", unsafe_allow_html=True)
@@ -562,25 +663,24 @@ if not standings_df.empty:
                     key="pred_away_team"
                 )
                 away_tid = next(t for t, name in LVBP_TEAMS.items() if name == away_team_name)
-                away_elo_default = current_elos.get(away_tid, BASE_ELO)
-                away_elo = st.number_input(f"Rating ELO {away_team_name}:", value=float(round(away_elo_default, 1)), step=1.0, key="pred_away_elo")
+                away_elo = current_elos.get(away_tid, BASE_ELO)
+                st.info(f"⚡ **Rating ELO Real:** `{away_elo:.2f}`")
 
-            # Cálculo de probabilidades
+            # Cálculo de probabilidades reales
             p_home, p_away = calculate_matchup_win_prob(home_elo, away_elo, HOME_ADVANTAGE)
             diff_eff = (home_elo + HOME_ADVANTAGE) - away_elo
 
-            st.markdown("---")
-            st.markdown(f"##### 📊 Resultado del Pronóstico: **{home_team_name} (Local) vs. {away_team_name} (Visitante)**")
+            st.markdown(f"###### 📊 Pronóstico Sabermétrico: **{home_team_name} (Local) vs. {away_team_name} (Visitante)**")
 
             cp1, cp2, cp3 = st.columns(3)
             with cp1:
-                st.metric(f"🏠 Probabilidad {home_team_name}", f"{p_home:.1%}", f"{home_elo:.1f} ELO (+35 Local)")
+                st.metric(f"🏠 Victoria {home_team_name}", f"{p_home:.1%}", f"{home_elo:.1f} ELO (+35 Local)")
             with cp2:
-                st.metric(f"✈️ Probabilidad {away_team_name}", f"{p_away:.1%}", f"{away_elo:.1f} ELO")
+                st.metric(f"✈️ Victoria {away_team_name}", f"{p_away:.1%}", f"{away_elo:.1f} ELO")
             with cp3:
                 fav = home_team_name if p_home >= 0.5 else away_team_name
                 fav_prob = max(p_home, p_away)
-                st.metric("🏆 Favorito", f"{fav}", f"{fav_prob:.1%} prob.")
+                st.metric("🏆 Favorito del Enfrentamiento", f"{fav}", f"{fav_prob:.1%} prob.")
 
             # Barra visual comparativa
             fig_match = go.Figure()
@@ -618,7 +718,7 @@ if not standings_df.empty:
             st.plotly_chart(fig_match, use_container_width=True)
 
             st.caption(
-                f"ℹ️ El equipo local ({home_team_name}) recibe +35 puntos ELO por localía. "
+                f"ℹ️ El modelo aplica la ventaja reglamentaria de localía (+35 pts ELO). "
                 f"Diferencial efectivo: **{diff_eff:+.1f} puntos** a favor de {'Local' if diff_eff > 0 else 'Visitante'}."
             )
 
