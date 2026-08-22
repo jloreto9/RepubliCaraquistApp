@@ -692,7 +692,7 @@ with tab4:
     st.markdown(f"### 🦁 Estadísticas de Situación — Leones del Caracas ({selected_season_display})")
     
     # Obtener estadísticas avanzadas
-    advanced_stats = get_leones_advanced_stats(selected_season, cache_version="v2_days")
+    advanced_stats = get_leones_advanced_stats(selected_season, cache_version="v4_terreneadas_fixed")
     
     if advanced_stats:
         col1, col2, col3 = st.columns(3)
@@ -711,7 +711,7 @@ with tab4:
             st.markdown(f"**Por 1 Carrera:** {advanced_stats.get('one_run', '')}")
             st.markdown(f"**Remontados:** {advanced_stats.get('remontados', '')}")
             st.markdown(f"**Arriba:** {advanced_stats.get('up', '')}")
-            st.markdown(f"**Terreneadas:** {advanced_stats.get('blown_leads', '')}")
+            st.markdown(f"**Terreneadas:** {advanced_stats.get('terreneadas', '0')}")
             st.markdown(f"**Abridores:** {advanced_stats.get('starters', '')}")
             st.markdown(f"**Relevistas:** {advanced_stats.get('relievers', '')}")
             st.markdown(f"**Salvados:** {advanced_stats.get('saves', '')}")

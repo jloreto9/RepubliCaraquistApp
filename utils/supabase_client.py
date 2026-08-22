@@ -278,8 +278,17 @@ def parse_single_game_advanced(game):
             starter_loss = ((not won) and loser_id == leones_starter_id)
             reliever_win = (won and winner_id in leones_relievers)
             reliever_loss = ((not won) and loser_id in leones_relievers)
-            
             has_save = (save_id in leones_pitchers)
+            
+            # Terreneadas: Leones siendo local gana en la baja del 9no (o entradas extras)
+            all_plays = live_data.get("plays", {}).get("allPlays", [])
+            last_play = all_plays[-1] if all_plays else {}
+            about = last_play.get("about", {})
+            last_play_half = about.get("halfInning")
+            last_play_inning = about.get("inning", 1)
+            is_walkoff_play = about.get("isWalkOff", False)
+            
+            is_terreneada = bool(is_home and won and ((last_play_half == "bottom" and last_play_inning >= 9) or is_walkoff_play))
             
             return {
                 "game_pk": game_pk,
@@ -296,7 +305,8 @@ def parse_single_game_advanced(game):
                 "starter_loss": starter_loss,
                 "reliever_win": reliever_win,
                 "reliever_loss": reliever_loss,
-                "has_save": has_save
+                "has_save": has_save,
+                "terreneada": is_terreneada
             }
     except Exception:
         pass
@@ -316,12 +326,13 @@ def parse_single_game_advanced(game):
         "starter_loss": False,
         "reliever_win": False,
         "reliever_loss": False,
-        "has_save": False
+        "has_save": False,
+        "terreneada": False
     }
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def get_leones_advanced_stats(season=None, cache_version="v2_days"):
+def get_leones_advanced_stats(season=None, cache_version="v4_terreneadas_fixed"):
     """Calcula estadísticas avanzadas de los Leones del Caracas con precisión de MLB Stats API"""
     if season is None:
         season = get_current_season()
@@ -374,6 +385,9 @@ def get_leones_advanced_stats(season=None, cache_version="v2_days"):
         # Arriba: Récord llegando ganando al 7mo
         arriba_wins = sum(1 for p in parsed_clean if p["led_after_6"] and p["won"])
         arriba_losses = sum(1 for p in parsed_clean if p["led_after_6"] and not p["won"])
+        
+        # Terreneadas (Walk-off wins)
+        terreneadas = sum(1 for p in parsed_clean if p.get("terreneada", False))
         
         # Decisiones de pitcheo
         starter_wins = sum(1 for p in parsed_clean if p["starter_win"])
@@ -444,7 +458,7 @@ def get_leones_advanced_stats(season=None, cache_version="v2_days"):
             'one_run': f"{one_run_wins}-{one_run_losses}",
             'remontados': f"{remontados}",
             'up': f"{arriba_wins}-{arriba_losses}",
-            'blown_leads': "0",
+            'terreneadas': f"{terreneadas}",
             'starters': f"{starter_wins}-{starter_losses}",
             'relievers': f"{reliever_wins}-{reliever_losses}",
             'saves': f"{saves}",
