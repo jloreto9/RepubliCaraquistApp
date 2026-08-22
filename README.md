@@ -65,9 +65,12 @@ Alimentada directamente por los feeds oficiales de **MLB Stats API**, procesada 
 
 ---
 
-### 📉 4. Análisis Win Probability Added (`📉 Análisis WPA`)
-* **Gráficos de Apalancamiento (*Leverage Index*):** Fluctuación de la probabilidad de victoria lanzamiento a lanzamiento.
-* **Jugadas Clave:** Identificación algorítmica de los momentos de mayor inflexión y batazos decisivos (*clutch moments*).
+### 📈 4. Suite Sabermétrica WPA & Apalancamiento (`📈 Análisis WPA`)
+* **Motor Estocástico RE24:** Modelo de *Win Expectancy* de 24 estados ($3\text{ outs} \times 8\text{ combinaciones de bases}$) con distribuciones de carreras restantes y reglas de frontera para extrainnings y *walk-offs*.
+* **Curva de Probabilidad de Victoria:** Gráfico dinámico interactivo con áreas de ventaja y tooltips enriquecidos con ocupación visual de bases (`◆ ◇ ◇`), outs, conteo y bateador vs. lanzador.
+* **Leverage Index ($LI$):** Medición de la tensión situacional por jugada e inning ($LI \ge 1.5\text{x}$ Alta Presión).
+* **Métrica de Oportunismo ($Clutch$):** Desglose de $WPA$, $WPA/LI$ y rendimiento bajo máxima presión.
+* **Tablero de Líderes de Temporada (56 JJ):** Rankings acumulados de bateadores, lanzadores y Top 10 momentos más decisivos del año.
 
 ---
 
