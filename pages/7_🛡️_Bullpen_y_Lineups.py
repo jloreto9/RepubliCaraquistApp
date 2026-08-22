@@ -174,8 +174,9 @@ with tab_lu:
         st.markdown("---")
         
         # Vistas de Alineación
-        subtab_card, subtab_matrix, subtab_player = st.tabs([
+        subtab_card, subtab_top_lu, subtab_matrix, subtab_player = st.tabs([
             "🎴 Tarjeta de Alineación por Juego (Lineup Card)",
+            "🌟 Alineaciones Más Utilizadas",
             "📊 Matriz de Calor (Turnos 1 al 9)",
             "👤 Impacto por Jugador Titular"
         ])
@@ -245,8 +246,98 @@ with tab_lu:
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
+
+        # ---- VISTA 2: ALINEACIONES MÁS UTILIZADAS ----
+        with subtab_top_lu:
+            st.markdown("#### 🌟 Combinaciones de Alineación Más Frecuentes y su Rendimiento")
+            st.markdown("Identifica los órdenes al bate de 9 jugadores más empleados y su récord colectivo de victorias y derrotas.")
+            
+            # Agrupar alineaciones exactas
+            lineup_groups = {}
+            for g in lineup_records:
+                starters = g["starters"]
+                key = tuple((s["order"], s["player_name"], s["position"]) for s in sorted(starters, key=lambda x: x["order"]))
+                if key not in lineup_groups:
+                    lineup_groups[key] = {
+                        "games_count": 0,
+                        "wins": 0,
+                        "losses": 0,
+                        "games": [],
+                        "starters": sorted(starters, key=lambda x: x["order"])
+                    }
+                won = (g["won"] == 1)
+                lineup_groups[key]["games_count"] += 1
+                if won:
+                    lineup_groups[key]["wins"] += 1
+                else:
+                    lineup_groups[key]["losses"] += 1
+                lineup_groups[key]["games"].append({
+                    "game_date": g["game_date"],
+                    "opposing_team": g["opposing_team"],
+                    "score": g["score_str"],
+                    "won": won
+                })
+                
+            sorted_unique_lineups = sorted(
+                lineup_groups.values(),
+                key=lambda x: (x["games_count"], x["wins"]),
+                reverse=True
+            )
+            
+            u_col1, u_col2, u_col3 = st.columns(3)
+            with u_col1:
+                st.metric("Total Alineaciones Únicas Usadas", f"{len(sorted_unique_lineups)}")
+            with u_col2:
+                top_rep = sorted_unique_lineups[0]["games_count"] if sorted_unique_lineups else 0
+                st.metric("Alineación Más Repetida", f"{top_rep} juegos")
+            with u_col3:
+                w_top = sorted_unique_lineups[0]["wins"] if sorted_unique_lineups else 0
+                l_top = sorted_unique_lineups[0]["losses"] if sorted_unique_lineups else 0
+                pct_top = (w_top / top_rep) if top_rep > 0 else 0
+                st.metric("Récord de la Alineación #1", f"{w_top} - {l_top}", f".{int(pct_top*1000):03d} PCT")
+                
+            st.markdown("---")
+            
+            # Tarjetas expandibles con detalle de cada alineación
+            for idx, u_lu in enumerate(sorted_unique_lineups[:15], 1):
+                pct_val = (u_lu["wins"] / u_lu["games_count"]) if u_lu["games_count"] > 0 else 0
+                s1 = u_lu['starters'][0]['player_name'] if len(u_lu['starters']) > 0 else ""
+                s2 = u_lu['starters'][1]['player_name'] if len(u_lu['starters']) > 1 else ""
+                s3 = u_lu['starters'][2]['player_name'] if len(u_lu['starters']) > 2 else ""
+                s4 = u_lu['starters'][3]['player_name'] if len(u_lu['starters']) > 3 else ""
+                
+                expander_title = f"🏆 Alineación #{idx} — {u_lu['games_count']} JJ ({u_lu['wins']} V - {u_lu['losses']} D | .{int(pct_val*1000):03d} PCT) — 1. {s1}, 2. {s2}, 3. {s3}, 4. {s4}..."
+                
+                with st.expander(expander_title, expanded=(idx == 1)):
+                    c_l_left, c_l_right = st.columns(2)
+                    with c_l_left:
+                        for s in u_lu["starters"][:5]:
+                            b_col = "#3b82f6" if s['order'] <= 3 else ("#f59e0b" if s['order'] == 4 else "#8b5cf6")
+                            st.markdown(f"""
+                            <div style='background: #0f172a; padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #334155;'>
+                                <div><span style='background: {b_col}; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; margin-right: 8px;'>#{s['order']}</span><b>{s['player_name']}</b></div>
+                                <div><span style='background: #334155; color: #cbd5e1; padding: 2px 6px; border-radius: 4px; font-size: 12px;'>{s['position']}</span></div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    with c_l_right:
+                        for s in u_lu["starters"][5:]:
+                            st.markdown(f"""
+                            <div style='background: #0f172a; padding: 10px 14px; border-radius: 6px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #334155;'>
+                                <div><span style='background: #64748b; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; margin-right: 8px;'>#{s['order']}</span><b>{s['player_name']}</b></div>
+                                <div><span style='background: #334155; color: #cbd5e1; padding: 2px 6px; border-radius: 4px; font-size: 12px;'>{s['position']}</span></div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                            
+                    st.markdown("##### 📅 Partidos Jugados con esta Alineación Exacta")
+                    g_tbl = pd.DataFrame([{
+                        "Fecha": gm["game_date"],
+                        "Rival": gm["opposing_team"],
+                        "Marcador": gm["score"],
+                        "Resultado": "Victoria" if gm["won"] else "Derrota"
+                    } for gm in u_lu["games"]])
+                    st.dataframe(g_tbl, use_container_width=True, hide_index=True)
                     
-        # ---- VISTA 2: MATRIZ DE CALOR (HEATMAP 1-9) ----
+        # ---- VISTA 3: MATRIZ DE CALOR (HEATMAP 1-9) ----
         with subtab_matrix:
             st.markdown("#### 📊 Distribución de Titularidades en el Orden al Bate (1ro al 9no)")
             st.markdown("Muestra cuántas veces inició cada jugador en cada posición del orden ofensivo.")
