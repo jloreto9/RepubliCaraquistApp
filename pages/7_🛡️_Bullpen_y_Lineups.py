@@ -35,7 +35,7 @@ selected_season_str = st.sidebar.selectbox("⚾ Temporada", season_options, inde
 selected_season = int(selected_season_str.split("-")[0])
 
 with st.spinner("Cargando datos de bullpen y lineups de la temporada..."):
-    df_bullpen, lineups_data = fetch_season_bullpen_and_lineups(selected_season, team_id=LEONES_TEAM_ID)
+    df_bullpen, lineups_data = fetch_season_bullpen_and_lineups(selected_season, team_id=LEONES_TEAM_ID, cache_version="v2_with_scores")
 
 tab_bp, tab_lu = st.tabs(["🛡️ Efectividad de Relevistas (IR / IRS)", "📋 Tracker de Alineaciones (Lineups)"])
 
@@ -121,6 +121,8 @@ with tab_lu:
             won = item["leones_won"]
             score_leo = item.get("leones_score", 0)
             score_opp = item.get("opposing_score", 0)
+            score_str = item.get("score_str", f"{score_leo}-{score_opp}")
+            full_score = item.get("full_score_str", f"Leones {score_leo} - {score_opp} {opp}")
             starters = item.get("starters", [])
             
             game_entry = {
@@ -129,7 +131,10 @@ with tab_lu:
                 "opposing_team": opp,
                 "won": 1 if won else 0,
                 "lost": 0 if won else 1,
-                "score_str": f"{score_leo}-{score_opp}",
+                "leones_score": score_leo,
+                "opposing_score": score_opp,
+                "score_str": score_str,
+                "full_score_str": full_score,
                 "result_str": "VICTORIA" if won else "DERROTA",
                 "starters": starters
             }
@@ -143,6 +148,7 @@ with tab_lu:
                     "Posicion": s["position"],
                     "game_date": g_date,
                     "opposing_team": opp,
+                    "Marcador": score_str,
                     "won": 1 if won else 0,
                     "lost": 0 if won else 1
                 })
@@ -200,7 +206,7 @@ with tab_lu:
             st.markdown(f"""
             <div style='background-color: #1e293b; padding: 16px; border-radius: 10px; border-left: 6px solid {'#10b981' if selected_game['won'] == 1 else '#ef4444'}; margin-bottom: 20px;'>
                 <h3 style='margin: 0; color: #ffffff;'>🦁 Alineación Titular — Leones del Caracas</h3>
-                <p style='margin: 4px 0 0 0; color: #94a3b8;'>📅 Fecha: <b>{selected_game['game_date']}</b> | Rival: <b>{selected_game['opposing_team']}</b> | Marcador: <b>{selected_game['score_str']}</b> ({selected_game['result_str']})</p>
+                <p style='margin: 4px 0 0 0; color: #94a3b8;'>📅 Fecha: <b>{selected_game['game_date']}</b> | Rival: <b>{selected_game['opposing_team']}</b> | Marcador Final: <b>{selected_game['full_score_str']}</b> ({selected_game['result_str']})</p>
             </div>
             """, unsafe_allow_html=True)
             
@@ -415,11 +421,11 @@ with tab_lu:
             st.dataframe(p_turnos, use_container_width=True, hide_index=True)
             
             st.markdown("##### 📅 Historial de Partidos como Titular")
-            disp_p_games = df_p_lu[["game_date", "opposing_team", "Turno", "Posicion", "won"]].copy()
-            disp_p_games["Resultado"] = disp_p_games["won"].apply(lambda x: "V" if x == 1 else "D")
+            disp_p_games = df_p_lu[["game_date", "opposing_team", "Marcador", "Turno", "Posicion", "won"]].copy()
+            disp_p_games["Resultado"] = disp_p_games["won"].apply(lambda x: "Victoria" if x == 1 else "Derrota")
             disp_p_games = disp_p_games.rename(columns={
                 "game_date": "Fecha", "opposing_team": "Rival", "Turno": "Turno al Bate", "Posicion": "Posición Defensiva"
-            })[["Fecha", "Rival", "Turno al Bate", "Posición Defensiva", "Resultado"]]
+            })[["Fecha", "Rival", "Marcador", "Turno al Bate", "Posición Defensiva", "Resultado"]]
             
             st.dataframe(disp_p_games, use_container_width=True, hide_index=True)
             

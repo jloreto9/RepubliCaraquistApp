@@ -1,4 +1,4 @@
-﻿# utils/bullpen_lineups.py
+# utils/bullpen_lineups.py
 import requests
 import pandas as pd
 import numpy as np
@@ -34,6 +34,9 @@ def parse_game_bullpen_and_lineups(game_pk: int) -> dict:
         
         is_leones_home = (home_id == LEONES_TEAM_ID)
         leones_won = (home_runs > away_runs) if is_leones_home else (away_runs > home_runs)
+        leones_score = home_runs if is_leones_home else away_runs
+        opposing_score = away_runs if is_leones_home else home_runs
+        opp_name = away_team if is_leones_home else home_team
         
         # Lineup inicial de Leones desde boxscore
         leones_side = "home" if is_leones_home else "away"
@@ -57,7 +60,14 @@ def parse_game_bullpen_and_lineups(game_pk: int) -> dict:
         lineup_entry = {
             "game_pk": game_pk,
             "game_date": game_date,
-            "opposing_team": away_team if is_leones_home else home_team,
+            "home_team": home_team,
+            "away_team": away_team,
+            "opposing_team": opp_name,
+            "is_home": is_leones_home,
+            "leones_score": leones_score,
+            "opposing_score": opposing_score,
+            "score_str": f"{leones_score}-{opposing_score}",
+            "full_score_str": f"Leones {leones_score} - {opposing_score} {opp_name}",
             "leones_won": leones_won,
             "lineup_summary": lineup_str,
             "starters": starting_lineup
@@ -131,7 +141,7 @@ def parse_game_bullpen_and_lineups(game_pk: int) -> dict:
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def fetch_season_bullpen_and_lineups(season: int, team_id: int = LEONES_TEAM_ID) -> tuple[pd.DataFrame, list]:
+def fetch_season_bullpen_and_lineups(season: int, team_id: int = LEONES_TEAM_ID, cache_version: str = "v2_with_scores") -> tuple[pd.DataFrame, list]:
     """Descarga datos de bullpen y lineups de toda la temporada."""
     sched_url = f"https://statsapi.mlb.com/api/v1/schedule?sportId=17&leagueId=135&season={season}&teamId={team_id}"
     try:
