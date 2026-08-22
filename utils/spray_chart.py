@@ -1,4 +1,4 @@
-﻿# utils/spray_chart.py
+# utils/spray_chart.py
 import requests
 import numpy as np
 import pandas as pd
@@ -156,6 +156,8 @@ def fetch_single_game_batted_balls(game_pk: int) -> list[dict]:
                         records.append({
                             "game_pk": game_pk,
                             "game_date": game_date,
+                            "home_team": home_team,
+                            "away_team": away_team,
                             "inning": inning,
                             "half": half,
                             "batter_id": batter.get("id"),

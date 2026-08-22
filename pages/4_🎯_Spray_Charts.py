@@ -1,4 +1,4 @@
-﻿# pages/4_🎯_Spray_Charts.py
+# pages/4_🎯_Spray_Charts.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -75,26 +75,90 @@ if df_raw.empty:
     st.info("Prueba seleccionando la temporada **2025-2026**.")
     st.stop()
 
-# Filtro de ámbito: Jugadores de Leones vs Todos
-leones_batters_df = df_raw[df_raw["is_leones"] == True]
-if leones_batters_df.empty:
-    leones_batters_df = df_raw
+# Conversión de fechas
+df_raw["game_date_dt"] = pd.to_datetime(df_raw["game_date"])
+
+# 📅 Filtro Temporal (Toda la temporada, Rango de fechas, Por Juego)
+tipo_temporal = st.sidebar.radio(
+    "📅 Alcance Temporal",
+    ["Toda la Temporada", "Por Rango de Fechas", "Por Juego Específico"],
+    index=0
+)
+
+df_filtered_time = df_raw.copy()
+scope_title_suffix = ""
+ver_ambos = False
+
+if tipo_temporal == "Por Rango de Fechas":
+    min_date = df_raw["game_date_dt"].min().date()
+    max_date = df_raw["game_date_dt"].max().date()
+    
+    date_range = st.sidebar.date_input(
+        "Selecciona el rango de fechas",
+        value=(min_date, max_date),
+        min_value=min_date,
+        max_value=max_date
+    )
+    
+    if isinstance(date_range, (list, tuple)) and len(date_range) == 2:
+        start_d, end_d = date_range
+        df_filtered_time = df_raw[(df_raw["game_date_dt"].dt.date >= start_d) & (df_raw["game_date_dt"].dt.date <= end_d)]
+        scope_title_suffix = f" ({start_d.strftime('%d/%m/%Y')} al {end_d.strftime('%d/%m/%Y')})"
+    elif isinstance(date_range, (list, tuple)) and len(date_range) == 1:
+        start_d = date_range[0]
+        df_filtered_time = df_raw[df_raw["game_date_dt"].dt.date == start_d]
+        scope_title_suffix = f" ({start_d.strftime('%d/%m/%Y')})"
+
+elif tipo_temporal == "Por Juego Específico":
+    # Extraer juegos únicos ordenados por fecha descendente
+    games_unique = df_raw.drop_duplicates(subset=["game_pk"]).sort_values("game_date", ascending=False)
+    
+    game_options = []
+    game_map = {}
+    for _, g in games_unique.iterrows():
+        away_name = g.get('away_team') if pd.notna(g.get('away_team')) else 'Visitante'
+        home_name = g.get('home_team') if pd.notna(g.get('home_team')) else 'Home'
+        date_str = g.get('game_date') if pd.notna(g.get('game_date')) else ''
+        label = f"📅 {date_str} | {away_name} @ {home_name}"
+        game_options.append(label)
+        game_map[label] = g["game_pk"]
+        
+    selected_game_label = st.sidebar.selectbox("🏟️ Seleccionar Partido", game_options)
+    selected_game_pk = game_map[selected_game_label]
+    
+    ver_ambos = st.sidebar.checkbox("Mostrar batazos de ambos equipos", value=False)
+    
+    if ver_ambos:
+        df_filtered_time = df_raw[df_raw["game_pk"] == selected_game_pk]
+    else:
+        df_filtered_time = df_raw[(df_raw["game_pk"] == selected_game_pk) & (df_raw["is_leones"] == True)]
+        
+    scope_title_suffix = f" - {selected_game_label.replace('📅 ', '')}"
+
+# Filtro de ámbito de bateadores sobre el subconjunto de tiempo
+if tipo_temporal == "Por Juego Específico" and ver_ambos:
+    pool_batters_df = df_filtered_time
+else:
+    pool_batters_df = df_filtered_time[df_filtered_time["is_leones"] == True]
+    if pool_batters_df.empty:
+        pool_batters_df = df_filtered_time
 
 # Conteo de batazos por jugador para ordenar el dropdown
-batter_counts = leones_batters_df["batter_name"].value_counts()
+batter_counts = pool_batters_df["batter_name"].value_counts()
 batter_list = [f"{name} ({count} contactos)" for name, count in batter_counts.items()]
 batter_name_map = {f"{name} ({count} contactos)": name for name, count in batter_counts.items()}
 
 # Selector de Jugador
-selected_batter_display = st.sidebar.selectbox("👤 Seleccionar Bateador", ["🌟 Todos los Leones del Caracas"] + batter_list)
+team_label = "🌟 Todos los Bateadores del Juego" if (tipo_temporal == "Por Juego Específico" and ver_ambos) else "🌟 Todos los Leones del Caracas"
+selected_batter_display = st.sidebar.selectbox("👤 Seleccionar Bateador", [team_label] + batter_list)
 
-if selected_batter_display == "🌟 Todos los Leones del Caracas":
-    df_player = leones_batters_df.copy()
-    current_player_name = "Leones del Caracas (Equipo Completo)"
+if selected_batter_display == team_label:
+    df_player = pool_batters_df.copy()
+    current_player_name = f"Leones del Caracas{scope_title_suffix}"
 else:
     chosen_name = batter_name_map[selected_batter_display]
-    df_player = leones_batters_df[leones_batters_df["batter_name"] == chosen_name].copy()
-    current_player_name = chosen_name
+    df_player = pool_batters_df[pool_batters_df["batter_name"] == chosen_name].copy()
+    current_player_name = f"{chosen_name}{scope_title_suffix}"
 
 st.sidebar.markdown("---")
 st.sidebar.header("🔍 Filtros de Batazos")
