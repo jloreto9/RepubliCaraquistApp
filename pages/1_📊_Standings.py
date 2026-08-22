@@ -17,10 +17,10 @@ except:
     from streamlit_app.utils.supabase_client import get_standings, get_recent_games, init_supabase, get_available_seasons, get_current_season
 
 ELO_PHASE_OPTIONS = {
-    "regular": "Temporada Regular",
-    "wildcard_playin": "Wild Card / Play-In",
-    "round_robin": "Round Robin",
-    "final": "Final",
+    "regular": "1. Temporada Regular",
+    "wildcard_playin": "2. Serie del Comodín (Wild Card)",
+    "round_robin": "3. Round Robin (Todos contra Todos)",
+    "final": "4. Serie Final",
 }
 
 
@@ -366,21 +366,24 @@ if not standings_df.empty:
         if elo_df.empty:
             st.info(f"No hay registros de ELO calculados para la fase '{ELO_PHASE_OPTIONS.get(elo_phase, elo_phase)}' en {selected_season_display}.")
         else:
-            # Métricas para Leones
+            # Métricas destacadas
             leones_elo = elo_df[elo_df['team_name'].str.contains('Leones', case=False, na=False)]
-            if not leones_elo.empty:
-                l_elo_row = leones_elo.iloc[0]
-                e1, e2, e3, e4 = st.columns(4)
-                with e1:
-                    st.metric("🏆 Posición ELO", f"#{int(l_elo_row['rank'])} / {len(elo_df)}")
-                with e2:
-                    st.metric("⚡ Rating ELO", f"{float(l_elo_row['elo']):.2f}")
-                with e3:
-                    delta_base = float(l_elo_row['elo']) - 1500.0
-                    st.metric("Diferencial vs Base 1500", f"{delta_base:+.2f}")
-                with e4:
-                    st.metric("Juegos Evaluados", f"{int(l_elo_row['games_played'])} JJ")
-                st.markdown("---")
+            leader_elo = elo_df.iloc[0]
+            
+            e1, e2, e3, e4 = st.columns(4)
+            with e1:
+                st.metric("🥇 Líder ELO Fase", f"{leader_elo['team_name']}")
+            with e2:
+                st.metric("⚡ Rating del Líder", f"{float(leader_elo['elo']):.2f}")
+            with e3:
+                if not leones_elo.empty:
+                    l_elo_row = leones_elo.iloc[0]
+                    st.metric("🦁 Rating Leones", f"{float(l_elo_row['elo']):.2f}", f"#{int(l_elo_row['rank'])} / {len(elo_df)}")
+                else:
+                    st.metric("🦁 Leones del Caracas", "No participó", "Fase posterior")
+            with e4:
+                st.metric("Juegos Evaluados", f"{int(leader_elo['games_played'])} JJ")
+            st.markdown("---")
                 
             col_elo_chart, col_elo_tbl = st.columns([5, 7])
             

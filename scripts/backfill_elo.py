@@ -155,7 +155,7 @@ def load_ratings_map(supabase, season, phase):
     return {row["team_id"]: row for row in (response.data or [])}
 
 
-def process_phase(supabase, season, phase, reset=False):
+def process_phase(supabase, season, phase, reset=False, initial_ratings=None):
     if reset:
         reset_phase_data(supabase, season, phase)
 
@@ -166,6 +166,11 @@ def process_phase(supabase, season, phase, reset=False):
 
     processed_ids = load_processed_ids(supabase, season, phase)
     ratings_map = load_ratings_map(supabase, season, phase)
+
+    running_ratings = {}
+    if initial_ratings:
+        for tid, r in initial_ratings.items():
+            running_ratings[tid] = r
 
     for game in games:
         game_id = game.get("id")
@@ -186,8 +191,8 @@ def process_phase(supabase, season, phase, reset=False):
         home_row = ratings_map.get(home_team_id, {})
         away_row = ratings_map.get(away_team_id, {})
 
-        home_elo = float(home_row.get("elo", BASE_ELO))
-        away_elo = float(away_row.get("elo", BASE_ELO))
+        home_elo = float(home_row.get("elo", running_ratings.get(home_team_id, BASE_ELO)))
+        away_elo = float(away_row.get("elo", running_ratings.get(away_team_id, BASE_ELO)))
         home_games_played = int(home_row.get("games_played", 0))
         away_games_played = int(away_row.get("games_played", 0))
 
@@ -247,12 +252,15 @@ def process_phase(supabase, season, phase, reset=False):
 
         ratings_map[home_team_id] = home_payload
         ratings_map[away_team_id] = away_payload
+        running_ratings[home_team_id] = new_home_elo
+        running_ratings[away_team_id] = new_away_elo
         processed_ids.add(game_id)
         processed_count += 1
 
     print(
         f"[{phase}] total_final_games={total_final_games} processed_count={processed_count} skipped_count={skipped_count}"
     )
+    return running_ratings
 
 
 def main():
@@ -264,8 +272,14 @@ def main():
     print(f"Fases: {', '.join(phases)}")
     print(f"Reset: {args.reset}")
 
-    for phase in phases:
-        process_phase(supabase, args.season, phase, reset=args.reset)
+    PHASE_SEQUENCE = ["regular", "wildcard_playin", "round_robin", "final"]
+    phases_to_run = [p for p in PHASE_SEQUENCE if p in phases]
+
+    current_ratings = {}
+    for phase in phases_to_run:
+        current_ratings = process_phase(
+            supabase, args.season, phase, reset=args.reset, initial_ratings=current_ratings
+        )
 
     print("Backfill ELO finalizado")
 
