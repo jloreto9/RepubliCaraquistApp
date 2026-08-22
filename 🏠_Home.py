@@ -9,126 +9,33 @@ import os
 from dotenv import load_dotenv
 from utils.supabase_client import get_standings, get_recent_games, get_current_season, get_available_seasons, get_leones_advanced_stats, get_batting_stats, get_pitching_stats
 from utils.ai_insights import get_ai_insights
+from utils.wpa_engine import process_game_wpa_advanced, calculate_player_game_wpa
 
 # Constantes para WPA
 TEAM_ID = 695  # Leones del Caracas
 
-# ========================================
-# FUNCIONES WPA PARA MVP DEL ÚLTIMO JUEGO
-# ========================================
-
-def calculate_wp(inning: int, diff: int) -> float:
-    """Calcula Win Probability simple basado en inning y diferencial"""
-    leverage = min(inning / 9.0, 1.0)
-    wp = 1.0 / (1.0 + np.exp(-0.75 * diff))
-    return max(0.0, min(1.0, wp + 0.25 * leverage * (wp - 0.5)))
-
 
 @st.cache_data(ttl=600)
 def get_game_wpa_mvp(game_pk: int) -> dict:
-    """Obtiene el MVP del juego basado en WPA"""
+    """Obtiene el MVP del juego basado en el motor sabermétrico RE24 de WPA"""
     try:
-        # Obtener feed del juego
-        url = f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live"
-        response = requests.get(url, timeout=30)
-        feed = response.json()
-
-        # Identificar si Leones es local
-        home_id = feed["gameData"]["teams"]["home"]["id"]
-        leones_is_home = (home_id == TEAM_ID)
-
-        # Procesar jugadas
-        all_plays = feed.get("liveData", {}).get("plays", {}).get("allPlays", [])
-
-        if not all_plays:
+        df_wpa, _, err = process_game_wpa_advanced(game_pk)
+        if err or df_wpa.empty:
             return None
-
-        wpa_data = {}
-        prev_wp = 0.5
-        home_score = away_score = 0
-
-        for play in all_plays:
-            about = play.get("about", {})
-            matchup = play.get("matchup", {})
-
-            inning = about.get("inning", 1)
-            half = about.get("halfInning", "top")
-
-            # Calcular carreras
-            runs = sum(1 for runner in play.get("runners", [])
-                       if runner.get("movement", {}).get("end") == "score")
-
-            if half == "bottom":
-                home_score += runs
-            else:
-                away_score += runs
-
-            # Perspectiva Leones
-            leones_score = home_score if leones_is_home else away_score
-            opp_score = away_score if leones_is_home else home_score
-
-            # Calcular WPA
-            diff = leones_score - opp_score
-            wp_after = calculate_wp(inning, diff)
-            wpa = wp_after - prev_wp
-
-            # Acumular WPA por jugador
-            batter_id = matchup.get("batter", {}).get("id")
-            batter_name = matchup.get("batter", {}).get("fullName", "Desconocido")
-            pitcher_id = matchup.get("pitcher", {}).get("id")
-            pitcher_name = matchup.get("pitcher", {}).get("fullName", "Desconocido")
-
-            if batter_id:
-                if batter_id not in wpa_data:
-                    wpa_data[batter_id] = {"name": batter_name, "wpa_bat": 0, "wpa_pit": 0}
-                wpa_data[batter_id]["wpa_bat"] += wpa
-
-            if pitcher_id:
-                if pitcher_id not in wpa_data:
-                    wpa_data[pitcher_id] = {"name": pitcher_name, "wpa_bat": 0, "wpa_pit": 0}
-                wpa_data[pitcher_id]["wpa_pit"] += wpa
-
-            prev_wp = wp_after
-
-        # Obtener roster de Leones
-        try:
-            box_url = f"https://statsapi.mlb.com/api/v1/game/{game_pk}/boxscore"
-            box_response = requests.get(box_url, timeout=30)
-            box = box_response.json()
-
-            roster_ids = set()
-            for side in ["home", "away"]:
-                team_data = box.get("teams", {}).get(side, {})
-                if team_data.get("team", {}).get("id") == TEAM_ID:
-                    for player_id, _ in team_data.get("players", {}).items():
-                        try:
-                            roster_ids.add(int(player_id.replace("ID", "")))
-                        except:
-                            pass
-        except:
-            roster_ids = set()
-
-        # Calcular WPA total y filtrar solo Leones
-        mvp = None
-        max_wpa = -999
-
-        for player_id, data in wpa_data.items():
-            if roster_ids and player_id not in roster_ids:
-                continue
-
-            total_wpa = data["wpa_bat"] + data["wpa_pit"]
-            if total_wpa > max_wpa:
-                max_wpa = total_wpa
-                mvp = {
-                    "name": data["name"],
-                    "wpa_total": total_wpa,
-                    "wpa_bat": data["wpa_bat"],
-                    "wpa_pit": data["wpa_pit"]
-                }
-
-        return mvp
-
-    except Exception as e:
+            
+        wpa_players = calculate_player_game_wpa(df_wpa)
+        if wpa_players.empty:
+            return None
+            
+        top_player = wpa_players.iloc[0]
+        return {
+            "name": top_player["player"],
+            "wpa_total": float(top_player["WPA_total"]),
+            "wpa_bat": float(top_player["wpa_bat"]),
+            "wpa_pit": float(top_player["wpa_pit"]),
+            "clutch": float(top_player.get("Clutch", 0.0))
+        }
+    except Exception:
         return None
 
 # Cargar variables de entorno
@@ -139,7 +46,7 @@ st.set_page_config(
     page_title="RepubliCaraquistApp",
     page_icon="logo.png",  # ← Tu logo como favicon
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",
 )
 # app.py - Después de st.set_page_config()
 
@@ -244,12 +151,12 @@ with col2:
     
     with col_text:
         st.markdown("""
-            <div style='padding-top: 20px;'>
-                <h1 style='font-size: 2.5rem; color: #FDB827; font-weight: bold; 
+            <div style='padding-top: 10px;'>
+                <h1 style='font-size: clamp(1.5rem, 4.5vw, 2.5rem); color: #FDB827; font-weight: bold; 
                            text-shadow: 2px 2px 4px rgba(0,0,0,0.3); margin: 0;'>
                     RepubliCaraquistApp
                 </h1>
-                <p style='font-size: 1rem; color: #666; margin: 5px 0;'>
+                <p style='font-size: clamp(0.85rem, 2.5vw, 1rem); color: #666; margin: 5px 0;'>
                     Análisis Avanzado de los Leones del Caracas - LVBP
                 </p>
             </div>
@@ -518,9 +425,13 @@ with tab1:
                                 <span style='color: #888; font-size: 0.8rem;'>Pitcheo</span><br>
                                 <span style='color: white; font-weight: bold;'>{mvp_data['wpa_pit']:+.3f}</span>
                             </div>
+                            <div>
+                                <span style='color: #888; font-size: 0.8rem;'>Clutch</span><br>
+                                <span style='color: white; font-weight: bold;'>{mvp_data.get('clutch', 0.0):+.3f}</span>
+                            </div>
                         </div>
                         <p style='color: #888; font-size: 0.75rem; margin-top: 1rem;'>
-                            Win Probability Added
+                            Win Probability Added (Modelo RE24)
                         </p>
                     </div>
                     """, unsafe_allow_html=True)
