@@ -62,8 +62,8 @@ def get_available_seasons():
     return [2026, 2025, 2024, 2023, 2022, 2021, 2020, 2019, 2018, 2017, 2016, 2015]
 
 @st.cache_data(ttl=600)  # Cache por 10 minutos
-def get_standings(season=None):
-    """Calcula standings desde la tabla games - Solo equipos LVBP"""
+def get_standings(season=None, phase='regular'):
+    """Calcula standings desde la tabla games - Solo equipos LVBP filtrados por fase"""
     if season is None:
         season = get_current_season()
     
@@ -72,27 +72,23 @@ def get_standings(season=None):
     # IDs de los equipos LVBP
     LVBP_TEAM_IDS = [692, 693, 694, 695, 696, 697, 698, 699]
     
-    # Primero intentar tabla standings si existe
-    try:
-        response = supabase.table('standings') \
-            .select('*') \
-            .eq('season', season) \
-            .in_('team_id', LVBP_TEAM_IDS) \
-            .order('pct', desc=True) \
-            .execute()
-        
-        if response.data:
-            return pd.DataFrame(response.data)
-    except:
-        pass
+    # Mapeo de fase a códigos de game_type
+    PHASE_TYPE_MAP = {
+        'regular': ['R'],
+        'round_robin': ['L'],
+        'wildcard_playin': ['D'],
+        'final': ['F'],
+        'all': ['R', 'L', 'D', 'F']
+    }
+    game_types = PHASE_TYPE_MAP.get(phase, ['R'])
     
-    # Si no hay standings, calcular desde games
+    # Calcular desde games según la fase seleccionada
     try:
-        # Obtener juegos de la temporada - CORRECCIÓN: Incluir 'Final', 'Completed' y 'Completed Early'
         games_response = supabase.table('games') \
             .select('*') \
             .eq('season', season) \
             .in_('status', ['Final', 'Completed', 'Completed Early']) \
+            .in_('game_type', game_types) \
             .execute()
         
         if not games_response.data:

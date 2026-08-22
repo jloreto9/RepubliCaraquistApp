@@ -218,7 +218,7 @@ def fetch_single_game_pitches(game_pk: int) -> list[dict]:
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def fetch_season_pitches(season: int, team_id: int = LEONES_TEAM_ID) -> pd.DataFrame:
+def fetch_season_pitches(season: int, team_id: int = LEONES_TEAM_ID, cache_version: str = "v2_calibrated") -> pd.DataFrame:
     """Descarga todos los lanzamientos de la temporada con multithreading."""
     sched_url = f"https://statsapi.mlb.com/api/v1/schedule?sportId=17&leagueId=135&season={season}&teamId={team_id}"
     try:

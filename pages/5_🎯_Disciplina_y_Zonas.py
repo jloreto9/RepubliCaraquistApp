@@ -1,4 +1,4 @@
-﻿# pages/5_🎯_Disciplina_y_Zonas.py
+# pages/5_🎯_Disciplina_y_Zonas.py
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -48,8 +48,12 @@ for idx, s in enumerate(available_seasons):
 selected_season_str = st.sidebar.selectbox("⚾ Temporada", season_options, index=default_idx)
 selected_season = int(selected_season_str.split("-")[0])
 
+if st.sidebar.button("🔄 Recargar Datos / Limpiar Caché"):
+    st.cache_data.clear()
+    st.rerun()
+
 with st.spinner("Cargando lanzamientos de la temporada desde MLB Stats API..."):
-    df_pitches = fetch_season_pitches(selected_season, team_id=LEONES_TEAM_ID)
+    df_pitches = fetch_season_pitches(selected_season, team_id=LEONES_TEAM_ID, cache_version="v2_calibrated")
 
 if df_pitches.empty:
     st.warning(f"⚠️ No se encontraron datos de lanzamientos para la temporada {selected_season_str}.")

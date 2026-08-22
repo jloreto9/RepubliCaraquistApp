@@ -91,7 +91,23 @@ with col1:
     )
 
     selected_season = season_options[selected_season_display]
-    st.markdown(f"### Tabla de Posiciones - LVBP {selected_season_display}")
+
+with col2:
+    STANDINGS_PHASE_OPTIONS = {
+        "regular": "Temporada Regular (56 JJ)",
+        "round_robin": "Round Robin (Todos contra Todos)",
+        "wildcard_playin": "Serie del Comodín (Wild Card)",
+        "final": "Serie Final",
+        "all": "Acumulado Total (Todas las Fases)"
+    }
+    selected_phase = st.selectbox(
+        "🏆 Fase del Torneo",
+        options=list(STANDINGS_PHASE_OPTIONS.keys()),
+        format_func=lambda x: STANDINGS_PHASE_OPTIONS[x],
+        index=0
+    )
+
+st.markdown(f"### Tabla de Posiciones - LVBP {selected_season_display} ({STANDINGS_PHASE_OPTIONS[selected_phase]})")
 
 # IDs de los 8 equipos LVBP
 LVBP_TEAMS = {
@@ -105,8 +121,8 @@ LVBP_TEAMS = {
     697: "Bravos de Margarita"
 }
 
-# Obtener standings de la base de datos
-standings_df = get_standings(selected_season)
+# Obtener standings de la base de datos por fase
+standings_df = get_standings(selected_season, phase=selected_phase)
 
 if not standings_df.empty:
     
