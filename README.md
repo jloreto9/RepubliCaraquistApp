@@ -1,142 +1,146 @@
+<div align="center">
+
 # 🦁 RepubliCaraquistApp
+### Plataforma de Analítica Avanzada & Sabermetría para Leones del Caracas (LVBP)
 
-**RepubliCaraquistApp** es una aplicación web de análisis avanzado de la LVBP (Liga Venezolana de Béisbol Profesional), enfocada en los **Leones del Caracas**, desarrollada con Python, Streamlit y Supabase.  
-Integra estadísticas tradicionales y sabermétricas, automatización diaria y un módulo de inteligencia artificial para análisis contextual.
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://republicaraquistapp.streamlit.app/)
+![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?logo=supabase&logoColor=white)
+![Plotly](https://img.shields.io/badge/Visualización-Plotly-3F4F75?logo=plotly&logoColor=white)
+![MLB Stats API](https://img.shields.io/badge/Data-MLB_Stats_API-0C2340?logo=mlb&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Producción-success)
 
----
+<br>
 
-## 🚀 Características principales
+**[🌐 Abrir RepubliCaraquistApp en Producción](https://republicaraquistapp.streamlit.app/)**
 
-### ⚾ 1. Standings y Resultados
-- Calendario completo de la temporada.
-- Resultados por fase: temporada regular, round robin y final.
-- Diferencial de carreras (RF/RA), racha, récord home/away.
-
-### 📊 2. Estadísticas Individuales
-- Bateo: AVG, OBP, SLG, OPS, OPS+, WAR estimado.
-- Pitcheo: ERA, WHIP, FIP, ERA+, FIP+, K/BB, HR/9.
-- Comparativas por fase o rival.
-
-### 🧩 3. Estadísticas Colectivas
-- Promedios de liga y comparativas entre equipos.
-- Métricas ajustadas (OPS+, ERA+) respecto al promedio de la LVBP.
-- Gráficos de rendimiento acumulado.
-
-### 🧠 4. Analista AI (OpenAI API)
-Un asistente inteligente que responde con análisis naturales:
-
-- **Datos Curiosos con IA**: Sección en la Home que genera insights estadísticos interesantes usando GPT-4.
-- Resumen del desempeño del equipo en la semana o el mes.
-- Identificación del mejor y peor jugador del período.
-- Proyección de clasificación usando **ELO Rating System + Monte Carlo Simulation**.
-- Diferenciación por fase: Regular / RR / Final.
-
-> **Nota**: La sección "Datos Curiosos con IA" requiere configurar `OPENAI_API_KEY` en las variables de entorno. Los insights se cachean por 1 hora para optimizar el uso de la API.
+<p align="center">
+  <i>Un centro de inteligencia deportiva de nivel Major League aplicado al béisbol invernal venezolano. Datos play-by-play en tiempo real, modelado estadístico, cartografía de batazos, tracking de zonas de strike y analítica predictiva.</i>
+</p>
 
 ---
 
-```## 🧱 Arquitectura General
+</div>
 
-n8n (Job diario 2am)
-↓
-Python Scraper → Supabase (DB + Storage)
-↓
-Streamlit App → (Usuarios / Dashboard / AI Analysis)
-↓
-OpenAI API (insights generados)
+## 📌 Visión General
 
-```
+**RepubliCaraquistApp** es una suite analítica interactiva y de ingeniería de datos diseñada para monitorear, auditar y proyectar el rendimiento de los **Leones del Caracas** y la **Liga Venezolana de Béisbol Profesional (LVBP)**.
 
-### 🔹 Componentes
+Alimentada directamente por los feeds oficiales de **MLB Stats API**, procesada en una arquitectura moderna sobre **Supabase (PostgreSQL)** y servida en una aplicación web interactiva de alto rendimiento construida en **Streamlit**.
 
-```
-| Componente | Descripción |
-|-------------|-------------|
-| **Supabase** | Base de datos PostgreSQL con vistas materializadas (batting, pitching, standings). |
-| **n8n (VPS Hostinger)** | Orquestador que ejecuta el job de ingesta diaria de datos (StatsAPI). |
-| **Streamlit** | Interfaz principal con módulos separados: standings, estadísticas, analista AI. |
-| **OpenAI API** | Motor de generación de análisis y narrativas deportivas. |
-```
 ---
 
-## 🧩 Estructura del Proyecto
+## 🚀 Módulos y Funcionalidades de la App
 
-``` republicaraquistapp/
-│
-├── streamlit_app/
-│ ├── pages/
-│ │ ├── 1_Standings_y_Resultados.py
-│ │ ├── 2_Estadisticas_Individuales.py
-│ │ ├── 3_Estadisticas_Colectivas.py
-│ │ └── 4_Analista_AI.py
-│ ├── assets/
-│ │ └── logos/ (logos de equipos LVBP)
-│ ├── utils/
-│ │ ├── supabase_client.py
-│ │ ├── elo_montecarlo.py
-│ │ └── ai_analyzer.py
-│ └── app.py
-│
-├── supabase/
-│ ├── 001_init.sql
-│ ├── 002_views.sql
-│ ├── 003_seed.sql
-│ ├── 004_rls.sql
-│ └── 006_refresh.sql
-│
-├── n8n/
-│ └── job_ingesta_lvbp.json
-│
-├── requirements.txt
-└── README.md
-```
+### 🏠 1. Home & Centro de Comando (`🏠 Home`)
+* **Dugout Dashboard:** Resumen en vivo de posición, récord general, racha y diferencial de carreras ($RF - RA$).
+* **Estadísticas de Situación (56 JJ):**
+  * Desglose detallado: *Home Club*, *Visitante*, *Juegos Nocturnos*, *Blanqueos*, *Extrainnings*, *Juegos por 1 Carrera*, *Remontados* y *Arriba al 7mo*.
+  * **Terreneadas:** Detección en tiempo real de victorias dejando al rival en el terreno (*walk-off wins* en 9no inning o extras).
+  * **Desglose por Día de la Semana:** Récord exhaustivo de Lunes a Domingo.
+  * **Decisiones de Pitcheo:** Récord de Abridores, Relevistas y Salvados.
+  * **Rendimiento Mensual:** Splits por mes (Octubre, Noviembre, Diciembre).
+* **Alineaciones Más Utilizadas:** Desglose del rendimiento, carreras anotadas/permitidas y récord por orden ofensivo.
+* **Analista IA & Curiosidades:** Generación de notas y narrativas basadas en el contexto del equipo.
+
 ---
 
-## ⚙️ Instalación y Ejecución
+### 📊 2. Standings, Pitagórico & Modelo ELO (`📊 Standings`)
+* **Tabla de Posiciones Oficial:** Clasificación por fase (*Temporada Regular, Serie Comodín, Round Robin, Serie Final*).
+* **Expectativa Pitagórica:** Cálculo de victorias esperadas mediante exponente sabermétrico de carreras.
+* **Modelo ELO Rating con Herencia de Fases:**
+  * Rating de fuerza relativo por equipo calculado juego a juego.
+  * Continuidad histórica con herencia secuencial entre rondas.
+  * Proyección de victorias y simulaciones de clasificación por **Monte Carlo**.
 
-### 1️⃣ Clonar el repositorio
-```bash
-git clone https://github.com/tuusuario/RepubliCaraquistApp.git
-cd RepubliCaraquistApp
-```
-### 2️⃣ Crear entorno e instalar dependencias
-```
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+---
+
+### 📈 3. Estadísticas Individuales & Sabermetría (`📈 Estadísticas Individuales`)
+* **Métricas Ofensivas de Vanguardia:**
+  * Tradicionales: $AVG$, $OBP$, $SLG$, $OPS$.
+  * Avanzadas: $OPS+$, $wOBA$ (ponderado por constantes de temporada), $BABIP$, $wRAA$, $wRC+$, $WAR$ estimado.
+* **Métricas de Pitcheo:**
+  * Efectividad y Dominio: $ERA$, $WHIP$, $ERA+$, $K/9$, $BB/9$, $K/BB$, $HR/9$.
+  * Sabermetría de Pitcheo Independiente de la Defensa: $FIP$, $FIP+$ y $LOB\%$.
+
+---
+
+### 📉 4. Análisis Win Probability Added (`📉 Análisis WPA`)
+* **Gráficos de Apalancamiento (*Leverage Index*):** Fluctuación de la probabilidad de victoria lanzamiento a lanzamiento.
+* **Jugadas Clave:** Identificación algorítmica de los momentos de mayor inflexión y batazos decisivos (*clutch moments*).
+
+---
+
+### 🎯 5. Spray Charts Interactivos (`🎯 Spray Charts`)
+* **Cartografía Vectorial de Batazos:** Gráfico 2D calibrado sobre el diamante de juego.
+* **Filtros Dinámicos:** Búsqueda por bateador, rango de fechas, juego individual específico y tipo de conexión (*Groundball, Flyball, Line Drive, Pop-up*).
+
+---
+
+### 🎯 6. Disciplina en el Plato y Zonas de Strike (`🎯 Disciplina y Zonas`)
+* **Visualización Milimétrica 2D:** Mapeo de coordenadas $plate\_x$ y $plate\_z$ contra el marco reglamentario de la zona de strike.
+* **Filtro de Rival Enfrentado:** Perspectiva dual (*Pitcher rival al analizar bateadores* / *Bateador contrario al analizar lanzadores*).
+* **Selector Cronológico de Turnos:** Desglose turno a turno con numeración correlativa de lanzamientos (`1`, `2`, `3`...).
+
+---
+
+### ⚡ 7. Análisis Situacional & Matchups BvP (`⚡ Situacional y BvP`)
+* **Splits Situacionales:** Rendimiento con corredores en posición anotadora ($RISP$), conteos específicos y situaciones con 2 outs.
+* **Historial Bater vs. Pitcher ($BvP$):** Registro histórico y tendencias de enfrentamientos directos entre bateadores y lanzadores.
+
+---
+
+### 🛡️ 8. Bullpen & Lineup Tracking (`🛡️ Bullpen y Lineups`)
+* **Dugout Scorecards:** Tarjetas interactivas de alineación defensiva y orden al bate juego a juego con marcador final.
+* **Matriz Heatmap 1–9:** Mapa de calor de frecuencia de uso de cada pelotero por posición en el orden ofensivo.
+* **Impacto por Jugador Titular:** Récord y porcentaje de victorias del equipo cuando cada pelotero inicia en el lineup.
+
+---
+
+## 🧱 Arquitectura de Datos
+
+```mermaid
+flowchart TD
+    A[⚾ MLB Stats API] -->|Play-by-Play & Boxscores| B(⚙️ Pipeline de Ingesta Python)
+    B -->|Carga & Vistas Materializadas| C[(🐘 Supabase PostgreSQL)]
+    C -->|Consultas Optimizadas & Caché| D[🚀 RepubliCaraquistApp - Streamlit]
+    D --> E[📊 Standings & ELO Monte Carlo]
+    D --> F[🎯 Spray Charts & Zonas de Strike]
+    D --> G[🛡️ Dugout Scorecards & Lineups]
+    D --> H[🧠 Módulo de Insights con IA]
 ```
 
-### 3️⃣ Configurar variables de entorno
+---
 
-```
-SUPABASE_URL="https://xxxxx.supabase.co"
-SUPABASE_KEY="public-anon-key"
-OPENAI_API_KEY="sk-xxxxx"
-```
+## 🛠️ Stack Tecnológico
 
-### 4️⃣ Ejecutar la app
-```
-streamlit run streamlit_app/app.py
-```
-📦 Dependencias principales
-```
-- streamlit
-- supabase-py
-- pandas
-- numpy
-- plotly
-- openai
-- python-dotenv
-```
+| Capa | Tecnología | Propósito |
+|---|---|---|
+| **Frontend / App** | [Streamlit](https://streamlit.io/) | Interfaz analítica reactiva multi-página |
+| **Data Core** | [Pandas](https://pandas.pydata.org/) & [NumPy](https://numpy.org/) | Procesamiento matricial, sabermetría y agregaciones |
+| **Visualización** | [Plotly](https://plotly.com/) | Gráficos interactivos, heatmaps, zonas de strike y spray charts |
+| **Base de Datos** | [Supabase](https://supabase.com/) (PostgreSQL) | Almacenamiento relacional de jugadas, partidos y rosters |
+| **Fuente de Datos** | [MLB Stats API](https://statsapi.mlb.com/) | Feed oficial de estadísticas y play-by-play LVBP (`sportId=17`) |
+| **Despliegue** | [Streamlit Community Cloud](https://streamlit.io/cloud) | Hosting en producción con CI/CD continuo |
 
-🧮 Futuras mejoras
+---
 
-Módulo de WAR estimado y predicciones por posición.
-Integración de visualizaciones dinámicas con Plotly Express.
-Exportación automática de reportes PDF por semana.
+## 👨‍💻 Autor
 
-📣 Autor
+<div align="center">
 
-Jorge Leonardo Loreto
-📊 Científico de Datos | ⚾ Analista de Béisbol | 🦁 Fanático de los Leones del Caracas
-Twitter: @RepubCaraquista
+**Jorge Leonardo Loreto**  
+*Data Scientist & Baseball Analytics Specialist*  
+Economista | Especialista en Modelado Predictivo, Inferencia Causal & Béisbol de Invierno  
+
+[![GitHub](https://img.shields.io/badge/GitHub-jloreto9-181717?style=flat&logo=github)](https://github.com/jloreto9)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Jorge_Loreto-0A66C2?style=flat&logo=linkedin)](https://linkedin.com/in/jorgeloreto)
+[![App](https://img.shields.io/badge/Web_App-RepubliCaraquistApp-FF4B4B?style=flat&logo=streamlit)](https://republicaraquistapp.streamlit.app/)
+
+</div>
+
+---
+
+<div align="center">
+  <sub>🦁 Desarrollado con pasión para la fanaticada caraquista y la comunidad de analítica de béisbol.</sub>
+</div>
