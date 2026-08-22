@@ -1,0 +1,475 @@
+﻿# utils/strike_zone.py
+import requests
+import numpy as np
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.express as px
+import streamlit as st
+from concurrent.futures import ThreadPoolExecutor
+
+LEONES_TEAM_ID = 695
+
+CALL_TRANSLATIONS = {
+    "Ball": "Bola",
+    "Ball In Dirt": "Bola en tierra",
+    "Called Strike": "Strike cantado",
+    "Swinging Strike": "Swing y abanicado (Whiff)",
+    "Swinging Strike (Blocked)": "Swing abanicado (Bloqueado)",
+    "Foul": "Foul",
+    "Foul Tip": "Foul Tip (Abanicado)",
+    "Foul Bunt": "Foul de toque",
+    "Missed Bunt": "Toque fallido (Whiff)",
+    "In play, out(s)": "En juego (Out)",
+    "In play, no out": "En juego (Hit/Safe)",
+    "In play, run(s)": "En juego (Carrera anotada)",
+    "Hit By Pitch": "Golpeado por lanzamiento",
+    "Automatic Ball": "Bola automática",
+    "Automatic Strike": "Strike automático"
+}
+
+CALL_COLORS = {
+    "Whiff": "#e74c3c",          # Rojo brillante
+    "Called Strike": "#f39c12",  # Ámbar / Naranja
+    "Foul": "#3498db",           # Azul
+    "In Play": "#2ecc71",        # Verde
+    "Ball": "rgba(149, 165, 166, 0.6)", # Gris suave
+    "Other": "#9b59b6"
+}
+
+
+def convert_pitch_coordinates(x_raw: float, y_raw: float, sz_top: float = 3.4, sz_bot: float = 1.5) -> tuple[float, float]:
+    """
+    Convierte coordenadas de pitch Gameday a pies centrados en home plate.
+    Retorna (x_ft, z_ft).
+    """
+    if x_raw is None or y_raw is None:
+        return 0.0, 2.5
+    
+    top = float(sz_top) if sz_top and not np.isnan(sz_top) else 3.4
+    bot = float(sz_bot) if sz_bot and not np.isnan(sz_bot) else 1.5
+    
+    # 42 unidades en Gameday ~ ancho del home plate (17 in = 1.417 ft)
+    x_ft = (float(x_raw) - 125.0) * (1.417 / 42.0)
+    
+    # 50 unidades de altura en Gameday ~ altura de zona
+    z_ft = bot + (top - bot) * ((195.0 - float(y_raw)) / 50.0)
+    
+    return round(x_ft, 2), round(z_ft, 2)
+
+
+def classify_pitch_event(call_desc: str) -> dict:
+    """Clasifica el pitcheo en indicadores sabermétricos de disciplina."""
+    desc = str(call_desc)
+    
+    is_whiff = desc in ["Swinging Strike", "Swinging Strike (Blocked)", "Foul Tip", "Missed Bunt"]
+    is_foul = desc in ["Foul", "Foul Bunt"]
+    is_in_play = desc.startswith("In play")
+    is_called_strike = desc == "Called Strike"
+    is_ball = desc.startswith("Ball") or desc in ["Hit By Pitch", "Automatic Ball"]
+    
+    is_swing = is_whiff or is_foul or is_in_play
+    is_contact = is_foul or is_in_play
+    is_strike = is_called_strike or is_swing
+    
+    if is_whiff:
+        group = "Whiff"
+    elif is_called_strike:
+        group = "Called Strike"
+    elif is_foul:
+        group = "Foul"
+    elif is_in_play:
+        group = "In Play"
+    elif is_ball:
+        group = "Ball"
+    else:
+        group = "Other"
+        
+    return {
+        "call_group": group,
+        "is_swing": is_swing,
+        "is_whiff": is_whiff,
+        "is_contact": is_contact,
+        "is_called_strike": is_called_strike,
+        "is_ball": is_ball,
+        "is_strike": is_strike
+    }
+
+
+def fetch_single_game_pitches(game_pk: int) -> list[dict]:
+    """Descarga y estructura todos los pitcheos de un juego."""
+    url = f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live"
+    try:
+        res = requests.get(url, timeout=20)
+        if res.status_code != 200:
+            return []
+        data = res.json()
+        
+        plays = data.get("liveData", {}).get("plays", {}).get("allPlays", [])
+        game_date = data.get("gameData", {}).get("datetime", {}).get("originalDate", "")
+        home_team = data.get("gameData", {}).get("teams", {}).get("home", {}).get("name", "Home")
+        away_team = data.get("gameData", {}).get("teams", {}).get("away", {}).get("name", "Away")
+        home_id = data.get("gameData", {}).get("teams", {}).get("home", {}).get("id")
+        away_id = data.get("gameData", {}).get("teams", {}).get("away", {}).get("id")
+        
+        records = []
+        for play in plays:
+            matchup = play.get("matchup", {})
+            batter = matchup.get("batter", {})
+            pitcher = matchup.get("pitcher", {})
+            bat_side = matchup.get("batSide", {}).get("code", "R")
+            pitch_hand = matchup.get("pitchHand", {}).get("code", "R")
+            
+            about = play.get("about", {})
+            inning = about.get("inning", 1)
+            half = about.get("halfInning", "top")
+            
+            batter_team_id = away_id if half == "top" else home_id
+            pitcher_team_id = home_id if half == "top" else away_id
+            
+            for ev in play.get("playEvents", []):
+                if ev.get("isPitch"):
+                    details = ev.get("details", {})
+                    call_desc = details.get("description", "")
+                    pitch_type = details.get("type", {}).get("description", "Sin dato")
+                    
+                    pdata = ev.get("pitchData", {})
+                    coords = pdata.get("coordinates", {})
+                    x_raw = coords.get("x")
+                    y_raw = coords.get("y")
+                    
+                    sz_top = pdata.get("strikeZoneTop", 3.4)
+                    sz_bot = pdata.get("strikeZoneBottom", 1.5)
+                    
+                    if x_raw is not None and y_raw is not None:
+                        x_ft, z_ft = convert_pitch_coordinates(x_raw, y_raw, sz_top, sz_bot)
+                        
+                        # Definición de en zona: |x| <= 0.83 ft (~10 in de centro), sz_bot <= z <= sz_top
+                        in_zone = (abs(x_ft) <= 0.83) and (sz_bot <= z_ft <= sz_top)
+                        
+                        # Clasificación de zona 1 a 9 o fuera
+                        zone_num = "Fuera"
+                        if in_zone:
+                            # Tercio horizontal
+                            if x_ft < -0.28:
+                                col = 0
+                            elif x_ft > 0.28:
+                                col = 2
+                            else:
+                                col = 1
+                            # Tercio vertical
+                            z_range = sz_top - sz_bot
+                            if z_ft > sz_bot + 2 * z_range / 3:
+                                row = 0  # Alta
+                            elif z_ft < sz_bot + z_range / 3:
+                                row = 2  # Baja
+                            else:
+                                row = 1  # Media
+                            zone_num = str(row * 3 + col + 1)
+                            
+                        flags = classify_pitch_event(call_desc)
+                        
+                        count = ev.get("count", {})
+                        balls = count.get("balls", 0)
+                        strikes = count.get("strikes", 0)
+                        
+                        records.append({
+                            "game_pk": game_pk,
+                            "game_date": game_date,
+                            "home_team": home_team,
+                            "away_team": away_team,
+                            "inning": inning,
+                            "half": half,
+                            "batter_id": batter.get("id"),
+                            "batter_name": batter.get("fullName", "Desconocido"),
+                            "batter_team_id": batter_team_id,
+                            "is_batter_leones": (batter_team_id == LEONES_TEAM_ID),
+                            "bat_side": bat_side,
+                            "pitcher_id": pitcher.get("id"),
+                            "pitcher_name": pitcher.get("fullName", "Desconocido"),
+                            "pitcher_team_id": pitcher_team_id,
+                            "is_pitcher_leones": (pitcher_team_id == LEONES_TEAM_ID),
+                            "pitch_hand": pitch_hand,
+                            "pitch_type": pitch_type,
+                            "call_desc": call_desc,
+                            "call_es": CALL_TRANSLATIONS.get(call_desc, call_desc),
+                            "call_group": flags["call_group"],
+                            "is_swing": flags["is_swing"],
+                            "is_whiff": flags["is_whiff"],
+                            "is_contact": flags["is_contact"],
+                            "is_called_strike": flags["is_called_strike"],
+                            "is_ball": flags["is_ball"],
+                            "is_strike": flags["is_strike"],
+                            "in_zone": in_zone,
+                            "zone_num": zone_num,
+                            "balls": balls,
+                            "strikes": strikes,
+                            "count_str": f"{balls}-{strikes}",
+                            "x_ft": x_ft,
+                            "z_ft": z_ft,
+                            "sz_top": round(sz_top, 2),
+                            "sz_bot": round(sz_bot, 2)
+                        })
+        return records
+    except Exception:
+        return []
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def fetch_season_pitches(season: int, team_id: int = LEONES_TEAM_ID) -> pd.DataFrame:
+    """Descarga todos los lanzamientos de la temporada con multithreading."""
+    sched_url = f"https://statsapi.mlb.com/api/v1/schedule?sportId=17&leagueId=135&season={season}&teamId={team_id}"
+    try:
+        res = requests.get(sched_url, timeout=30)
+        if res.status_code != 200:
+            return pd.DataFrame()
+        sched_data = res.json()
+    except Exception:
+        return pd.DataFrame()
+        
+    game_pks = []
+    for d in sched_data.get("dates", []):
+        for g in d.get("games", []):
+            if g.get("status", {}).get("detailedState") in ["Final", "Completed Early", "Game Over"]:
+                game_pks.append(g["gamePk"])
+                
+    if not game_pks:
+        return pd.DataFrame()
+        
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        results = list(executor.map(fetch_single_game_pitches, game_pks))
+        
+    all_records = [item for sublist in results for item in sublist]
+    if not all_records:
+        return pd.DataFrame()
+        
+    return pd.DataFrame(all_records)
+
+
+def calculate_discipline_metrics(df: pd.DataFrame) -> dict:
+    """Calcula todas las métricas avanzadas de disciplina en el plato."""
+    if df.empty:
+        return {
+            "total_pitches": 0, "zone_pct": 0.0, "swing_pct": 0.0,
+            "o_swing_pct": 0.0, "z_swing_pct": 0.0, "contact_pct": 0.0,
+            "z_contact_pct": 0.0, "o_contact_pct": 0.0, "whiff_pct": 0.0,
+            "swstr_pct": 0.0, "csw_pct": 0.0
+        }
+        
+    n = len(df)
+    in_zone_df = df[df["in_zone"] == True]
+    out_zone_df = df[df["in_zone"] == False]
+    
+    n_in_zone = len(in_zone_df)
+    n_out_zone = len(out_zone_df)
+    
+    swings = df[df["is_swing"] == True]
+    n_swings = len(swings)
+    
+    whiffs = df[df["is_whiff"] == True]
+    n_whiffs = len(whiffs)
+    
+    called_strikes = df[df["is_called_strike"] == True]
+    n_called_strikes = len(called_strikes)
+    
+    # O-Swing: Swings fuera de zona / Pitcheos fuera de zona
+    o_swings = out_zone_df[out_zone_df["is_swing"] == True]
+    o_swing_pct = (len(o_swings) / n_out_zone * 100) if n_out_zone > 0 else 0.0
+    
+    # Z-Swing: Swings en zona / Pitcheos en zona
+    z_swings = in_zone_df[in_zone_df["is_swing"] == True]
+    z_swing_pct = (len(z_swings) / n_in_zone * 100) if n_in_zone > 0 else 0.0
+    
+    # Contact%: Contactos / Swings
+    contacts = df[df["is_contact"] == True]
+    contact_pct = (len(contacts) / n_swings * 100) if n_swings > 0 else 0.0
+    
+    # Z-Contact%: Contacto en zona / Swings en zona
+    z_contacts = in_zone_df[in_zone_df["is_contact"] == True]
+    z_contact_pct = (len(z_contacts) / len(z_swings) * 100) if len(z_swings) > 0 else 0.0
+    
+    # O-Contact%: Contacto fuera de zona / Swings fuera de zona
+    o_contacts = out_zone_df[out_zone_df["is_contact"] == True]
+    o_contact_pct = (len(o_contacts) / len(o_swings) * 100) if len(o_swings) > 0 else 0.0
+    
+    # Whiff%: Whiffs / Swings
+    whiff_pct = (n_whiffs / n_swings * 100) if n_swings > 0 else 0.0
+    
+    # SwStr%: Whiffs / Pitcheos totales
+    swstr_pct = (n_whiffs / n * 100) if n > 0 else 0.0
+    
+    # CSW%: (Called Strikes + Whiffs) / Pitcheos totales
+    csw_pct = ((n_called_strikes + n_whiffs) / n * 100) if n > 0 else 0.0
+    
+    # Zone%: Pitcheos en zona / Pitcheos totales
+    zone_pct = (n_in_zone / n * 100) if n > 0 else 0.0
+    
+    # Swing%: Swings / Pitcheos totales
+    swing_pct = (n_swings / n * 100) if n > 0 else 0.0
+    
+    return {
+        "total_pitches": n,
+        "zone_pct": round(zone_pct, 1),
+        "swing_pct": round(swing_pct, 1),
+        "o_swing_pct": round(o_swing_pct, 1),
+        "z_swing_pct": round(z_swing_pct, 1),
+        "contact_pct": round(contact_pct, 1),
+        "z_contact_pct": round(z_contact_pct, 1),
+        "o_contact_pct": round(o_contact_pct, 1),
+        "whiff_pct": round(whiff_pct, 1),
+        "swstr_pct": round(swstr_pct, 1),
+        "csw_pct": round(csw_pct, 1)
+    }
+
+
+def create_strike_zone_figure(df: pd.DataFrame, title_player: str = "Leones del Caracas") -> go.Figure:
+    """Genera la figura de Zona de Strike con cuadrícula 3x3 y lanzamientos."""
+    fig = go.Figure()
+    
+    # Dimensiones estándar de zona en pies
+    x_min, x_max = -0.83, 0.83
+    z_min, z_max = 1.5, 3.4
+    
+    # 1. Zona de Sombra Exterior (Shadow Zone)
+    fig.add_shape(
+        type="rect",
+        x0=x_min - 0.28, x1=x_max + 0.28,
+        y0=z_min - 0.28, y1=z_max + 0.28,
+        line=dict(color="rgba(148, 163, 184, 0.3)", width=1, dash="dash"),
+        fillcolor="rgba(30, 41, 59, 0.3)",
+        layer="below"
+    )
+    
+    # 2. Caja de Strike Zone Oficial (Solid White)
+    fig.add_shape(
+        type="rect",
+        x0=x_min, x1=x_max,
+        y0=z_min, y1=z_max,
+        line=dict(color="#ffffff", width=2.5),
+        fillcolor="rgba(15, 23, 42, 0.4)",
+        layer="below"
+    )
+    
+    # 3. Líneas de Cuadrícula 3x3
+    dx = (x_max - x_min) / 3.0
+    dz = (z_max - z_min) / 3.0
+    
+    # Verticales internas
+    fig.add_shape(type="line", x0=x_min + dx, x1=x_min + dx, y0=z_min, y1=z_max, line=dict(color="rgba(255, 255, 255, 0.35)", width=1, dash="dot"))
+    fig.add_shape(type="line", x0=x_min + 2*dx, x1=x_min + 2*dx, y0=z_min, y1=z_max, line=dict(color="rgba(255, 255, 255, 0.35)", width=1, dash="dot"))
+    
+    # Horizontales internas
+    fig.add_shape(type="line", x0=x_min, x1=x_max, y0=z_min + dz, y1=z_min + dz, line=dict(color="rgba(255, 255, 255, 0.35)", width=1, dash="dot"))
+    fig.add_shape(type="line", x0=x_min, x1=x_max, y0=z_min + 2*dz, y1=z_min + 2*dz, line=dict(color="rgba(255, 255, 255, 0.35)", width=1, dash="dot"))
+    
+    # 4. Pentágono de Home Plate (al fondo z = 0.5 ft)
+    plate_x = [-0.71, 0.71, 0.71, 0, -0.71, -0.71]
+    plate_z = [0.8, 0.8, 0.6, 0.3, 0.6, 0.8]
+    fig.add_trace(go.Scatter(
+        x=plate_x,
+        y=plate_z,
+        fill="toself",
+        fillcolor="rgba(255, 255, 255, 0.8)",
+        line=dict(color="#ffffff", width=1.5),
+        hoverinfo="skip",
+        showlegend=False,
+        name="Home Plate"
+    ))
+    
+    if df.empty:
+        fig.update_layout(
+            title=dict(text=f"Zona de Strike: {title_player} (Sin datos)", font=dict(size=18)),
+            template="plotly_dark",
+            height=620
+        )
+        return fig
+        
+    # Preparar Customdata para hover
+    customdata = np.stack((
+        df["batter_name"],
+        df["pitcher_name"],
+        df["call_es"],
+        df["count_str"],
+        df["inning"],
+        df["game_date"],
+        df["pitch_type"],
+        df["x_ft"],
+        df["z_ft"]
+    ), axis=-1)
+    
+    hovertemplate = (
+        "<b>Bateador:</b> %{customdata[0]}<br>"
+        "<b>Lanzador:</b> %{customdata[1]}<br>"
+        "<b>Resultado:</b> %{customdata[2]}<br>"
+        "<b>Cuenta:</b> %{customdata[3]} | <b>Inning:</b> %{customdata[4]}<br>"
+        "<b>Fecha:</b> %{customdata[5]}<br>"
+        "<b>Tipo Pitcheo:</b> %{customdata[6]}<br>"
+        "<b>Ubicación:</b> X=%{customdata[7]} ft, Z=%{customdata[8]} ft"
+        "<extra></extra>"
+    )
+    
+    # Trazar puntos agrupados por llamada
+    groups = [
+        ("Whiff", "Swing y Abanicado (Whiff)", "#e74c3c", 10, "circle"),
+        ("Called Strike", "Strike Cantado", "#f39c12", 9, "diamond"),
+        ("In Play", "En Juego (Contacto)", "#2ecc71", 9, "square"),
+        ("Foul", "Foul", "#3498db", 8, "triangle-up"),
+        ("Ball", "Bola", "rgba(148, 163, 184, 0.6)", 7, "circle-open")
+    ]
+    
+    for group_key, label, color, size, symbol in groups:
+        sub_df = df[df["call_group"] == group_key]
+        if not sub_df.empty:
+            sub_customdata = customdata[df["call_group"] == group_key]
+            fig.add_trace(go.Scatter(
+                x=sub_df["x_ft"],
+                y=sub_df["z_ft"],
+                mode="markers",
+                name=f"{label} ({len(sub_df)})",
+                marker=dict(
+                    size=size,
+                    color=color,
+                    symbol=symbol,
+                    line=dict(width=1, color="#ffffff" if group_key != "Ball" else "rgba(255,255,255,0.2)")
+                ),
+                customdata=sub_customdata,
+                hovertemplate=hovertemplate
+            ))
+            
+    fig.update_layout(
+        title=dict(
+            text=f"🎯 Localización de Pitcheos: {title_player} ({len(df)} lanzamientos)",
+            font=dict(size=17, color="#ffffff"),
+            x=0.05
+        ),
+        xaxis=dict(
+            range=[-2.0, 2.0],
+            showgrid=False,
+            zeroline=False,
+            showticklabels=True,
+            title="Lado del Plato (Pies)",
+            fixedrange=True
+        ),
+        yaxis=dict(
+            range=[0.0, 4.5],
+            showgrid=False,
+            zeroline=False,
+            showticklabels=True,
+            title="Altura sobre el Suelo (Pies)",
+            fixedrange=True
+        ),
+        template="plotly_dark",
+        paper_bgcolor="rgba(15, 23, 42, 0.95)",
+        plot_bgcolor="rgba(15, 23, 42, 0.95)",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.22,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=11)
+        ),
+        height=620,
+        margin=dict(l=20, r=20, t=50, b=60)
+    )
+    
+    return fig

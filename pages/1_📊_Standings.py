@@ -134,7 +134,7 @@ if not standings_df.empty:
         )
     
     # Tabs para diferentes vistas
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Tabla General", "📈 Gráficos", "🆚 Head to Head", "📅 Calendario"])
+    tab1, tab_pyth, tab2, tab3, tab4 = st.tabs(["📊 Tabla General", "🧮 Sabermetría Pitagórica", "📈 Gráficos", "🆚 Head to Head", "📅 Calendario"])
     
     with tab1:
         # Formatear tabla de posiciones
@@ -221,10 +221,12 @@ if not standings_df.empty:
             col1, col2, col3, col4, col5 = st.columns(5)
             
             with col1:
-                st.metric("🏆 Posición", f"{position}° / 8")
+                st.metric("🏆 Posición", f"#{position}")
             
             with col2:
-                st.metric("📊 Récord", f"{int(leones['wins'])}-{int(leones['losses'])}")
+                wins = leones.get('wins', 0)
+                losses = leones.get('losses', 0)
+                st.metric("⚾ Récord", f"{wins}-{losses}")
             
             with col3:
                 pct = leones.get('pct', 0)
@@ -239,6 +241,96 @@ if not standings_df.empty:
                 st.metric("🎯 Diferencial", f"{diff:+d}")
         else:
             st.info("No hay datos de los Leones del Caracas para esta temporada")
+
+    with tab_pyth:
+        st.subheader("🧮 Expectativa Pitagórica de Victorias (Pythagorean Record)")
+        st.markdown(
+            "La fórmula pitagórica (Bill James / Davenport) calcula cuántas victorias **debió** ganar un equipo según sus carreras anotadas (CF) y permitidas (CP): "
+            r"$W\% = \frac{CF^{1.83}}{CF^{1.83} + CP^{1.83}}$"
+        )
+        
+        if not standings_df.empty and 'runs_for' in standings_df.columns and 'runs_against' in standings_df.columns:
+            pyth_df = standings_df.copy()
+            cf = pyth_df['runs_for'].astype(float)
+            cp = pyth_df['runs_against'].astype(float)
+            tot_games = pyth_df['wins'].astype(float) + pyth_df['losses'].astype(float)
+            
+            # Exponente estándar 1.83
+            pyth_pct = (cf**1.83) / ((cf**1.83) + (cp**1.83))
+            pyth_df['xW'] = (pyth_pct * tot_games).round(1)
+            pyth_df['xL'] = (tot_games - pyth_df['xW']).round(1)
+            pyth_df['W_diff'] = (pyth_df['wins'] - pyth_df['xW']).round(1)
+            pyth_df['pyth_pct'] = pyth_pct
+            
+            # Métricas para Leones
+            leones_p = pyth_df[pyth_df['team_name'].str.contains('Leones', case=False, na=False)]
+            if not leones_p.empty:
+                l_row = leones_p.iloc[0]
+                pk1, pk2, pk3, pk4, pk5 = st.columns(5)
+                with pk1:
+                    st.metric("Victorias Reales", f"{int(l_row['wins'])}")
+                with pk2:
+                    st.metric("Victorias Esperadas (xW)", f"{l_row['xW']:.1f}")
+                with pk3:
+                    diff_val = l_row['W_diff']
+                    st.metric(
+                        "Diferencial (W - xW)",
+                        f"{diff_val:+.1f}",
+                        help="Positivo: Superó expectativa (clutch / suerte). Negativo: Récord inferior al rendimiento de carreras."
+                    )
+                with pk4:
+                    rf_per_g = l_row['runs_for'] / (l_row['wins'] + l_row['losses']) if (l_row['wins'] + l_row['losses']) > 0 else 0
+                    st.metric("Carreras Anotadas / J", f"{rf_per_g:.2f}")
+                with pk5:
+                    ra_per_g = l_row['runs_against'] / (l_row['wins'] + l_row['losses']) if (l_row['wins'] + l_row['losses']) > 0 else 0
+                    st.metric("Carreras Permitidas / J", f"{ra_per_g:.2f}")
+            
+            st.markdown("---")
+            
+            # Tabla formateada
+            pyth_display = pyth_df[['team_name', 'wins', 'losses', 'runs_for', 'runs_against', 'run_diff', 'pct', 'pyth_pct', 'xW', 'W_diff']].copy()
+            pyth_display['pct_fmt'] = pyth_display['pct'].apply(lambda x: f".{int(x*1000):03d}")
+            pyth_display['pyth_fmt'] = pyth_display['pyth_pct'].apply(lambda x: f".{int(x*1000):03d}")
+            pyth_display['diff_fmt'] = pyth_display['W_diff'].apply(lambda x: f"{x:+.1f}")
+            pyth_display['diagnostico'] = pyth_display['W_diff'].apply(
+                lambda x: "🔥 Sobre-rendimiento (Clutch)" if x >= 1.5 else ("❄️ Sub-rendimiento (Mala Suerte)" if x <= -1.5 else "⚖️ En línea con lo esperado")
+            )
+            
+            pyth_table_out = pyth_display[['team_name', 'wins', 'losses', 'runs_for', 'runs_against', 'run_diff', 'pct_fmt', 'pyth_fmt', 'xW', 'diff_fmt', 'diagnostico']].rename(columns={
+                'team_name': 'Equipo', 'wins': 'G Reales', 'losses': 'P Reales', 'runs_for': 'CF', 'runs_against': 'CP',
+                'run_diff': 'DIF', 'pct_fmt': 'PCT Real', 'pyth_fmt': 'PCT Pitagórico', 'xW': 'xW (Esperadas)',
+                'diff_fmt': 'Dif (G - xW)', 'diagnostico': 'Diagnóstico Sabermétrico'
+            })
+            
+            st.dataframe(pyth_table_out, use_container_width=True, hide_index=True)
+            
+            # Gráfico de dispersión: Real vs Esperado
+            fig_pyth_scatter = px.scatter(
+                pyth_df,
+                x='xW',
+                y='wins',
+                text='team_name',
+                title=f'Victorias Reales vs. Victorias Pitagóricas Esperadas - {selected_season_display}',
+                labels={'xW': 'Victorias Esperadas (Pitagórico xW)', 'wins': 'Victorias Reales (W)'},
+                color='W_diff',
+                color_continuous_scale='RdYlGn',
+                size=[15]*len(pyth_df)
+            )
+            fig_pyth_scatter.add_shape(
+                type="line",
+                x0=pyth_df['xW'].min()-1, x1=pyth_df['xW'].max()+1,
+                y0=pyth_df['xW'].min()-1, y1=pyth_df['xW'].max()+1,
+                line=dict(color="#ffffff", dash="dash", width=1.5)
+            )
+            fig_pyth_scatter.update_traces(textposition='top center')
+            fig_pyth_scatter.update_layout(
+                template='plotly_dark',
+                height=450,
+                coloraxis_colorbar_title="Dif (W-xW)"
+            )
+            st.plotly_chart(fig_pyth_scatter, use_container_width=True)
+        else:
+            st.info("Datos de carreras no disponibles para el cálculo pitagórico.")
     
     with tab2:
         col1, col2 = st.columns(2)
