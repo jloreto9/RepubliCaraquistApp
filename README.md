@@ -45,13 +45,14 @@ Alimentada directamente por los feeds oficiales de **MLB Stats API**, procesada 
 
 ---
 
-### 📊 2. Standings, Pitagórico & Modelo ELO (`📊 Standings`)
+### 📊 2. Standings, Pitagórico & Suite ELO Monte Carlo (`📊 Standings`)
 * **Tabla de Posiciones Oficial:** Clasificación por fase (*Temporada Regular, Serie Comodín, Round Robin, Serie Final*).
-* **Expectativa Pitagórica:** Cálculo de victorias esperadas mediante exponente sabermétrico de carreras.
-* **Modelo ELO Rating con Herencia de Fases:**
-  * Rating de fuerza relativo por equipo calculado juego a juego.
-  * Continuidad histórica con herencia secuencial entre rondas.
-  * Proyección de victorias y simulaciones de clasificación por **Monte Carlo**.
+* **Expectativa Pitagórica:** Cálculo de victorias esperadas ($xW$) mediante exponente sabermétrico de carreras.
+* **Modelo ELO Rating Dinámico:** Fuerza relativa por equipo calculada juego a juego (+35 pts por localía) con herencia secuencial entre rondas.
+* **🔮 Predictor de Partidos & Calendario Oficial:** Integración directa con los juegos de la BD para proyectar probabilidades de victoria partido a partido y simulador *Head-to-Head*.
+* **🎲 Simulaciones Monte Carlo de Postemporada (5,000 Iteraciones):**
+  * **Matriz de Posición Final de Temporada Regular:** Probabilidad estocástica de quedar del 1° al 8° lugar.
+  * **Probabilidades por Ronda:** Proyecciones de `% Top 4 Directo (Round Robin)`, `% Serie del Comodín (Wild Card)`, `% Pase Total a Round Robin`, `% Gran Finalista` y `% Campeón de la LVBP`.
 
 ---
 
