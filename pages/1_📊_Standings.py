@@ -13,21 +13,39 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Importar funciones
 try:
     from utils.supabase_client import get_standings, get_recent_games, init_supabase, get_available_seasons, get_current_season
+    from utils.teams import (
+        LVBP_TEAMS,
+        LVBP_ABBR,
+        LVBP_COLORS,
+        get_team_logo,
+        get_team_name,
+        get_team_abbr,
+        get_team_color,
+        resolve_team_id
+    )
     from utils.elo import (
         calculate_matchup_win_prob,
         simulate_monte_carlo_projections,
         BASE_ELO,
-        HOME_ADVANTAGE,
-        LVBP_TEAMS
+        HOME_ADVANTAGE
     )
 except:
     from streamlit_app.utils.supabase_client import get_standings, get_recent_games, init_supabase, get_available_seasons, get_current_season
+    from streamlit_app.utils.teams import (
+        LVBP_TEAMS,
+        LVBP_ABBR,
+        LVBP_COLORS,
+        get_team_logo,
+        get_team_name,
+        get_team_abbr,
+        get_team_color,
+        resolve_team_id
+    )
     from streamlit_app.utils.elo import (
         calculate_matchup_win_prob,
         simulate_monte_carlo_projections,
         BASE_ELO,
-        HOME_ADVANTAGE,
-        LVBP_TEAMS
+        HOME_ADVANTAGE
     )
 
 ELO_PHASE_OPTIONS = {
@@ -151,7 +169,9 @@ def get_calendar_games_with_elo_projections(season: int) -> pd.DataFrame:
                 'game_date': str(g.get('game_date', ''))[:10],
                 'home_id': h_id,
                 'away_id': a_id,
+                'Local_Logo': get_team_logo(h_id, size=72),
                 'Local': h_name,
+                'Visitante_Logo': get_team_logo(a_id, size=72),
                 'Visitante': a_name,
                 'ELO Local': f"{h_elo:.1f}",
                 'ELO Visitante': f"{a_elo:.1f}",
@@ -265,11 +285,13 @@ if not standings_df.empty:
         # Formatear tabla de posiciones
         display_df = standings_df.copy()
         
-        # Agregar posición
-        display_df.insert(0, 'Pos', range(1, len(display_df) + 1))
+        # Agregar logo y posición
+        display_df.insert(0, 'Logo', display_df['team_name'].apply(lambda x: get_team_logo(x, size=72)))
+        display_df.insert(1, 'Pos', range(1, len(display_df) + 1))
         
         # Seleccionar y renombrar columnas
         columns_to_show = {
+            'Logo': ' ',
             'Pos': '#',
             'team_name': 'Equipo',
             'wins': 'G',
@@ -328,6 +350,10 @@ if not standings_df.empty:
         
         st.dataframe(
             styled_df,
+            column_config={
+                ' ': st.column_config.ImageColumn(" ", width="small"),
+                '#': st.column_config.NumberColumn("#", width="small")
+            },
             use_container_width=True,
             hide_index=True,
             height=350
@@ -414,6 +440,7 @@ if not standings_df.empty:
             
             # Tabla formateada
             pyth_display = pyth_df[['team_name', 'wins', 'losses', 'runs_for', 'runs_against', 'run_diff', 'pct', 'pyth_pct', 'xW', 'W_diff']].copy()
+            pyth_display['Logo'] = pyth_display['team_name'].apply(lambda x: get_team_logo(x, size=72))
             pyth_display['pct_fmt'] = pyth_display['pct'].apply(lambda x: f".{int(x*1000):03d}")
             pyth_display['pyth_fmt'] = pyth_display['pyth_pct'].apply(lambda x: f".{int(x*1000):03d}")
             pyth_display['diff_fmt'] = pyth_display['W_diff'].apply(lambda x: f"{x:+.1f}")
@@ -421,13 +448,18 @@ if not standings_df.empty:
                 lambda x: "🔥 Sobre-rendimiento (Clutch)" if x >= 1.5 else ("❄️ Sub-rendimiento (Mala Suerte)" if x <= -1.5 else "⚖️ En línea con lo esperado")
             )
             
-            pyth_table_out = pyth_display[['team_name', 'wins', 'losses', 'runs_for', 'runs_against', 'run_diff', 'pct_fmt', 'pyth_fmt', 'xW', 'diff_fmt', 'diagnostico']].rename(columns={
-                'team_name': 'Equipo', 'wins': 'G Reales', 'losses': 'P Reales', 'runs_for': 'CF', 'runs_against': 'CP',
+            pyth_table_out = pyth_display[['Logo', 'team_name', 'wins', 'losses', 'runs_for', 'runs_against', 'run_diff', 'pct_fmt', 'pyth_fmt', 'xW', 'diff_fmt', 'diagnostico']].rename(columns={
+                'Logo': ' ', 'team_name': 'Equipo', 'wins': 'G Reales', 'losses': 'P Reales', 'runs_for': 'CF', 'runs_against': 'CP',
                 'run_diff': 'DIF', 'pct_fmt': 'PCT Real', 'pyth_fmt': 'PCT Pitagórico', 'xW': 'xW (Esperadas)',
                 'diff_fmt': 'Dif (G - xW)', 'diagnostico': 'Diagnóstico Sabermétrico'
             })
             
-            st.dataframe(pyth_table_out, use_container_width=True, hide_index=True)
+            st.dataframe(
+                pyth_table_out,
+                column_config={' ': st.column_config.ImageColumn(" ", width="small")},
+                use_container_width=True,
+                hide_index=True
+            )
             
             # Gráfico de dispersión: Real vs Esperado
             fig_pyth_scatter = px.scatter(
@@ -526,20 +558,27 @@ if not standings_df.empty:
             
             # Formato visual
             disp_mat = df_mat.copy()
+            disp_mat["Logo"] = disp_mat["team_name"].apply(lambda x: get_team_logo(x, size=72))
             for pos in range(1, 9):
                 col_name = f"{pos}°"
                 if col_name in disp_mat.columns:
                     disp_mat[col_name] = disp_mat[col_name].apply(lambda x: f"{x:.1%}")
             
-            disp_mat_tbl = disp_mat[["team_name", "elo", "1°", "2°", "3°", "4°", "5°", "6°", "7°", "8°"]].rename(columns={
-                "team_name": "Equipo", "elo": "Rating ELO"
+            disp_mat_tbl = disp_mat[["Logo", "team_name", "elo", "1°", "2°", "3°", "4°", "5°", "6°", "7°", "8°"]].rename(columns={
+                "Logo": " ", "team_name": "Equipo", "elo": "Rating ELO"
             })
             disp_mat_tbl["Rating ELO"] = disp_mat_tbl["Rating ELO"].apply(lambda x: f"{x:.1f}")
-            st.dataframe(disp_mat_tbl, use_container_width=True, hide_index=True)
+            st.dataframe(
+                disp_mat_tbl,
+                column_config={" ": st.column_config.ImageColumn(" ", width="small")},
+                use_container_width=True,
+                hide_index=True
+            )
 
             # 2. Tabla de Probabilidades de Postemporada
             st.markdown("#### 🏆 Probabilidades de Avance por Ronda de Postemporada")
             disp_proj = df_proj.copy()
+            disp_proj["Logo"] = disp_proj["team_name"].apply(lambda x: get_team_logo(x, size=72))
             disp_proj["elo_fmt"] = disp_proj["elo"].apply(lambda x: f"{x:.1f}")
             disp_proj["top4_fmt"] = disp_proj["top4_prob"].apply(lambda x: f"{x:.1%}")
             disp_proj["wc_fmt"] = disp_proj["wc_prob"].apply(lambda x: f"{x:.1%}")
@@ -547,7 +586,8 @@ if not standings_df.empty:
             disp_proj["final_fmt"] = disp_proj["final_prob"].apply(lambda x: f"{x:.1%}")
             disp_proj["champ_fmt"] = disp_proj["champ_prob"].apply(lambda x: f"{x:.1%}")
 
-            disp_proj_tbl = disp_proj[["team_name", "elo_fmt", "top4_fmt", "wc_fmt", "rr_fmt", "final_fmt", "champ_fmt"]].rename(columns={
+            disp_proj_tbl = disp_proj[["Logo", "team_name", "elo_fmt", "top4_fmt", "wc_fmt", "rr_fmt", "final_fmt", "champ_fmt"]].rename(columns={
+                "Logo": " ",
                 "team_name": "Equipo",
                 "elo_fmt": "Rating ELO",
                 "top4_fmt": "Top 4 Directo (RR)",
@@ -556,7 +596,12 @@ if not standings_df.empty:
                 "final_fmt": "Gran Finalista",
                 "champ_fmt": "🏆 Campeón LVBP"
             })
-            st.dataframe(disp_proj_tbl, use_container_width=True, hide_index=True)
+            st.dataframe(
+                disp_proj_tbl,
+                column_config={" ": st.column_config.ImageColumn(" ", width="small")},
+                use_container_width=True,
+                hide_index=True
+            )
 
             # Gráfico de Campeonato
             fig_champ = px.bar(
@@ -619,7 +664,15 @@ if not standings_df.empty:
                     df_cal_disp = df_cal_pred
                     
                 st.dataframe(
-                    df_cal_disp[['game_date', 'Local', 'Visitante', 'ELO Local', 'ELO Visitante', 'Prob. Local', 'Prob. Visitante', 'Favorito ELO', 'Marcador / Estado']].rename(columns={'game_date': 'Fecha'}),
+                    df_cal_disp[['game_date', 'Local_Logo', 'Local', 'Visitante_Logo', 'Visitante', 'ELO Local', 'ELO Visitante', 'Prob. Local', 'Prob. Visitante', 'Favorito ELO', 'Marcador / Estado']].rename(columns={
+                        'game_date': 'Fecha',
+                        'Local_Logo': ' ',
+                        'Visitante_Logo': '  '
+                    }),
+                    column_config={
+                        ' ': st.column_config.ImageColumn(" ", width="small"),
+                        '  ': st.column_config.ImageColumn(" ", width="small")
+                    },
                     use_container_width=True,
                     hide_index=True,
                     height=300
@@ -648,7 +701,12 @@ if not standings_df.empty:
                 )
                 home_tid = next(t for t, name in LVBP_TEAMS.items() if name == home_team_name)
                 home_elo = current_elos.get(home_tid, BASE_ELO)
-                st.info(f"⚡ **Rating ELO Real:** `{home_elo:.2f}` *(+35.0 pts localía = `{home_elo + HOME_ADVANTAGE:.2f}` efectivo)*")
+                
+                ch_logo, ch_info = st.columns([1, 4])
+                with ch_logo:
+                    st.image(get_team_logo(home_tid, size=144), width=65)
+                with ch_info:
+                    st.info(f"⚡ **Rating ELO Real:** `{home_elo:.2f}`\n*(+35.0 pts localía = `{home_elo + HOME_ADVANTAGE:.2f}`)*")
 
             with col_vs:
                 st.markdown("<div style='text-align: center; padding-top: 50px; font-size: 1.8rem; font-weight: bold;'>VS</div>", unsafe_allow_html=True)
@@ -664,7 +722,12 @@ if not standings_df.empty:
                 )
                 away_tid = next(t for t, name in LVBP_TEAMS.items() if name == away_team_name)
                 away_elo = current_elos.get(away_tid, BASE_ELO)
-                st.info(f"⚡ **Rating ELO Real:** `{away_elo:.2f}`")
+                
+                ca_logo, ca_info = st.columns([1, 4])
+                with ca_logo:
+                    st.image(get_team_logo(away_tid, size=144), width=65)
+                with ca_info:
+                    st.info(f"⚡ **Rating ELO Real:** `{away_elo:.2f}`")
 
             # Cálculo de probabilidades reales
             p_home, p_away = calculate_matchup_win_prob(home_elo, away_elo, HOME_ADVANTAGE)
@@ -786,17 +849,23 @@ if not standings_df.empty:
                 with col_elo_tbl:
                     st.markdown("##### 📋 Tabla Oficial de Ratings ELO")
                     display_df = elo_df[["rank", "team_name", "elo", "games_played", "updated_at"]].copy()
+                    display_df["Logo"] = display_df["team_name"].apply(lambda x: get_team_logo(x, size=72))
                     display_df["delta"] = (display_df["elo"].astype(float) - 1500.0).round(2)
                     display_df["delta_str"] = display_df["delta"].apply(lambda x: f"{x:+.2f}")
                     display_df["elo_str"] = display_df["elo"].apply(lambda x: f"{float(x):.2f}")
                     display_df["updated_str"] = pd.to_datetime(display_df["updated_at"], errors="coerce").dt.strftime('%d/%m/%Y %H:%M')
                     
-                    table_out = display_df[["rank", "team_name", "elo_str", "delta_str", "games_played", "updated_str"]].rename(columns={
-                        "rank": "#", "team_name": "Equipo", "elo_str": "Rating ELO", "delta_str": "Dif vs 1500",
+                    table_out = display_df[["Logo", "rank", "team_name", "elo_str", "delta_str", "games_played", "updated_str"]].rename(columns={
+                        "Logo": " ", "rank": "#", "team_name": "Equipo", "elo_str": "Rating ELO", "delta_str": "Dif vs 1500",
                         "games_played": "JJ", "updated_str": "Última Actualización"
                     })
                     
-                    st.dataframe(table_out, use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        table_out,
+                        column_config={" ": st.column_config.ImageColumn(" ", width="small")},
+                        use_container_width=True,
+                        hide_index=True
+                    )
     
     with tab2:
         col1, col2 = st.columns(2)
@@ -937,6 +1006,7 @@ if not standings_df.empty:
                             short_name = 'Margarita'
                         
                         h2h_data.append({
+                            'Logo': get_team_logo(team_id, size=72),
                             'Rival': short_name,
                             'JJ': 0,
                             'G': 0,
@@ -989,7 +1059,7 @@ if not standings_df.empty:
                                 away_losses += 1
                     
                     # Último juego
-                    last_game = vs_team.sort_values('game_date').iloc[-1]
+                    last_game = vs_team.sort_values('game_date', ascending=False).iloc[0]
                     if last_game['home_team_id'] == LEONES_ID:
                         last_result = 'V' if last_game['home_score'] > last_game['away_score'] else 'D'
                         last_score = f"{last_game['home_score']}-{last_game['away_score']}"
@@ -1023,6 +1093,7 @@ if not standings_df.empty:
                         short_name = 'Margarita'
                     
                     h2h_data.append({
+                        'Logo': get_team_logo(team_id, size=72),
                         'Rival': short_name,
                         'JJ': total_games,
                         'G': total_wins,
@@ -1096,6 +1167,7 @@ if not standings_df.empty:
                 # Mostrar tabla
                 st.dataframe(
                     h2h_df.style.apply(style_h2h, axis=1),
+                    column_config={'Logo': st.column_config.ImageColumn(" ", width="small")},
                     use_container_width=True,
                     hide_index=True,
                     height=350
@@ -1333,6 +1405,7 @@ if not standings_df.empty:
                             status = 'Pospuesto'
                         
                         upcoming_display.append({
+                            'Logo': get_team_logo(rival_id, size=72),
                             'Fecha': fecha,
                             'Hora': hora,
                             'Rival': f"{lugar} {rival}",
@@ -1360,7 +1433,12 @@ if not standings_df.empty:
                     styled_df = upcoming_df.style.map(color_status, subset=['Estado'])
                     styled_df = styled_df.map(color_estadio, subset=['Estadio'])
                     
-                    st.dataframe(styled_df, use_container_width=True, hide_index=True)
+                    st.dataframe(
+                        styled_df,
+                        column_config={'Logo': st.column_config.ImageColumn(" ", width="small")},
+                        use_container_width=True,
+                        hide_index=True
+                    )
                 else:
                     st.info("No hay juegos programados próximamente")
                     if selected_season < get_current_season():

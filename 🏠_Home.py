@@ -8,6 +8,7 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 from utils.supabase_client import get_standings, get_recent_games, get_current_season, get_available_seasons, get_leones_advanced_stats, get_batting_stats, get_pitching_stats
+from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS
 from utils.ai_insights import get_ai_insights
 from utils.wpa_engine import process_game_wpa_advanced, calculate_player_game_wpa
 
@@ -351,23 +352,26 @@ with tab1:
             
             # Determinar si Leones ganó
             is_home = last_game['home_team_id'] == 695
+            h_id = last_game.get('home_team_id', 695)
+            a_id = last_game.get('away_team_id')
             
             # Manejar datos anidados de manera segura
             if isinstance(last_game.get('away_team'), dict):
                 away_team_name = last_game['away_team'].get('name', 'Rival')
             else:
-                away_team_name = 'Rival'
+                away_team_name = get_team_name(a_id) if a_id else 'Rival'
                 
             if isinstance(last_game.get('home_team'), dict):
                 home_team_name = last_game['home_team'].get('name', 'Local')
             else:
-                home_team_name = 'Local'
+                home_team_name = get_team_name(h_id) if h_id else 'Local'
+            
+            home_logo = get_team_logo(h_id, size=144)
+            away_logo = get_team_logo(a_id, size=144)
             
             if is_home:
-                score_text = f"Leones del Caracas {last_game['home_score']} - {last_game['away_score']} {away_team_name}"
                 won = last_game['home_score'] > last_game['away_score']
             else:
-                score_text = f"{home_team_name} {last_game['home_score']} - {last_game['away_score']} Leones del Caracas"
                 won = last_game['away_score'] > last_game['home_score']
             
             # Color según resultado
@@ -381,11 +385,22 @@ with tab1:
             
             st.markdown(f"""
             <div style='background: {bg_color}; 
-                        padding: 2rem; border-radius: 1rem; color: white;'>
-                <h2 style='text-align: center; margin: 0;'>
-                    {score_text}
-                </h2>
-                <p style='text-align: center; margin-top: 1rem;'>
+                        padding: 1.5rem; border-radius: 1rem; color: white;'>
+                <div style='display: flex; align-items: center; justify-content: space-around;'>
+                    <div style='text-align: center; width: 35%;'>
+                        <img src='{home_logo}' width='65' style='vertical-align: middle; margin-bottom: 6px;'><br>
+                        <span style='font-weight: 600; font-size: 1.05rem;'>{home_team_name}</span>
+                    </div>
+                    <div style='text-align: center; width: 30%;'>
+                        <span style='font-size: 2.2rem; font-weight: 800; letter-spacing: 2px;'>{last_game['home_score']} - {last_game['away_score']}</span><br>
+                        <span style='font-size: 0.85rem; opacity: 0.85;'>FINAL</span>
+                    </div>
+                    <div style='text-align: center; width: 35%;'>
+                        <img src='{away_logo}' width='65' style='vertical-align: middle; margin-bottom: 6px;'><br>
+                        <span style='font-weight: 600; font-size: 1.05rem;'>{away_team_name}</span>
+                    </div>
+                </div>
+                <p style='text-align: center; margin-top: 1.2rem; margin-bottom: 0; font-size: 0.9rem; opacity: 0.9;'>
                     📅 {game_date} | 📍 {last_game.get('venue', 'Estadio')}
                 </p>
             </div>
@@ -463,11 +478,13 @@ with tab2:
                     fecha = 'N/A'
                 
                 if is_home:
-                    rival = game.get('away_team', {}).get('abbreviation', 'RIV') if isinstance(game.get('away_team'), dict) else 'RIV'
+                    rival_id = game.get('away_team_id')
+                    rival = game.get('away_team', {}).get('abbreviation', 'RIV') if isinstance(game.get('away_team'), dict) else get_team_abbr(rival_id)
                     resultado = 'W' if game['home_score'] > game['away_score'] else 'L'
                     marcador = f"{game['home_score']}-{game['away_score']}"
                 else:
-                    rival = f"@{game.get('home_team', {}).get('abbreviation', 'RIV')}" if isinstance(game.get('home_team'), dict) else '@RIV'
+                    rival_id = game.get('home_team_id')
+                    rival = f"@{game.get('home_team', {}).get('abbreviation', 'RIV')}" if isinstance(game.get('home_team'), dict) else f"@{get_team_abbr(rival_id)}"
                     resultado = 'W' if game['away_score'] > game['home_score'] else 'L'
                     marcador = f"{game['away_score']}-{game['home_score']}"
                 
@@ -475,6 +492,7 @@ with tab2:
                     rival = f"{rival} (Juego {idx})"
                 
                 games_display.append({
+                    'Logo': get_team_logo(rival_id, size=72),
                     'Fecha': fecha,
                     'Rival': rival,
                     'Resultado': resultado,
@@ -492,6 +510,7 @@ with tab2:
         
         st.dataframe(
             df_games.style.map(color_result, subset=['Resultado']),
+            column_config={'Logo': st.column_config.ImageColumn(" ", width="small")},
             use_container_width=True,
             hide_index=True
         )

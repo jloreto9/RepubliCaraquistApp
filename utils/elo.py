@@ -1,4 +1,4 @@
-﻿# utils/elo.py
+# utils/elo.py
 """
 Motor de Ratings ELO y Simulaciones Probabilísticas Monte Carlo para la LVBP.
 Calcula probabilidades de victoria en partidos y proyecta probabilidades de:
@@ -22,16 +22,28 @@ K_BY_PHASE = {
     'unknown': 20,
 }
 
-LVBP_TEAMS = {
-    695: "Leones del Caracas",
-    698: "Tiburones de La Guaira", 
-    696: "Navegantes del Magallanes",
-    699: "Tigres de Aragua",
-    692: "Águilas del Zulia",
-    693: "Cardenales de Lara",
-    694: "Caribes de Anzoátegui",
-    697: "Bravos de Margarita"
-}
+try:
+    from utils.teams import (
+        LVBP_TEAMS,
+        LVBP_ABBR,
+        LVBP_COLORS,
+        get_team_logo,
+        get_team_name,
+        get_team_abbr,
+        get_team_color,
+        resolve_team_id
+    )
+except ImportError:
+    from streamlit_app.utils.teams import (
+        LVBP_TEAMS,
+        LVBP_ABBR,
+        LVBP_COLORS,
+        get_team_logo,
+        get_team_name,
+        get_team_abbr,
+        get_team_color,
+        resolve_team_id
+    )
 
 
 def expected_score(r_a: float, r_b: float) -> float:
