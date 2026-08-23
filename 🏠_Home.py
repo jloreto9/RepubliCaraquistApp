@@ -9,7 +9,6 @@ import os
 from dotenv import load_dotenv
 from utils.supabase_client import get_standings, get_recent_games, get_current_season, get_available_seasons, get_leones_advanced_stats, get_batting_stats, get_pitching_stats
 from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS
-from utils.ai_insights import get_ai_insights
 from utils.wpa_engine import process_game_wpa_advanced, calculate_player_game_wpa
 
 # Constantes para WPA
@@ -663,58 +662,7 @@ with tab4:
     else:
         st.info("No hay datos disponibles para estadísticas avanzadas.")
 
-# ========================================
-# SECCIÓN: DATOS CURIOSOS CON IA
-# ========================================
-st.markdown("---")
-st.markdown("### 🧠 Datos Curiosos con IA")
 
-# Verificar si hay API key disponible
-api_key_available = os.environ.get("OPENAI_API_KEY") is not None
-if not api_key_available:
-    try:
-        api_key_available = st.secrets.get("OPENAI_API_KEY") is not None
-    except:
-        pass
-
-if not api_key_available:
-    st.warning("⚠️ Para usar esta función, configura tu API key de OpenAI en las variables de entorno (OPENAI_API_KEY).")
-else:
-    st.markdown("""
-    <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-                padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;
-                border-left: 4px solid #FDB827;'>
-        <span style='color: #888;'>Genera insights estadísticos interesantes sobre los Leones usando inteligencia artificial.</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    if st.button("🔮 Generar Insights", type="primary", use_container_width=True):
-        with st.spinner("Analizando datos con IA..."):
-            insights, error = get_ai_insights(
-                standings_df=standings_df,
-                recent_games=get_recent_games(team_id=695, limit=10),
-                batting_stats=batting_df if 'batting_df' in dir() else None,
-                pitching_stats=pitching_df if 'pitching_df' in dir() else None,
-                advanced_stats=get_leones_advanced_stats(selected_season)
-            )
-
-            if error:
-                st.error(f"❌ {error}")
-            elif insights:
-                st.markdown(f"""
-                <div style='background: linear-gradient(135deg, #0f0f23 0%, #1a1a3e 100%);
-                            padding: 1.5rem; border-radius: 1rem;
-                            border: 1px solid #FDB827;'>
-                    <div style='color: #e0e0e0; line-height: 1.6;'>
-                        {insights}
-                    </div>
-                    <p style='color: #666; font-size: 0.75rem; margin-top: 1rem; text-align: right;'>
-                        Generado por OpenAI | Los datos son actualizados diariamente
-                    </p>
-                </div>
-                """, unsafe_allow_html=True)
-
-st.markdown("---")
 
 # Footer
 st.markdown("""

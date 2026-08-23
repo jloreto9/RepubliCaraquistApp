@@ -57,6 +57,7 @@ tab_sit, tab_bvp = st.tabs(["⚡ Rendimiento Situacional (RISP & Clutch)", "⚔�
 # ================= TAB 1: SITUACIONAL =================
 with tab_sit:
     st.subheader("⚡ Desglose de Rendimiento Situacional")
+    st.markdown("Examina cómo varía la producción ofensiva de acuerdo al contexto del juego: corredores en base, número de outs y entradas.")
     
     # Filtro de ámbito: Ofensiva de Leones
     leones_pa = df_pa[df_pa["is_batter_leones"] == True].copy()
@@ -77,7 +78,7 @@ with tab_sit:
     # Calcular splits
     splits_df = compute_all_situational_splits(df_target)
     
-    # KPI Cards Clave
+    # KPI Cards Clave con Tooltips
     risp_df = df_target[df_target["is_risp"] == True]
     empty_df = df_target[df_target["is_bases_empty"] == True]
     outs2_risp = df_target[df_target["is_2_outs_risp"] == True]
@@ -89,25 +90,42 @@ with tab_sit:
     
     k1, k2, k3, k4, k5, k6 = st.columns(6)
     with k1:
-        st.metric("Total PA", f"{m_all['PA']}")
+        st.metric("Total PA", f"{m_all['PA']}", help="Apariciones al plato totales (Plate Appearances) registradas.")
     with k2:
-        st.metric("AVG General", f"{m_all['AVG']}")
+        st.metric("AVG General", f"{m_all['AVG']}", help="Promedio de bateo general (H / AB).")
     with k3:
-        st.metric("AVG en RISP", f"{m_risp['AVG']}", delta=f"{m_risp['AVG_num'] - m_all['AVG_num']:+.3f}" if m_all['AB']>0 else None)
+        st.metric("AVG en RISP", f"{m_risp['AVG']}", delta=f"{m_risp['AVG_num'] - m_all['AVG_num']:+.3f}" if m_all['AB']>0 else None, help="Promedio de bateo con corredores en posición anotadora (2da o 3ra base).")
     with k4:
-        st.metric("OPS en RISP", f"{m_risp['OPS']}", delta=f"{m_risp['OPS_num'] - m_all['OPS_num']:+.3f}" if m_all['AB']>0 else None)
+        st.metric("OPS en RISP", f"{m_risp['OPS']}", delta=f"{m_risp['OPS_num'] - m_all['OPS_num']:+.3f}" if m_all['AB']>0 else None, help="OPS (OBP + SLG) con corredores en posición anotadora. Mide la productividad integral en situaciones de remolque.")
     with k5:
-        st.metric("2-Outs RISP (Clutch)", f"{m_clutch['AVG']}", help="Bateo con 2 outs y hombres en posición anotadora.")
+        st.metric("2-Outs RISP (Clutch)", f"{m_clutch['AVG']}", delta=f"{m_clutch['AVG_num'] - m_all['AVG_num']:+.3f}" if m_all['AB']>0 else None, help="Bateo bajo máxima presión: con 2 outs y hombres en 2da o 3ra base.")
     with k6:
-        st.metric("Total RBI", f"{m_all['RBI']}")
+        st.metric("Total RBI", f"{m_all['RBI']}", help="Carreras impulsadas totales acumuladas.")
         
     st.markdown("---")
     
-    # Gráfico comparativo de OPS y AVG
+    # Glosario y Leyenda de Métricas Situacionales
+    with st.expander("📖 Leyenda & Guía Sabermétrica de Métricas Situacionales", expanded=False):
+        st.markdown(r"""
+        | Métrica / Situación | Definición | Interpretación Sabermétrica |
+        |---|---|---|
+        | **PA (Plate Appearances)** | Total de viajes al plato | Incluye turnos oficiales (AB), boletos (BB), pelotazos (HBP), elevados de sacrificio (SF) y toques (SH). |
+        | **AB (At Bats)** | Turnos oficiales al bate | $AB = PA - BB - HBP - SF - SH - \text{Interferencias}$. Base de cálculo para AVG y SLG. |
+        | **AVG (Batting Average)** | Promedio de bateo: $H / AB$ | Frecuencia de conectar imparables por turno oficial consumido. |
+        | **OBP (On-Base Pct)** | Porcentaje de embasado | $\frac{H + BB + HBP}{AB + BB + HBP + SF}$. Mide la capacidad de evitar outs y llegar a base. |
+        | **SLG (Slugging Pct)** | Promedio de bases alcanzadas | $\frac{1B + 2(2B) + 3(3B) + 4(HR)}{AB}$. Mide el poder de extrabases del bateador. |
+        | **OPS (On-Base + Slugging)** | Producción ofensiva total: $OBP + SLG$ | Excelente: $> .900$ | Muy Bueno: $.800 - .899$ | Promedio: $.700 - .799$ | Bajo: $< .650$. |
+        | **RISP (Runners In Scoring Position)** | Hombres en posición anotadora | Al menos un corredor en 2da o 3ra base al momento de consumir el turno. |
+        | **RISP con 2 Outs (Clutch)** | Oportunismo de alta presión | Situación crítica donde el bateador debe producir un imparable antes de que culmine la entrada. |
+        | **Bases Limpias / Llenas** | Contexto de corredores | Compara la efectividad sin tráfico en las almohadillas frente al escenario con las 3 bases ocupadas. |
+        """)
+    
+    # Gráfico comparativo de OPS y Tabla
     c_chart, c_table = st.columns([5, 7])
     
     with c_chart:
         st.markdown("#### 📊 Comparativa de OPS por Situación")
+        st.caption("📈 Barras más largas y cálidas representan mayor producción ofensiva combinada (OBP + SLG).")
         if not splits_df.empty:
             splits_chart_df = splits_df.copy()
             splits_chart_df["OPS_val"] = splits_chart_df["OPS"].astype(float)
@@ -120,18 +138,20 @@ with tab_sit:
                 color_continuous_scale="Viridis",
                 text_auto=".3f"
             )
+            fig_ops.add_vline(x=0.700, line_dash="dash", line_color="gray", annotation_text="Promedio (.700)")
             fig_ops.update_layout(
                 template="plotly_dark",
                 yaxis=dict(autorange="reversed"),
-                height=380,
+                height=420,
                 margin=dict(l=10, r=10, t=10, b=10),
                 coloraxis_showscale=False,
-                xaxis_title="OPS"
+                xaxis_title="OPS (On-Base Plus Slugging)"
             )
             st.plotly_chart(fig_ops, use_container_width=True)
             
     with c_table:
         st.markdown("#### 📋 Tabla Completa de Splits Situacionales")
+        st.caption("Detalle de la línea ofensiva slash (AVG / OBP / SLG / OPS) y acumulados por situación.")
         st.dataframe(splits_df, use_container_width=True, hide_index=True)
         
         csv_sit = splits_df.to_csv(index=False).encode("utf-8")
@@ -176,10 +196,23 @@ with tab_bvp:
         bvp_display = bvp_filtered[cols]
             
         st.markdown(f"#### 📊 Historial de {sel_bvp_batter_name} vs. Lanzadores Rivales ({len(bvp_filtered)} lanzadores enfrentados)")
+        st.caption("ℹ️ **Leyenda de columnas:** **PA:** Apariciones | **AB:** Turnos | **H:** Hits | **2B/3B/HR:** Extrabases | **BB:** Boletos | **SO:** Ponches | **AVG / OBP / SLG / OPS:** Línea de bateo.")
+        
         st.dataframe(
             bvp_display,
             column_config={
-                "Logo": st.column_config.ImageColumn(" ", width="small")
+                "Logo": st.column_config.ImageColumn(" ", width="small"),
+                "PA": st.column_config.NumberColumn("PA", help="Apariciones al plato frente a este lanzador"),
+                "AB": st.column_config.NumberColumn("AB", help="Turnos oficiales al bate"),
+                "H": st.column_config.NumberColumn("H", help="Hits conectados"),
+                "HR": st.column_config.NumberColumn("HR", help="Cuadrangulares"),
+                "RBI": st.column_config.NumberColumn("RBI", help="Carreras remolcadas"),
+                "BB": st.column_config.NumberColumn("BB", help="Boletos recibidos"),
+                "SO": st.column_config.NumberColumn("SO", help="Ponches recibidos"),
+                "AVG": st.column_config.TextColumn("AVG", help="Promedio de bateo (H/AB)"),
+                "OBP": st.column_config.TextColumn("OBP", help="Porcentaje de embasado"),
+                "SLG": st.column_config.TextColumn("SLG", help="Slugging (Bases totales/AB)"),
+                "OPS": st.column_config.TextColumn("OPS", help="Producción ofensiva combinada (OBP + SLG)")
             },
             use_container_width=True,
             hide_index=True
@@ -187,5 +220,11 @@ with tab_bvp:
         
         csv_bvp = bvp_filtered.drop(columns=["Logo"], errors="ignore").to_csv(index=False).encode("utf-8")
         st.download_button("📥 Descargar Matriz BvP en CSV", data=csv_bvp, file_name=f"bvp_{selected_season}_{sel_bvp_batter_name.replace(' ', '_')}.csv", mime="text/csv")
+        
+        with st.expander("ℹ️ Nota Metodológica de Muestra BvP (Batter vs. Pitcher)"):
+            st.markdown(r"""
+            * **Muestras Pequeñas ($< 5\text{ PA}$):** En el béisbol de invierno (LVBP), muchos enfrentamientos BvP tienen menos de 5 turnos. Deben evaluarse como referencia preliminar y no como certeza estadística.
+            * **Muestras Robustas ($\ge 10\text{ PA}$):** Revelan tendencias claras de dominio del lanzador o ventaja del bateador ante ciertos tipos de repertorio.
+            """)
     else:
         st.info("No se encontraron enfrentamientos para el bateador seleccionado.")

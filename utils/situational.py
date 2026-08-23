@@ -1,4 +1,4 @@
-﻿# utils/situational.py
+# utils/situational.py
 import requests
 import numpy as np
 import pandas as pd
@@ -8,7 +8,7 @@ from concurrent.futures import ThreadPoolExecutor
 LEONES_TEAM_ID = 695
 
 def parse_game_plate_appearances(game_pk: int) -> list[dict]:
-    """Extrae todas las apariciones al plato con contexto situacional."""
+    """Extrae todas las apariciones al plato con contexto situacional exacto previo a la jugada."""
     url = f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live"
     try:
         res = requests.get(url, timeout=20)
@@ -24,47 +24,59 @@ def parse_game_plate_appearances(game_pk: int) -> list[dict]:
         away_id = data.get("gameData", {}).get("teams", {}).get("away", {}).get("id")
         
         records = []
+        
+        # Rastrear el estado exacto de bases y outs a lo largo de cada medio inning
+        curr_inn = None
+        curr_half = None
+        curr_runners = {"1B": False, "2B": False, "3B": False}
+        curr_outs = 0
+        
         for play in plays:
+            about = play.get("about", {})
+            inning = about.get("inning", 1)
+            half = about.get("halfInning", "top")
+            
+            # Reiniciar estado en cada cambio de medio inning
+            if (inning != curr_inn) or (half != curr_half):
+                curr_inn = inning
+                curr_half = half
+                curr_runners = {"1B": False, "2B": False, "3B": False}
+                curr_outs = 0
+                
+            # Outs antes de la jugada (primer lanzamiento del turno o estado acumulado del inning)
+            outs_before = play.get("playEvents", [{}])[0].get("count", {}).get("outs", curr_outs) if play.get("playEvents") else curr_outs
+            if not isinstance(outs_before, (int, float)):
+                outs_before = curr_outs
+            outs_before = int(outs_before)
+            
+            # Estado de corredores antes de la jugada
+            runner_1b = bool(curr_runners["1B"])
+            runner_2b = bool(curr_runners["2B"])
+            runner_3b = bool(curr_runners["3B"])
+            
+            is_bases_empty = (not runner_1b and not runner_2b and not runner_3b)
+            is_men_on = (runner_1b or runner_2b or runner_3b)
+            is_risp = (runner_2b or runner_3b)
+            is_bases_loaded = (runner_1b and runner_2b and runner_3b)
+            is_2_outs = (outs_before == 2)
+            is_2_outs_risp = (is_2_outs and is_risp)
+            
             matchup = play.get("matchup", {})
             batter = matchup.get("batter", {})
             pitcher = matchup.get("pitcher", {})
             bat_side = matchup.get("batSide", {}).get("code", "R")
             pitch_hand = matchup.get("pitchHand", {}).get("code", "R")
             
-            about = play.get("about", {})
-            inning = about.get("inning", 1)
-            half = about.get("halfInning", "top")
-            
             batter_team_id = away_id if half == "top" else home_id
             pitcher_team_id = home_id if half == "top" else away_id
-            batter_team_name = away_team if half == "top" else home_team
             opposing_team_name = home_team if half == "top" else away_team
             
             result = play.get("result", {})
             event = result.get("event", "Out")
-            rbi = result.get("rbi", 0)
+            rbi = int(result.get("rbi", 0))
             desc = result.get("description", "")
             
-            # Situación de corredores antes de la jugada
-            # runners list
-            runners = play.get("runners", [])
-            origin_bases = [r.get("movement", {}).get("originBase") for r in runners if r.get("movement", {}).get("originBase")]
-            
-            runner_1b = "1B" in origin_bases
-            runner_2b = "2B" in origin_bases
-            runner_3b = "3B" in origin_bases
-            
-            is_bases_empty = (not runner_1b and not runner_2b and not runner_3b)
-            is_risp = (runner_2b or runner_3b)
-            is_bases_loaded = (runner_1b and runner_2b and runner_3b)
-            
-            # Outs antes de la jugada
-            count = play.get("count", {})
-            outs = count.get("outs", 0)
-            is_2_outs = (outs == 2)
-            is_2_outs_risp = (is_2_outs and is_risp)
-            
-            # Inning bucket
+            # Segmento de entradas
             if inning <= 3:
                 inning_bucket = "Inicios (1-3)"
             elif inning <= 6:
@@ -72,7 +84,7 @@ def parse_game_plate_appearances(game_pk: int) -> list[dict]:
             else:
                 inning_bucket = "Finales/Clutch (7-9+)"
                 
-            # Identificar hit, turno oficial, boleto, etc.
+            # Clasificación del resultado del turno
             is_hit = event in ["Single", "Double", "Triple", "Home Run"]
             is_single = (event == "Single")
             is_double = (event == "Double")
@@ -80,10 +92,12 @@ def parse_game_plate_appearances(game_pk: int) -> list[dict]:
             is_hr = (event == "Home Run")
             is_walk = event in ["Walk", "Intent Walk"]
             is_strikeout = event in ["Strikeout", "Strikeout Looking"]
-            is_sac = event in ["Sac Fly", "Sac Bunt", "Sac Fly Double Play"]
+            is_sac_fly = event in ["Sac Fly", "Sac Fly Double Play"]
+            is_sac_bunt = (event == "Sac Bunt")
+            is_sac = (is_sac_fly or is_sac_bunt)
             is_hbp = (event == "Hit By Pitch")
             
-            # Turno Oficial al Bate (AB) excluye BB, HBP, SAC, interferencias
+            # Turno Oficial (AB) descuenta BB, HBP, Sacrificios e Interferencias
             is_ab = not (is_walk or is_hbp or is_sac or "Interference" in event)
             is_pa = True
             
@@ -109,12 +123,13 @@ def parse_game_plate_appearances(game_pk: int) -> list[dict]:
                 "event": event,
                 "rbi": rbi,
                 "description": desc,
-                "outs": outs,
+                "outs": outs_before,
                 "is_2_outs": is_2_outs,
                 "runner_1b": runner_1b,
                 "runner_2b": runner_2b,
                 "runner_3b": runner_3b,
                 "is_bases_empty": is_bases_empty,
+                "is_men_on": is_men_on,
                 "is_risp": is_risp,
                 "is_bases_loaded": is_bases_loaded,
                 "is_2_outs_risp": is_2_outs_risp,
@@ -128,15 +143,26 @@ def parse_game_plate_appearances(game_pk: int) -> list[dict]:
                 "is_walk": is_walk,
                 "is_strikeout": is_strikeout,
                 "is_sac": is_sac,
+                "is_sac_fly": is_sac_fly,
+                "is_sac_bunt": is_sac_bunt,
                 "is_hbp": is_hbp
             })
+            
+            # Actualizar estado de corredores y outs posteriores a la jugada
+            curr_runners["1B"] = bool(matchup.get("postOnFirst"))
+            curr_runners["2B"] = bool(matchup.get("postOnSecond"))
+            curr_runners["3B"] = bool(matchup.get("postOnThird"))
+            curr_outs = play.get("count", {}).get("outs", curr_outs)
+            if not isinstance(curr_outs, int):
+                curr_outs = outs_before
+                
         return records
     except Exception:
         return []
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def fetch_season_situational_data(season: int, team_id: int = LEONES_TEAM_ID) -> pd.DataFrame:
+def fetch_season_situational_data(season: int, team_id: int = LEONES_TEAM_ID, cache_version: str = "v3_exact_state_tracking") -> pd.DataFrame:
     """Descarga todas las apariciones al plato de la temporada para análisis situacional."""
     sched_url = f"https://statsapi.mlb.com/api/v1/schedule?sportId=17&leagueId=135&season={season}&teamId={team_id}"
     try:
@@ -207,16 +233,18 @@ def summarize_slash_line(df: pd.DataFrame) -> dict:
 def compute_all_situational_splits(df_subject: pd.DataFrame) -> pd.DataFrame:
     """Calcula y compara los splits situacionales clave."""
     splits = [
-        ("Total Acumulado", df_subject),
+        ("Total General", df_subject),
         ("Bases Limpias", df_subject[df_subject["is_bases_empty"] == True]),
-        ("Hombres en Posición Anotadora (RISP)", df_subject[df_subject["is_risp"] == True]),
+        ("Hombres en Base", df_subject[df_subject["is_men_on"] == True]),
+        ("Posición Anotadora (RISP)", df_subject[df_subject["is_risp"] == True]),
         ("RISP con 2 Outs (Clutch)", df_subject[df_subject["is_2_outs_risp"] == True]),
         ("Bases Llenas", df_subject[df_subject["is_bases_loaded"] == True]),
+        ("Con 2 Outs (Cualquier base)", df_subject[df_subject["is_2_outs"] == True]),
         ("vs Lanzadores Derechos (RHP)", df_subject[df_subject["pitch_hand"] == "R"]),
         ("vs Lanzadores Zurdos (LHP)", df_subject[df_subject["pitch_hand"] == "L"]),
         ("Entradas Tempranas (1-3)", df_subject[df_subject["inning_bucket"] == "Inicios (1-3)"]),
         ("Entradas Medias (4-6)", df_subject[df_subject["inning_bucket"] == "Medio (4-6)"]),
-        ("Entradas Tardías / Clutch (7-9+)", df_subject[df_subject["inning_bucket"] == "Finales/Clutch (7-9+)"])
+        ("Entradas Tardías (7-9+)", df_subject[df_subject["inning_bucket"] == "Finales/Clutch (7-9+)"])
     ]
     
     rows = []
