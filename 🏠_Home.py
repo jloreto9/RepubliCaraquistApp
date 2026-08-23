@@ -214,40 +214,32 @@ else:
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
-    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.metric(
         label="🏆 Posición",
         value=position_text,
         delta="En la tabla" if position > 0 else "Sin datos"
     )
-    st.markdown('</div>', unsafe_allow_html=True)
 
 with col2:
-    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.metric(
         label="📊 Récord",
         value=record_text,
         delta=f".{int(pct*1000):03d} PCT" if pct > 0 else ".000 PCT"
     )
-    st.markdown('</div>', unsafe_allow_html=True)
 
 with col3:
-    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.metric(
         label="🔥 Racha",
         value=streak,
         delta="Racha actual"
     )
-    st.markdown('</div>', unsafe_allow_html=True)
 
 with col4:
-    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
     st.metric(
         label="🎯 Diferencial",
         value=f"{run_diff:+d}" if run_diff != 0 else "0",
         delta=f"RF: {runs_for} | RA: {runs_against}"
     )
-    st.markdown('</div>', unsafe_allow_html=True)
 
 st.markdown("---")
 
