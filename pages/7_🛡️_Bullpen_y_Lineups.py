@@ -61,10 +61,15 @@ with tab_bp:
         tot_irs = int(df_bullpen["inherited_scored"].sum())
         global_irs_pct = round(tot_irs / tot_ir * 100, 1) if tot_ir > 0 else 0.0
         
-        # Mejor relevista con al menos 5 IR
-        rel_qualified = df_irs_summary[df_irs_summary["Corredores Heredados (IR)"] >= 5]
+        # Mejor relevista con al menos 5 IR (menor % de anotados = mayor efectividad apagafuegos)
+        rel_qualified = df_irs_summary[df_irs_summary["Corredores Heredados (IR)"] >= 5].sort_values(
+            by=["% Anotados (IRS%)", "Corredores Heredados (IR)"],
+            ascending=[True, False]
+        )
         best_reliever = rel_qualified.iloc[0]["Lanzador Relevista"] if not rel_qualified.empty else "N/A"
         best_rel_pct = rel_qualified.iloc[0]["% Anotados (IRS%)"] if not rel_qualified.empty else 0.0
+        best_rel_ir = int(rel_qualified.iloc[0]["Corredores Heredados (IR)"]) if not rel_qualified.empty else 0
+        best_rel_irs = int(rel_qualified.iloc[0]["Heredados Anotados (IRS)"]) if not rel_qualified.empty else 0
         
         c1, c2, c3, c4 = st.columns(4)
         with c1:
@@ -74,7 +79,12 @@ with tab_bp:
         with c3:
             st.metric("Tasa IRS% Colectiva", f"{global_irs_pct}%", help="Menor porcentaje representa mayor efectividad conteniendo carreras.")
         with c4:
-            st.metric("Líder 'Apaga-Fuegos' (Min 5 IR)", f"{best_reliever}", f"{best_rel_pct}% IRS")
+            st.metric(
+                "Líder 'Apaga-Fuegos' (Mín. 5 IR)",
+                f"{best_reliever}",
+                f"{best_rel_pct}% IRS ({best_rel_irs}/{best_rel_ir} anotaron)",
+                help="Relevista con menor tasa de corredores heredados que anotaron (% IRS más bajo) entre quienes heredaron al menos 5 corredores."
+            )
             
         st.markdown("---")
         
