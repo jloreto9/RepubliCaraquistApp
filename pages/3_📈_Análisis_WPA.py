@@ -60,6 +60,12 @@ st.set_page_config(
     layout="wide"
 )
 
+try:
+    from utils.styles import inject_custom_css
+    inject_custom_css()
+except:
+    pass
+
 TEAM_ID = 695  # Leones del Caracas
 LEONES_GOLD = "#FDB827"
 LEONES_RED = "#CE1141"

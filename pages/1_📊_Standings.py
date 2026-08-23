@@ -187,6 +187,12 @@ def get_calendar_games_with_elo_projections(season: int) -> pd.DataFrame:
 
 st.set_page_config(page_title="Standings - RepubliCaraquistApp", page_icon="📊", layout="wide")
 
+try:
+    from utils.styles import inject_custom_css
+    inject_custom_css()
+except:
+    pass
+
 # Sidebar con Logo Oficial República Caraquista
 with st.sidebar:
     st.image(get_brand_logo(), width=200)

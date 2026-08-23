@@ -18,6 +18,12 @@ st.set_page_config(
     layout="wide"
 )
 
+try:
+    from utils.styles import inject_custom_css
+    inject_custom_css()
+except:
+    pass
+
 # Header
 col_h_logo, col_h_txt = st.columns([1, 8])
 with col_h_logo:

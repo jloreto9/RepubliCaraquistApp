@@ -19,27 +19,11 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilos CSS
-st.markdown("""
-<style>
-    .metric-card {
-        background-color: #1e293b;
-        border-radius: 10px;
-        padding: 15px;
-        border-left: 4px solid #3b82f6;
-        margin-bottom: 10px;
-    }
-    .atbat-banner {
-        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-        border: 1px solid #334155;
-        border-left: 5px solid #FDB827;
-        border-radius: 8px;
-        padding: 12px 18px;
-        margin-bottom: 15px;
-        color: #f8fafc;
-    }
-</style>
-""", unsafe_allow_html=True)
+try:
+    from utils.styles import inject_custom_css
+    inject_custom_css()
+except:
+    pass
 
 # Header
 col_h_logo, col_h_txt = st.columns([1, 8])

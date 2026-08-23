@@ -19,33 +19,11 @@ st.set_page_config(
     layout="wide"
 )
 
-# Estilos CSS personalizados
-st.markdown("""
-<style>
-    .metric-card {
-        background-color: #1e293b;
-        border-radius: 10px;
-        padding: 15px;
-        border-left: 4px solid #f59e0b;
-        margin-bottom: 10px;
-    }
-    .metric-title {
-        color: #94a3b8;
-        font-size: 13px;
-        font-weight: 600;
-        text-transform: uppercase;
-    }
-    .metric-value {
-        color: #ffffff;
-        font-size: 24px;
-        font-weight: 700;
-    }
-    .metric-sub {
-        color: #10b981;
-        font-size: 12px;
-    }
-</style>
-""", unsafe_allow_html=True)
+try:
+    from utils.styles import inject_custom_css
+    inject_custom_css()
+except:
+    pass
 
 # Título y Header
 col_h_logo, col_h_txt = st.columns([1, 8])

@@ -32,6 +32,12 @@ except:
 
 st.set_page_config(page_title="Estadísticas Individuales - RepubliCaraquistApp", page_icon="⚾", layout="wide")
 
+try:
+    from utils.styles import inject_custom_css
+    inject_custom_css()
+except:
+    pass
+
 # Colores de los Leones
 LEONES_GOLD = "#FDB827"
 LEONES_RED = "#CE1141"
