@@ -1,4 +1,4 @@
-﻿# pages/3_📈_Análisis_WPA.py
+# pages/3_📈_Análisis_WPA.py
 """
 Módulo de Análisis Avanzado de Win Probability Added (WPA), Leverage Index (LI)
 y Modelado de Situaciones Críticas para los Leones del Caracas (LVBP).
@@ -17,6 +17,16 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from utils.supabase_client import init_supabase, get_available_seasons, get_current_season
+    from utils.teams import (
+        LVBP_TEAMS,
+        LVBP_ABBR,
+        LVBP_COLORS,
+        get_team_logo,
+        get_team_name,
+        get_team_abbr,
+        get_team_color,
+        resolve_team_id
+    )
     from utils.wpa_engine import (
         process_game_wpa_advanced,
         calculate_player_game_wpa,
@@ -25,6 +35,16 @@ try:
     )
 except Exception:
     from streamlit_app.utils.supabase_client import init_supabase, get_available_seasons, get_current_season
+    from streamlit_app.utils.teams import (
+        LVBP_TEAMS,
+        LVBP_ABBR,
+        LVBP_COLORS,
+        get_team_logo,
+        get_team_name,
+        get_team_abbr,
+        get_team_color,
+        resolve_team_id
+    )
     from streamlit_app.utils.wpa_engine import (
         process_game_wpa_advanced,
         calculate_player_game_wpa,
@@ -43,16 +63,7 @@ LEONES_GOLD = "#FDB827"
 LEONES_RED = "#CE1141"
 LEONES_NAVY = "#0C2340"
 
-TEAM_NAMES = {
-    695: "Leones del Caracas",
-    698: "Tiburones de La Guaira",
-    696: "Navegantes del Magallanes",
-    699: "Tigres de Aragua",
-    692: "Águilas del Zulia",
-    693: "Cardenales de Lara",
-    694: "Caribes de Anzoátegui",
-    697: "Bravos de Margarita"
-}
+TEAM_NAMES = LVBP_TEAMS
 
 
 @st.cache_data(ttl=300)
@@ -337,7 +348,7 @@ season_options = {f"{s}-{s+1}": s for s in available_seasons}
 current_display = f"{current_season}-{current_season+1}"
 
 with st.sidebar:
-    st.image("logo.png", width=200)
+    st.image(get_team_logo(695, size=144), width=120)
     st.markdown("---")
     
     selected_season_display = st.selectbox(
@@ -390,6 +401,7 @@ if modo_vista == "🏟️ Análisis Juego a Juego":
             'display': f"{fecha} | {matchup_label} | {score_str} {result_emoji}",
             'matchup': f"{fecha} — Leones {matchup_label} ({score_str})",
             'is_home': is_home,
+            'rival_id': rival_id,
             'rival': rival_name
         })
 
@@ -413,10 +425,41 @@ if modo_vista == "🏟️ Análisis Juego a Juego":
             
         wpa_players = calculate_player_game_wpa(df_wpa)
         
-        # Tarjeta de Marcador y KPIs
+        # Tarjeta de Marcador y KPIs con Logos
         final_leones = df_wpa.iloc[-1]['leones_score_after']
         final_opp = df_wpa.iloc[-1]['opp_score_after']
         won = (final_leones > final_opp)
+        
+        home_tid = TEAM_ID if selected_game['is_home'] else selected_game['rival_id']
+        away_tid = selected_game['rival_id'] if selected_game['is_home'] else TEAM_ID
+        home_name = "Leones del Caracas" if selected_game['is_home'] else selected_game['rival']
+        away_name = selected_game['rival'] if selected_game['is_home'] else "Leones del Caracas"
+        home_score = final_leones if selected_game['is_home'] else final_opp
+        away_score = final_opp if selected_game['is_home'] else final_leones
+        
+        bg_card = 'linear-gradient(135deg, #0A2342 0%, #15457C 100%)' if won else 'linear-gradient(135deg, #440C0C 0%, #8E2020 100%)'
+        
+        st.markdown(f"""
+        <div style='background: {bg_card}; padding: 1.2rem; border-radius: 1rem; color: white; margin-top: 1rem; margin-bottom: 1rem;'>
+            <div style='display: flex; align-items: center; justify-content: space-around;'>
+                <div style='text-align: center; width: 35%;'>
+                    <img src='{get_team_logo(home_tid, size=144)}' width='60' style='vertical-align: middle; margin-bottom: 4px;'><br>
+                    <span style='font-weight: bold; font-size: 1.05rem;'>{home_name}</span>
+                </div>
+                <div style='text-align: center; width: 30%;'>
+                    <span style='font-size: 2.2rem; font-weight: 800; letter-spacing: 2px;'>{home_score} - {away_score}</span><br>
+                    <span style='background: {'#10b981' if won else '#ef4444'}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold;'>{'VICTORIA LEONES' if won else 'DERROTA LEONES'}</span>
+                </div>
+                <div style='text-align: center; width: 35%;'>
+                    <img src='{get_team_logo(away_tid, size=144)}' width='60' style='vertical-align: middle; margin-bottom: 4px;'><br>
+                    <span style='font-weight: bold; font-size: 1.05rem;'>{away_name}</span>
+                </div>
+            </div>
+            <p style='text-align: center; margin-top: 0.8rem; margin-bottom: 0; font-size: 0.85rem; opacity: 0.85;'>
+                📅 {selected_game['matchup']}
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
         
         st.markdown("---")
         kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)

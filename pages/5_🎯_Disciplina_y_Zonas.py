@@ -5,6 +5,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from utils.supabase_client import get_available_seasons
+from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS
 from utils.strike_zone import (
     fetch_season_pitches,
     create_strike_zone_figure,
@@ -40,11 +41,19 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🎯 Disciplina en el Plato y Localización de Pitcheos")
-st.markdown("Análisis avanzado de toma de decisiones en el plato (O-Swing%, Z-Swing%, Whiff Rate, CSW%), visualización de Zona de Strike y desglose turno a turno.")
+# Header
+col_h_logo, col_h_txt = st.columns([1, 8])
+with col_h_logo:
+    st.image(get_team_logo(695, size=144), width=75)
+with col_h_txt:
+    st.title("🎯 Disciplina en el Plato y Localización de Pitcheos")
+    st.markdown("Análisis avanzado de toma de decisiones en el plato (O-Swing%, Z-Swing%, Whiff Rate, CSW%), visualización de Zona de Strike y desglose turno a turno.")
 
 # Sidebar
-st.sidebar.header("⚙️ Configuración")
+with st.sidebar:
+    st.image(get_team_logo(695, size=144), width=120)
+    st.markdown("---")
+    st.header("⚙️ Configuración")
 
 available_seasons = get_available_seasons()
 season_options = [f"{s}-{s+1}" for s in available_seasons]

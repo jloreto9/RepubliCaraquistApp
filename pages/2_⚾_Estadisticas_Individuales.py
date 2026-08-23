@@ -19,6 +19,7 @@ try:
         get_available_seasons,
         init_supabase
     )
+    from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS
 except:
     from streamlit_app.utils.supabase_client import (
         get_batting_stats,
@@ -27,6 +28,7 @@ except:
         get_available_seasons,
         init_supabase
     )
+    from streamlit_app.utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS
 
 st.set_page_config(page_title="Estadísticas Individuales - RepubliCaraquistApp", page_icon="⚾", layout="wide")
 
@@ -34,9 +36,18 @@ st.set_page_config(page_title="Estadísticas Individuales - RepubliCaraquistApp"
 LEONES_GOLD = "#FDB827"
 LEONES_RED = "#CE1141"
 
+# Sidebar con Logo Oficial
+with st.sidebar:
+    st.image(get_team_logo(695, size=144), width=120)
+    st.markdown("---")
+
 # Header
-st.title("⚾ Estadísticas Individuales")
-st.markdown("### Líderes de Bateo y Pitcheo - Leones del Caracas")
+col_h_logo, col_h_txt = st.columns([1, 8])
+with col_h_logo:
+    st.image(get_team_logo(695, size=144), width=75)
+with col_h_txt:
+    st.title("⚾ Estadísticas Individuales")
+    st.markdown("### Líderes de Bateo y Pitcheo — Leones del Caracas")
 
 # Selector de temporada
 col1, col2 = st.columns([3, 1])

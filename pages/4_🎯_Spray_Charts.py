@@ -5,6 +5,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from utils.supabase_client import get_available_seasons, get_current_season
+from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS
 from utils.spray_chart import (
     fetch_season_batted_balls,
     create_spray_chart_figure,
@@ -47,11 +48,18 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Título y Header
-st.title("🎯 Spray Charts - Mapa de Dispersión de Batazos")
-st.markdown("Visualiza dónde conecta cada jugador sus batazos, tendencias direccionales (% Pull / Center / Oppo) y calidad de contacto.")
+col_h_logo, col_h_txt = st.columns([1, 8])
+with col_h_logo:
+    st.image(get_team_logo(695, size=144), width=75)
+with col_h_txt:
+    st.title("🎯 Spray Charts — Mapa de Dispersión de Batazos")
+    st.markdown("Visualiza dónde conecta cada jugador sus batazos, tendencias direccionales (% Pull / Center / Oppo) y calidad de contacto.")
 
 # Sidebar - Configuración y Filtros
-st.sidebar.header("⚙️ Configuración")
+with st.sidebar:
+    st.image(get_team_logo(695, size=144), width=120)
+    st.markdown("---")
+    st.header("⚙️ Configuración")
 
 # Selector de temporada
 available_seasons = get_available_seasons()

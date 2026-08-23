@@ -5,6 +5,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from utils.supabase_client import get_available_seasons
+from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS
 from utils.bullpen_lineups import (
     fetch_season_bullpen_and_lineups,
     compute_bullpen_inherited_stats,
@@ -17,11 +18,19 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🛡️ Analítica de Bullpen y Tracker de Alineaciones")
-st.markdown("Control de efectividad en herencia de corredores (IR/IRS) y análisis de combinaciones de lineups y su récord W-L.")
+# Header
+col_h_logo, col_h_txt = st.columns([1, 8])
+with col_h_logo:
+    st.image(get_team_logo(695, size=144), width=75)
+with col_h_txt:
+    st.title("🛡️ Analítica de Bullpen y Tracker de Alineaciones")
+    st.markdown("Control de efectividad en herencia de corredores (IR/IRS) y análisis de combinaciones de lineups y su récord W-L.")
 
 # Sidebar
-st.sidebar.header("⚙️ Configuración")
+with st.sidebar:
+    st.image(get_team_logo(695, size=144), width=120)
+    st.markdown("---")
+    st.header("⚙️ Configuración")
 
 available_seasons = get_available_seasons()
 season_options = [f"{s}-{s+1}" for s in available_seasons]
@@ -202,11 +211,22 @@ with tab_lu:
             selected_game_label = st.selectbox("Seleccionar Partido", list(game_options.keys()), key="lineup_game_sel")
             selected_game = game_options[selected_game_label]
             
-            # Renderizar tarjeta estilo Dugout
+            # Renderizar tarjeta estilo Dugout con Logos
+            opp_logo = get_team_logo(selected_game['opposing_team'], size=144)
+            leo_logo = get_team_logo(695, size=144)
             st.markdown(f"""
-            <div style='background-color: #1e293b; padding: 16px; border-radius: 10px; border-left: 6px solid {'#10b981' if selected_game['won'] == 1 else '#ef4444'}; margin-bottom: 20px;'>
-                <h3 style='margin: 0; color: #ffffff;'>🦁 Alineación Titular — Leones del Caracas</h3>
-                <p style='margin: 4px 0 0 0; color: #94a3b8;'>📅 Fecha: <b>{selected_game['game_date']}</b> | Rival: <b>{selected_game['opposing_team']}</b> | Marcador Final: <b>{selected_game['full_score_str']}</b> ({selected_game['result_str']})</p>
+            <div style='background-color: #1e293b; padding: 16px; border-radius: 10px; border-left: 6px solid {'#10b981' if selected_game['won'] == 1 else '#ef4444'}; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;'>
+                <div style='display: flex; align-items: center; gap: 14px;'>
+                    <img src='{leo_logo}' width='50' style='vertical-align: middle;'>
+                    <div>
+                        <h3 style='margin: 0; color: #ffffff;'>🦁 Alineación Titular — Leones del Caracas</h3>
+                        <p style='margin: 4px 0 0 0; color: #94a3b8;'>📅 Fecha: <b>{selected_game['game_date']}</b> | Marcador Final: <b>{selected_game['full_score_str']}</b> ({selected_game['result_str']})</p>
+                    </div>
+                </div>
+                <div style='text-align: center;'>
+                    <img src='{opp_logo}' width='45' style='vertical-align: middle;'><br>
+                    <span style='font-size: 11px; color: #94a3b8; font-weight: 600;'>{selected_game['opposing_team']}</span>
+                </div>
             </div>
             """, unsafe_allow_html=True)
             

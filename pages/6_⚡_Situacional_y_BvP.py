@@ -1,10 +1,11 @@
-﻿# pages/6_⚡_Situacional_y_BvP.py
+# pages/6_⚡_Situacional_y_BvP.py
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from utils.supabase_client import get_available_seasons
+from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS
 from utils.situational import (
     fetch_season_situational_data,
     compute_all_situational_splits,
@@ -19,11 +20,19 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("⚡ Desempeño Situacional y Enfrentamientos BvP")
-st.markdown("Analiza la efectividad en situaciones de alta presión (RISP, 2 Outs, Bases Llenas) y el historial cara a cara bateador vs. lanzador.")
+# Header
+col_h_logo, col_h_txt = st.columns([1, 8])
+with col_h_logo:
+    st.image(get_team_logo(695, size=144), width=75)
+with col_h_txt:
+    st.title("⚡ Desempeño Situacional y Enfrentamientos BvP")
+    st.markdown("Analiza la efectividad en situaciones de alta presión (RISP, 2 Outs, Bases Llenas) y el historial cara a cara bateador vs. lanzador.")
 
 # Sidebar
-st.sidebar.header("⚙️ Configuración")
+with st.sidebar:
+    st.image(get_team_logo(695, size=144), width=120)
+    st.markdown("---")
+    st.header("⚙️ Configuración")
 
 available_seasons = get_available_seasons()
 season_options = [f"{s}-{s+1}" for s in available_seasons]
@@ -147,18 +156,36 @@ with tab_bvp:
     
     with col_sel2:
         equipos_rivales = ["Todos los Rivales"] + sorted(list(bvp_df["Equipo Rival"].unique())) if not bvp_df.empty else ["Todos"]
-        sel_rival_team = st.selectbox("🏟️ Filtrar por Equipo Rival", equipos_rivales)
+        col_sel_r, col_logo_r = st.columns([4, 1])
+        with col_sel_r:
+            sel_rival_team = st.selectbox("🏟️ Filtrar por Equipo Rival", equipos_rivales)
+        with col_logo_r:
+            if sel_rival_team != "Todos los Rivales":
+                st.image(get_team_logo(sel_rival_team, size=144), width=50)
         
     if not bvp_df.empty:
         if sel_rival_team != "Todos los Rivales":
-            bvp_filtered = bvp_df[bvp_df["Equipo Rival"] == sel_rival_team]
+            bvp_filtered = bvp_df[bvp_df["Equipo Rival"] == sel_rival_team].copy()
         else:
-            bvp_filtered = bvp_df
+            bvp_filtered = bvp_df.copy()
+            
+        bvp_filtered["Logo"] = bvp_filtered["Equipo Rival"].apply(lambda r: get_team_logo(r, size=72))
+        
+        # Reordenar columnas para colocar el Logo antes de Equipo Rival
+        cols = ["Logo"] + [c for c in bvp_filtered.columns if c != "Logo"]
+        bvp_display = bvp_filtered[cols]
             
         st.markdown(f"#### 📊 Historial de {sel_bvp_batter_name} vs. Lanzadores Rivales ({len(bvp_filtered)} lanzadores enfrentados)")
-        st.dataframe(bvp_filtered, use_container_width=True, hide_index=True)
+        st.dataframe(
+            bvp_display,
+            column_config={
+                "Logo": st.column_config.ImageColumn(" ", width="small")
+            },
+            use_container_width=True,
+            hide_index=True
+        )
         
-        csv_bvp = bvp_filtered.to_csv(index=False).encode("utf-8")
+        csv_bvp = bvp_filtered.drop(columns=["Logo"], errors="ignore").to_csv(index=False).encode("utf-8")
         st.download_button("📥 Descargar Matriz BvP en CSV", data=csv_bvp, file_name=f"bvp_{selected_season}_{sel_bvp_batter_name.replace(' ', '_')}.csv", mime="text/csv")
     else:
         st.info("No se encontraron enfrentamientos para el bateador seleccionado.")
