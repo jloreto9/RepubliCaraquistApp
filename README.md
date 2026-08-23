@@ -134,7 +134,7 @@ flowchart TD
 <div align="center">
 
 **Jorge Leonardo Loreto**  
-*Data Scientist & Baseball Analytics Specialist*  
+*AI Data Scientist & Baseball Analytics Specialist*  
 Economista | Especialista en Modelado Predictivo, Inferencia Causal & Béisbol de Invierno  
 
 [![GitHub](https://img.shields.io/badge/GitHub-jloreto9-181717?style=flat&logo=github)](https://github.com/jloreto9)
