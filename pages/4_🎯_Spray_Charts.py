@@ -205,8 +205,8 @@ elif mano_pitcher == "vs Lanzadores Zurdos (LHP)":
     df_player = df_player[df_player["pitch_hand"] == "L"]
 
 # Selector de color del mapa
-color_mode = st.sidebar.radio("Esquema de Colores", ["Por Resultado", "Por Trayectoria"], horizontal=True)
-color_key = "event" if color_mode == "Por Resultado" else "trajectory"
+color_mode = st.sidebar.radio("Esquema de Colores", ["Por Resultado", "Por Trayectoria", "Por Dureza"], horizontal=True)
+color_key = "event" if color_mode == "Por Resultado" else ("trajectory" if color_mode == "Por Trayectoria" else "hardness")
 
 # Cálculo de estadísticas
 stats = calculate_spray_stats(df_player)

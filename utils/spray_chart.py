@@ -97,6 +97,46 @@ def classify_direction(angle_deg: float, bat_side: str) -> str:
             return "Center (Centro)"
 
 
+def classify_batted_ball_hardness(event: str, trajectory: str, dist_ft: float, raw_hardness: str) -> str:
+    """
+    Clasifica la dureza del contacto (hard, medium, soft) basada en el modelo sabermétrico BIS.
+    Corrige el sesgo de la API de MLB que asigna 'medium' a >90% de los batazos en la LVBP.
+    """
+    raw = str(raw_hardness).lower() if raw_hardness else "unknown"
+    traj = str(trajectory).lower() if trajectory else "unknown"
+    ev = str(event) if event else "Out"
+
+    # 1. Extremos indiscutibles de poder
+    if ev in ["Home Run", "Triple"]:
+        return "hard"
+    if ev == "Double" and traj != "popup":
+        return "hard"
+    if raw == "hard":
+        return "hard"
+
+    # 2. Contacto Débil / Suave (Soft)
+    if traj in ["popup", "bunt_grounder", "bunt_line_drive", "bunt_popup"] or "Bunt" in ev or "Pop Out" in ev:
+        return "soft"
+    if raw == "soft":
+        return "soft"
+    if traj == "fly_ball" and dist_ft < 185:
+        return "soft"
+    if traj == "ground_ball" and dist_ft < 85 and ev in ["Groundout", "Forceout", "Double Play", "Grounded Into DP", "Fielders Choice", "Fielders Choice Out"]:
+        return "soft"
+
+    # 3. Contacto Fuerte (Hard)
+    if traj == "line_drive":
+        if dist_ft >= 200 or ev in ["Double", "Triple", "Home Run"] or (ev == "Single" and dist_ft >= 150):
+            return "hard"
+    if traj == "fly_ball" and dist_ft >= 310:
+        return "hard"
+    if traj == "ground_ball" and dist_ft >= 155:
+        return "hard"
+
+    # 4. Contacto Medio (Medium)
+    return "medium"
+
+
 def fetch_single_game_batted_balls(game_pk: int) -> list[dict]:
     """Extrae todos los batazos en juego de un partido específico."""
     url = f"https://statsapi.mlb.com/api/v1.1/game/{game_pk}/feed/live"
@@ -153,6 +193,14 @@ def fetch_single_game_batted_balls(game_pk: int) -> list[dict]:
                         else:
                             event_group = "Out"
                             
+                        raw_hardness = hit.get("hardness", "medium")
+                        calibrated_hardness = classify_batted_ball_hardness(
+                            event=event,
+                            trajectory=hit.get("trajectory", "unknown"),
+                            dist_ft=dist_ft,
+                            raw_hardness=raw_hardness
+                        )
+                            
                         records.append({
                             "game_pk": game_pk,
                             "game_date": game_date,
@@ -185,8 +233,8 @@ def fetch_single_game_batted_balls(game_pk: int) -> list[dict]:
                             "direction": direction,
                             "trajectory": hit.get("trajectory", "unknown"),
                             "trajectory_es": TRAJECTORY_TRANSLATIONS.get(hit.get("trajectory", "unknown"), "Sin dato"),
-                            "hardness": hit.get("hardness", "unknown"),
-                            "hardness_es": HARDNESS_TRANSLATIONS.get(hit.get("hardness", "unknown"), "Sin dato"),
+                            "hardness": calibrated_hardness,
+                            "hardness_es": HARDNESS_TRANSLATIONS.get(calibrated_hardness, "Sin dato"),
                             "launch_speed": hit.get("launchSpeed"),
                             "total_distance": hit.get("totalDistance")
                         })
@@ -403,7 +451,7 @@ def create_spray_chart_figure(
                     customdata=sub_customdata,
                     hovertemplate=hovertemplate
                 ))
-    else:  # Color por trayectoria
+    elif color_mode == "trajectory":
         traj_colors = {
             "line_drive": ("Línea (LD)", "#3498db", "diamond"),
             "fly_ball": ("Elevado (FB)", "#e67e22", "circle"),
@@ -421,6 +469,25 @@ def create_spray_chart_figure(
                     mode="markers",
                     name=f"{label} ({len(sub_df)})",
                     marker=dict(size=9, color=color, symbol=symbol, line=dict(width=1, color="#ffffff")),
+                    customdata=sub_customdata,
+                    hovertemplate=hovertemplate
+                ))
+    else:  # Color por Dureza
+        hard_colors = {
+            "hard": ("Fuerte (Hard)", "#e74c3c", "star", 10),
+            "medium": ("Medio (Medium)", "#f39c12", "circle", 8),
+            "soft": ("Suave (Soft)", "#95a5a6", "triangle-up", 7),
+        }
+        for hard_key, (label, color, symbol, size) in hard_colors.items():
+            sub_df = df[df["hardness"] == hard_key]
+            if not sub_df.empty:
+                sub_customdata = customdata[df["hardness"] == hard_key]
+                fig.add_trace(go.Scatter(
+                    x=sub_df["x_ft"],
+                    y=sub_df["y_ft"],
+                    mode="markers",
+                    name=f"{label} ({len(sub_df)})",
+                    marker=dict(size=size, color=color, symbol=symbol, line=dict(width=1, color="#ffffff")),
                     customdata=sub_customdata,
                     hovertemplate=hovertemplate
                 ))
