@@ -21,7 +21,8 @@ try:
         get_team_name,
         get_team_abbr,
         get_team_color,
-        resolve_team_id
+        resolve_team_id,
+        get_brand_logo
     )
     from utils.elo import (
         calculate_matchup_win_prob,
@@ -39,7 +40,8 @@ except:
         get_team_name,
         get_team_abbr,
         get_team_color,
-        resolve_team_id
+        resolve_team_id,
+        get_brand_logo
     )
     from streamlit_app.utils.elo import (
         calculate_matchup_win_prob,
@@ -185,8 +187,18 @@ def get_calendar_games_with_elo_projections(season: int) -> pd.DataFrame:
 
 st.set_page_config(page_title="Standings - RepubliCaraquistApp", page_icon="📊", layout="wide")
 
+# Sidebar con Logo Oficial República Caraquista
+with st.sidebar:
+    st.image(get_brand_logo(), width=200)
+    st.markdown("---")
+
 # Header
-st.title("📊 Standings y Resultados")
+col_h_logo, col_h_txt = st.columns([1, 8])
+with col_h_logo:
+    st.image(get_brand_logo(), width=75)
+with col_h_txt:
+    st.title("📊 Standings y Resultados")
+    st.markdown("### Tabla de Posiciones, Sabermetría Pitagórica y Ratings ELO — LVBP")
 
 # Selector de temporada
 col1, col2, col3 = st.columns([2, 1, 1])

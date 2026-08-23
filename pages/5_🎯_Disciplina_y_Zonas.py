@@ -5,7 +5,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from utils.supabase_client import get_available_seasons
-from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS
+from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS, get_brand_logo
 from utils.strike_zone import (
     fetch_season_pitches,
     create_strike_zone_figure,
@@ -44,14 +44,14 @@ st.markdown("""
 # Header
 col_h_logo, col_h_txt = st.columns([1, 8])
 with col_h_logo:
-    st.image(get_team_logo(695, size=144), width=75)
+    st.image(get_brand_logo(), width=75)
 with col_h_txt:
     st.title("🎯 Disciplina en el Plato y Localización de Pitcheos")
     st.markdown("Análisis avanzado de toma de decisiones en el plato (O-Swing%, Z-Swing%, Whiff Rate, CSW%), visualización de Zona de Strike y desglose turno a turno.")
 
 # Sidebar
 with st.sidebar:
-    st.image(get_team_logo(695, size=144), width=120)
+    st.image(get_brand_logo(), width=200)
     st.markdown("---")
     st.header("⚙️ Configuración")
 

@@ -125,3 +125,19 @@ def get_team_color(team_identifier: Any, color_type: str = "primary") -> str:
     if tid and tid in LVBP_COLORS:
         return LVBP_COLORS[tid].get(color_type, "#002D62")
     return "#002D62"
+
+
+import os
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+REPUBLICA_CARAQUISTA_LOGO = os.path.join(_REPO_ROOT, "logo.png")
+
+
+def get_brand_logo() -> str:
+    """
+    Retorna la ruta absoluta al logo oficial de República Caraquista (logo.png).
+    Garantiza que la imagen cargue sin importar desde qué subpágina se invoque.
+    """
+    if os.path.exists(REPUBLICA_CARAQUISTA_LOGO):
+        return REPUBLICA_CARAQUISTA_LOGO
+    return "logo.png"

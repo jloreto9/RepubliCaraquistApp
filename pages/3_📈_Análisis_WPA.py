@@ -25,7 +25,8 @@ try:
         get_team_name,
         get_team_abbr,
         get_team_color,
-        resolve_team_id
+        resolve_team_id,
+        get_brand_logo
     )
     from utils.wpa_engine import (
         process_game_wpa_advanced,
@@ -43,7 +44,8 @@ except Exception:
         get_team_name,
         get_team_abbr,
         get_team_color,
-        resolve_team_id
+        resolve_team_id,
+        get_brand_logo
     )
     from streamlit_app.utils.wpa_engine import (
         process_game_wpa_advanced,
@@ -330,8 +332,12 @@ def create_heroes_villains_chart(wpa_total: pd.DataFrame) -> go.Figure:
 # PÁGINA PRINCIPAL
 # ========================================
 
-st.title("📈 Análisis WPA & Sabermetría de Apalancamiento")
-st.markdown("### Leones del Caracas — Métricas de Probabilidad de Victoria (Win Expectancy)")
+col_h_logo, col_h_txt = st.columns([1, 8])
+with col_h_logo:
+    st.image(get_brand_logo(), width=75)
+with col_h_txt:
+    st.title("📈 Análisis WPA & Sabermetría de Apalancamiento")
+    st.markdown("### Leones del Caracas — Métricas de Probabilidad de Victoria (Win Expectancy)")
 
 # Selector de modo principal
 modo_vista = st.radio(
@@ -348,7 +354,7 @@ season_options = {f"{s}-{s+1}": s for s in available_seasons}
 current_display = f"{current_season}-{current_season+1}"
 
 with st.sidebar:
-    st.image(get_team_logo(695, size=144), width=120)
+    st.image(get_brand_logo(), width=200)
     st.markdown("---")
     
     selected_season_display = st.selectbox(

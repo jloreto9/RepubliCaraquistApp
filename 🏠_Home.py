@@ -144,11 +144,13 @@ col1, col2, col3 = st.columns([1, 3, 1])
 with col1:
     st.write("")
 
+from utils.teams import get_brand_logo, get_team_logo, get_team_name, get_team_abbr
+
 with col2:
     col_logo, col_text = st.columns([1, 3])
     
     with col_logo:
-        st.image("logo.png", width=120)
+        st.image(get_brand_logo(), width=120)
     
     with col_text:
         st.markdown("""
@@ -171,7 +173,7 @@ from utils.supabase_client import get_standings, get_recent_games, get_current_s
 
 # Sidebar COMPLETO
 with st.sidebar:
-    st.image("logo.png", width=200)  # ← Usando tu logo.png local
+    st.image(get_brand_logo(), width=200)  # ← Logo oficial República Caraquista
     st.markdown("---")
     
     # Selector de temporada con formato correcto

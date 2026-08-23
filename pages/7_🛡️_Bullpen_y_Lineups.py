@@ -5,7 +5,7 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from utils.supabase_client import get_available_seasons
-from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS
+from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS, get_brand_logo
 from utils.bullpen_lineups import (
     fetch_season_bullpen_and_lineups,
     compute_bullpen_inherited_stats,
@@ -21,14 +21,14 @@ st.set_page_config(
 # Header
 col_h_logo, col_h_txt = st.columns([1, 8])
 with col_h_logo:
-    st.image(get_team_logo(695, size=144), width=75)
+    st.image(get_brand_logo(), width=75)
 with col_h_txt:
     st.title("🛡️ Analítica de Bullpen y Tracker de Alineaciones")
     st.markdown("Control de efectividad en herencia de corredores (IR/IRS) y análisis de combinaciones de lineups y su récord W-L.")
 
 # Sidebar
 with st.sidebar:
-    st.image(get_team_logo(695, size=144), width=120)
+    st.image(get_brand_logo(), width=200)
     st.markdown("---")
     st.header("⚙️ Configuración")
 
