@@ -1,6 +1,10 @@
 streamlit
 supabase
 pandas
+numpy
+scipy
 plotly
 python-dotenv
+requests
+MLB-StatsAPI
 openai

@@ -20,7 +20,8 @@ jobs:
     
     - name: Install dependencies
       run: |
-        pip install supabase requests MLB-StatsAPI
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
     
     - name: Update data
       env:
