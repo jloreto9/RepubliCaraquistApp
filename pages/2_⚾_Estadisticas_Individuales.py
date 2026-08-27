@@ -296,6 +296,30 @@ with tab1:
                 )
                 st.plotly_chart(fig_ops, use_container_width=True)
 
+            # Glosario y Leyenda de Bateo
+            with st.expander("📖 Guía y Glosario: ¿Cómo entender las Estadísticas de Bateo?", expanded=False):
+                st.markdown(r"""
+                ### 🏏 Guía Completa de Métricas Ofensivas
+
+                | Abreviatura | Nombre Completo | ¿Qué significa y cómo se calcula? | ¿Cómo interpretarlo? (Escala de Calidad) |
+                |---|---|---|---|
+                | **PA** | Apariciones al Plato (Plate Appearances) | Total de visitas a la caja de bateo: $AB + BB + HBP + SF + SH + \text{Interferencias}$. | Mide el tiempo de juego y oportunidades del bateador. |
+                | **AB** | Turnos Oficiales al Bate (At Bats) | Viajes al plato donde no hubo boleto, pelotazo ni sacrificio. Es la base para calcular el promedio (AVG). | Menor que las PA; no castiga al bateador por recibir bases por bolas. |
+                | **H** | Hits (Imparables) | Batazos en terreno bueno que permiten al bateador llegar a base sin error ni jugada de selección. | $H = 1B + 2B + 3B + HR$. |
+                | **2B / 3B** | Dobles / Triples | Imparables de dos o tres bases. | Mide la velocidad y habilidad de extrabase del bateador. |
+                | **HR** | Jonrones (Home Runs) | Batazos fuera del parque o cuadrangulares dentro del campo. | Principal métrica de poder absoluto. |
+                | **RBI / CI** | Carreras Impulsadas (Runs Batted In) | Carreras anotadas por compañeros directamente gracias al batazo o boleto del bateador. | Mide la capacidad de remolque con corredores en base. |
+                | **R / CA** | Carreras Anotadas (Runs) | Veces que el jugador cruzó el plato de home. | Refleja la capacidad de embasarse y el buen corrido de bases. |
+                | **BB** | Boletos / Bases por Bolas (Walks) | Turnos con 4 lanzamientos fuera de la zona de strike. | Refleja disciplina y paciencia en el plato. |
+                | **SO / K** | Ponches (Strikeouts) | Turnos donde el bateador acumula 3 strikes (tirándole o mirando). | Menos es mejor; indica contacto y control del strike zone. |
+                | **BR / SB** | Bases Robadas (Stolen Bases) | Avances de base exitosos durante el movimiento del lanzador sin mediar hit. | Mide velocidad y agresividad en las almohadillas. |
+                | **CR / CS** | Atrapado Robando (Caught Stealing) | Corredor puesto out intentando robar base. | Menos es mejor. |
+                | **AVG** | Promedio de Bateo (Batting Average) | $\text{AVG} = \frac{H}{AB}$. Frecuencia con la que conecta de hit. | **Élite:** $>.300$ | **Bueno:** $.270 - .299$ | **Promedio:** $.250$ | **Bajo:** $<.220$. |
+                | **OBP** | Porcentaje de Embasado (On-Base Pct) | $\text{OBP} = \frac{H + BB + HBP}{AB + BB + HBP + SF}$. Probabilidad de llegar a base vivo por cualquier vía. | **Élite:** $>.400$ | **Muy Bueno:** $.360 - .399$ | **Promedio:** $.320$ | **Bajo:** $<.300$. |
+                | **SLG** | Promedio de Slugging (Poder) | $\text{SLG} = \frac{1B + 2(2B) + 3(3B) + 4(HR)}{AB}$. Total de bases alcanzadas por turno. | **Élite:** $>.500$ | **Bueno:** $.420 - .499$ | **Promedio:** $.380$ | **Bajo:** $<.350$. |
+                | **OPS** | On-Base Plus Slugging | $\text{OPS} = OBP + SLG$. **La métrica reina ofensiva:** mide capacidad de embasarse + poder simultáneamente. | **Monstruo:** $>.900$ | **Gran Bateador:** $.800 - .899$ | **Promedio:** $.700 - .799$ | **Débil:** $<.650$. |
+                """)
+
         else:
             st.warning(f"No hay jugadores con al menos {min_ab} turnos al bate.")
 
@@ -519,6 +543,29 @@ with tab2:
                 )
                 st.plotly_chart(fig_whip, use_container_width=True)
 
+            # Glosario y Leyenda de Pitcheo
+            with st.expander("📖 Guía y Glosario: ¿Cómo entender las Estadísticas de Pitcheo?", expanded=False):
+                st.markdown(r"""
+                ### ⚾ Guía Completa de Métricas de Lanzadores
+
+                | Abreviatura | Nombre Completo | ¿Qué significa y cómo se calcula? | ¿Cómo interpretarlo? (Escala de Calidad) |
+                |---|---|---|---|
+                | **IP** | Entradas Lanzadas (Innings Pitched) | Cantidad de outs conseguidos divididos entre 3 ($1\text{ out} = .1$, $2\text{ outs} = .2$, $3\text{ outs} = 1.0$). | Mide la durabilidad y volumen de trabajo del lanzador. |
+                | **ERA / EFE** | Efectividad (Earned Run Average) | $\text{ERA} = \frac{CL \times 9}{IP}$. Promedio de carreras limpias que permitiría en un juego de 9 entradas completas. | **Menor es mejor:**<br>• **As / Élite:** $< 3.00$<br>• **Bueno:** $3.00 - 3.99$<br>• **Promedio LVBP:** $4.20 - 4.80$<br>• **Elevado / Vulnerable:** $> 5.50$. |
+                | **WHIP** | Embasados por Entrada | $\text{WHIP} = \frac{H + BB}{IP}$. Cantidad de corredores que se le embasan en promedio por cada inning. | **Menor es mejor:**<br>• **Dominante:** $< 1.15$<br>• **Bueno:** $1.15 - 1.30$<br>• **Promedio:** $1.35 - 1.45$<br>• **Peligro de tráfico:** $> 1.55$. |
+                | **W / L** | Ganados y Perdidos | Decisiones oficiales acreditadas según las reglas de anotación de béisbol. | Mide victorias del equipo donde el lanzador fue factor decisivo. |
+                | **SV** | Juegos Salvados (Saves) | Partidos cerrados exitosamente por el relevista en ventaja de 3 o menos carreras lanzando el 9no inning. | Métrica clave para el cerrador de cabecera. |
+                | **HLD** | Ventajas Preservadas (Holds) | Relevista intermedio que entra en situación de salvado, saca outs y entrega el juego en ventaja. | Métrica clave para preparadores de mesa (8vo inning). |
+                | **BS** | Oportunidades de Salvado Desperdiciadas (Blown Saves) | El relevista permitió que el rival empatara o se fuera arriba en el marcador. | Menos es mejor. |
+                | **CL / ER** | Carreras Limpias (Earned Runs) | Carreras anotadas sin haber mediado errores defensivos ni passed balls. | Base para calcular la efectividad (ERA). |
+                | **K / SO** | Ponches Propinados (Strikeouts) | Bateadores retirados por la vía de los tres strikes. | Mide la capacidad de generar swings fallidos y dominio puro. |
+                | **BB** | Boletos Otorgados (Walks) | Bases por bolas regaladas a los rivales. | Menos es mejor; mide el control del monticulista. |
+                | **K/9** | Ponches por 9 Entradas | $\frac{K \times 9}{IP}$. Promedio de ponches que conseguiría en un juego completo. | **Élite:** $> 9.0$ (más de 1 K por inning). |
+                | **BB/9** | Boletos por 9 Entradas | $\frac{BB \times 9}{IP}$. Frecuencia con la que regala bases. | **Gran control:** $< 2.5$ | **Problemas de comando:** $> 4.5$. |
+                | **K/BB** | Relación Ponches / Boletos | $\frac{K}{BB}$. Cuántos ponches logra por cada boleto otorgado. | **Excelente:** $> 3.0$ | **Promedio:** $2.0$ | **Pobre:** $< 1.5$. |
+                | **BAA** | Promedio de Bateo en Contra | $\frac{H_{\text{permitidos}}}{AB_{\text{enfrentados}}}$. Efectividad con la que los rivales le batean de hit. | **Dominante:** $< .230$ | **Vulnerable:** $> .285$. |
+                """)
+
         else:
             st.warning(f"No hay lanzadores con al menos {min_ip} innings lanzados.")
 
@@ -680,6 +727,26 @@ with tab_def:
                 fig_dp.update_layout(yaxis={'categoryorder': 'total ascending'}, template="plotly_dark", height=380)
                 st.plotly_chart(fig_dp, use_container_width=True)
 
+        # Glosario y Leyenda de Fildeo / Defensa
+        with st.expander("📖 Guía y Glosario: ¿Cómo entender las Estadísticas Defensivas y de Fildeo?", expanded=False):
+            st.markdown(r"""
+            ### 🧤 Guía Completa de Métricas Defensivas
+
+            | Abreviatura | Nombre Completo | ¿Qué significa y cómo se calcula? | ¿Cómo interpretarlo? |
+            |---|---|---|---|
+            | **PO** | Outs Realizados (Putouts) | Outs conseguidos directamente por el fildeador (atrapar un fly, pisar la base en jugada forzada, o el receptor recibiendo el 3er strike). | Los inicialistas (1B) y receptores (C) acumulan la mayor cantidad. |
+            | **A** | Asistencias (Assists) | Pases o tiros realizados por el defensor que resultan en un out (ej. el tiro del shortstop al 1B). | Clave para evaluar a los defensores del cuadro interior (SS, 2B, 3B) y outfielders con brazo potente. |
+            | **E** | Errores Cometidos | Jugadas fallidas que permitieron a un bateador embasarse o avanzar base debiendo ser out. | Menos es mejor; indica seguridad de manos. |
+            | **TC** | Total de Lances / Oportunidades (Total Chances) | $\text{TC} = PO + A + E$. Cantidad total de jugadas defensivas en las que intervino el jugador. | Mide el volumen de actividad defensiva en su posición. |
+            | **FPCT / % FLD** | Porcentaje de Fildeo (Fielding Pct) | $\text{FPCT} = \frac{PO + A}{TC}$. Proporción de jugadas completadas exitosamente sin cometer error. | **Guante de Oro / Impecable:** $1.000$ (sin errores).<br>**Excelente:** $>.980$.<br>**Vulnerable:** $<.950$ (comete muchos errores). |
+            | **DP** | Dobles Matanzas (Double Plays) | Jugadas de 2 outs en las que participó el defensor. | Fundamental para intermedistas (2B) y campocortos (SS). |
+            | **RF/9** | Factor de Rango por 9 Entradas | $\text{RF/9} = \frac{(PO + A) \times 9}{Inn}$. Cantidad de outs en los que participa por cada 9 innings jugados. | Mide el **alcance y cobertura de terreno** (a mayor RF/9, mayor terreno cubre el defensor). |
+            | **CS** | Corredores Atrapados Robando (Caught Stealing) | Corredores puestos out por el tiro del receptor intentando robar base. | Métrica exclusiva para catchers. |
+            | **SB** | Bases Robadas Permitidas | Corredores que le estafaron almohadillas al receptor y lanzador. | Menos es mejor. |
+            | **CS%** | Porcentaje de Captura de Receptores | $\text{CS\%} = \frac{CS}{CS + SB}$. Porcentaje de corredores que fusiló el receptor. | **Brazo de Cañón / Élite:** $> 35.0\%$ | **Bueno:** $28.0\% - 34.0\%$ | **Vulnerable:** $< 20.0\%$. |
+            | **PB** | Passed Balls | Lanzamientos normales que se le escapan al receptor permitiendo avance de corredores. | Menos es mejor. |
+            """)
+
     else:
         st.info("🧤 No hay datos de fildeo disponibles para esta temporada.")
 
@@ -840,6 +907,14 @@ with tab3:
                 with metric_col2:
                     st.metric("Total Victorias", int(total_wins))
                     st.metric("WHIP Equipo", f"{team_whip:.2f}")
+
+        # Glosario de Comparativas y Radar
+        with st.expander("📖 Guía: ¿Cómo interpretar las Comparativas y Gráficos de Radar?", expanded=False):
+            st.markdown(r"""
+            ### 🕸️ Gráficos de Radar Multidimensional
+            * **Área poligonal:** A mayor área cubierta por la figura de un jugador, mayor es su dominio integral en las categorías analizadas.
+            * **Superposición:** Permite identificar a simple vista el perfil del jugador (ej. un bateador de poder con alto SLG y HR vs un bateador de contacto con alto AVG y OBP).
+            """)
 
     else:
         st.info("📊 Se necesitan datos de bateo y pitcheo para realizar comparaciones.")

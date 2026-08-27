@@ -224,6 +224,24 @@ with tab_bat:
             fig_bat.update_layout(template="plotly_dark", height=380, yaxis={"categoryorder": "total ascending"})
             st.plotly_chart(fig_bat, use_container_width=True)
 
+        with st.expander("📖 Guía y Glosario: ¿Cómo entender el Bateo Colectivo?", expanded=False):
+            st.markdown(r"""
+            ### 🏏 Métricas Colectivas de Ofensiva
+
+            | Métrica | Nombre | ¿Qué evalúa a nivel de equipo? |
+            |---|---|---|
+            | **PA / AB** | Apariciones / Turnos | Volumen global de oportunidades ofensivas de la franquicia. |
+            | **R (Carreras)** | Carreras Totales | La métrica definitiva de producción ofensiva (quien anota más carreras gana los juegos). |
+            | **H (Hits)** | Imparables | Capacidad colectiva para poner la bola en juego y conectar de hit. |
+            | **HR (Jonrones)** | Poder de Cuadrangulares | Poder absoluto del lineup completo. |
+            | **AVG** | Promedio de Bateo del Equipo | Frecuencia global de hits del equipo ($H / AB$). |
+            | **OBP** | Porcentaje de Embasado Colectivo | Qué porcentaje de veces los bateadores del equipo alcanzan base viva (vía hit, boleto o pelotazo). |
+            | **SLG** | Slugging Colectivo | Promedio de bases alcanzadas por turno en toda la alineación. |
+            | **OPS** | On-Base Plus Slugging Colectivo | **La radiografía ofensiva global:** mide la capacidad de una franquicia para embasarse y batear con fuerza. |
+            | **LOB** | Dejados en Base (Left on Base) | Corredores en circulación que no lograron cruzar el plato antes de que terminaran los innings. |
+            | **BABIP** | Promedio de Bateo en Bolas Puestas en Juego | $\frac{H - HR}{AB - K - HR + SF}$. Mide la suerte y la contundencia de los batazos dentro del campo (promedio de liga suele rondar $.300$). |
+            """)
+
     else:
         st.info("No hay datos de bateo colectivo disponibles para la selección actual.")
 
@@ -339,6 +357,21 @@ with tab_pit:
             fig_pit.update_layout(template="plotly_dark", height=380, yaxis={"categoryorder": "total ascending"})
             st.plotly_chart(fig_pit, use_container_width=True)
 
+        with st.expander("📖 Guía y Glosario: ¿Cómo entender el Pitcheo Colectivo?", expanded=False):
+            st.markdown(r"""
+            ### ⚡ Métricas Colectivas del Montículo
+
+            | Métrica | Nombre | ¿Qué evalúa a nivel de equipo? |
+            |---|---|---|
+            | **ERA** | Efectividad Colectiva | Carreras limpias promedio permitidas por todo el cuerpo de lanzadores (abridores + bullpen) cada 9 innings. |
+            | **WHIP** | Embasados Colectivos por Inning | Cantidad promedio de hits y boletos permitidos por entrada de labor. |
+            | **SV / HLD** | Salvados y Holds Totales | Solvencia del cuerpo de relevistas para aguantar y cerrar victorias. |
+            | **BS** | Oportunidades Desperdiciadas | Juegos en los que el bullpen perdió la ventaja en los innings finales. |
+            | **SO (Ponches)** | Ponches Totales | Dominio absoluto del staff de lanzadores para retirar bateadores sin que pongan la bola en juego. |
+            | **K/9 & BB/9** | Frecuencia de K y BB | Tasa de ponches y boletos otorgados cada 9 entradas lanzadas. |
+            | **BAA** | Promedio de Bateo Rival | El porcentaje de bateo que le conectan colectivamente al equipo. |
+            """)
+
     else:
         st.info("No hay datos de pitcheo colectivo disponibles para la selección actual.")
 
@@ -447,6 +480,19 @@ with tab_fld:
             fig_fld.update_traces(marker_color=colors_f)
             fig_fld.update_layout(template="plotly_dark", height=380, yaxis={"categoryorder": "total ascending"})
             st.plotly_chart(fig_fld, use_container_width=True)
+
+        with st.expander("📖 Guía y Glosario: ¿Cómo entender el Fildeo Colectivo?", expanded=False):
+            st.markdown(r"""
+            ### 🧤 Métricas Defensivas Colectivas
+
+            | Métrica | Nombre | ¿Qué evalúa a nivel de equipo? |
+            |---|---|---|
+            | **FPCT** | Porcentaje de Fildeo | Proporción de jugadas defensivas ejecutadas sin error por todo el equipo. |
+            | **E** | Errores Totales | Cantidad de pifias cometidas a lo largo de la temporada (menos es mejor). |
+            | **DP** | Doble Plays Realizados | Capacidad para matar rallies ofensivos rivales con jugadas de dos outs simultáneos. |
+            | **PO / A** | Outs y Asistencias | Volumen de jugadas completadas por el cuadro interior y los jardineros. |
+            | **CS%** | Eficiencia de la Receptoría | Porcentaje de robos de base neutralizados por los receptores del equipo. |
+            """)
 
     else:
         st.info("No hay datos de fildeo colectivo disponibles para la selección actual.")

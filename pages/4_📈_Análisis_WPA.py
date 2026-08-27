@@ -701,6 +701,22 @@ else:
             tn_disp.columns = ['Fecha', 'Inn', '', 'Marcador', 'Bateador', 'Pitcher', 'Evento', 'Descripción', 'WPA', 'LI']
             st.dataframe(tn_disp, use_container_width=True, hide_index=True)
 
+# Glosario y Explicación Didáctica de WPA y Métricas Avanzadas
+with st.expander("📖 Guía y Glosario: ¿Cómo entender WPA, Win Expectancy, Leverage Index y Clutch?", expanded=False):
+    st.markdown(r"""
+    ### 📈 La Revolución del WPA (Win Probability Added)
+    A diferencia de las estadísticas tradicionales (que tratan un hit en el 1er inning perdiendo por 10 igual que un jonrón en el 9no para dejar en el terreno), **el WPA mide el impacto real de cada jugada en el destino final del partido**.
+
+    | Métrica Sabermétrica | Nombre Completo | ¿Qué mide en lenguaje sencillo? | ¿Cómo interpretarla? |
+    |---|---|---|---|
+    | **WP (Win Probability)** | Probabilidad de Victoria | La probabilidad matemática (de 0% a 100%) de ganar el partido en este instante exacto, calculada según el inning, marcador, corredores en base y número de outs. | 50% = Juego empatado y equilibrado.<br>99% = Victoria casi sellada.<br>1% = Al borde de la derrota. |
+    | **WPA** | Probabilidad de Victoria Añadida | La diferencia directa de probabilidad antes y después de una jugada: $\text{WPA} = WP_{\text{después}} - WP_{\text{antes}}$. | **Positivo (+):** Ayudó al equipo a ganar (ej. hit remolcador $= +0.25$ o $+25\%$ de chance de ganar).<br>**Negativo (-):** Perjudicó al equipo (ej. error o ponche con bases llenas $= -0.18$). |
+    | **LI (Leverage Index)** | Índice de Apalancamiento / Presión | Cuánta tensión o dramatismo tiene el momento en comparación con un turno promedio. | **1.0x:** Tensión promedio estándar.<br>**> 1.5x:** Situación de alta presión (High Leverage).<br>**> 3.0x:** Momento crítico máximo (ej. bases llenas en la 9na con 2 outs y juego por 1 carrera).<br>**< 0.5x:** Juego decidido (baja presión). |
+    | **WPA/LI** | WPA Ajustado por Contexto | El rendimiento puro del pelotero eliminando la suerte de haber jugado en situaciones de mucha o poca presión. | Mide la calidad intrínseca del jugador sin sesgo del momento en que el mánager lo usó. |
+    | **Clutch Score** | Puntaje de Oportunismo / Frialdad | $WPA - (WPA / LI)$. Evalúa si el jugador rinde más cuando la presión es máxima. | **Positivo (+):** *Sangre fría.* Se crece bajo máxima presión.<br>**Negativo (-):** Rinde bien en juegos holgados, pero decae en momentos apretados. |
+    | **RE24** | Matriz de Expectativa de Carreras | Modelo sabermétrico que calcula cuántas carreras anota en promedio un equipo según los 24 estados posibles (8 combinaciones de bases $\times$ 3 estados de outs). | Base matemática estocástica del motor de probabilidades. |
+    """)
+
 # Footer
 st.markdown("---")
 st.markdown("""

@@ -127,6 +127,20 @@ with tab_bp:
                 "pitcher_name": "Lanzador", "inherited_runners": "Corredores Heredados", "inherited_scored": "Anotaron"
             })
             st.dataframe(disp_bp[["Fecha", "Rival", "Inning Entrada", "Lanzador", "Corredores Heredados", "Anotaron"]], use_container_width=True, hide_index=True)
+
+        # Glosario de Bullpen y Corredores Heredados
+        with st.expander("📖 Guía y Glosario: ¿Cómo entender la Eficiencia de Relevistas (IR/IRS)?", expanded=False):
+            st.markdown(r"""
+            ### 🛡️ ¿Por qué evaluar Corredores Heredados (Inherited Runners)?
+            En el béisbol tradicional, si un relevista entra con bases llenas sin outs y permite que anoten las 3 carreras pero saca los 3 outs, su efectividad (ERA) queda en $0.00$ porque esas carreras se le cargan al lanzador anterior. **Las métricas IR / IRS miden si el relevista realmente apagó el fuego o echó gasolina.**
+
+            | Métrica | Nombre Completo | ¿Qué mide y cómo se calcula? | Escala de Calidad |
+            |---|---|---|---|
+            | **IR** | Corredores Heredados (Inherited Runners) | Total de corredores que ya estaban en base cuando el relevista tomó la pelota. | Mide la confianza del mánager para traerlo en situaciones de aprieto. |
+            | **IRS** | Heredados que Anotaron (Inherited Scored) | Cuántos de esos corredores ajenos lograron anotar carrera durante su relevo. | Menos es mejor. |
+            | **IRS%** | Porcentaje de Anotación de Heredados | $\text{IRS\%} = \frac{IRS}{IR} \times 100\%$. Porcentaje de corredores que no pudo contener. | • **Apagafuegos Élite:** $< 20.0\%$<br>• **Bueno:** $20.0\% - 29.9\%$<br>• **Promedio Liga:** $30.0\% - 36.0\%$<br>• **Vulnerable:** $> 45.0\%$. |
+            """)
+
     else:
         st.info("No se encontraron registros de relevos con corredores heredados.")
 
@@ -458,12 +472,23 @@ with tab_lu:
             
             st.markdown("##### 📅 Historial de Partidos como Titular")
             disp_p_games = df_p_lu[["game_date", "opposing_team", "Marcador", "Turno", "Posicion", "won"]].copy()
-            disp_p_games["Resultado"] = disp_p_games["won"].apply(lambda x: "Victoria" if x == 1 else "Derrota")
-            disp_p_games = disp_p_games.rename(columns={
-                "game_date": "Fecha", "opposing_team": "Rival", "Turno": "Turno al Bate", "Posicion": "Posición Defensiva"
-            })[["Fecha", "Rival", "Marcador", "Turno al Bate", "Posición Defensiva", "Resultado"]]
-            
             st.dataframe(disp_p_games, use_container_width=True, hide_index=True)
-            
+
+        # Glosario y Leyenda de Optimización de Lineups
+        with st.expander("📖 Guía y Glosario: ¿Cómo entender la Optimización del Orden al Bate (Lineups)?", expanded=False):
+            st.markdown(r"""
+            ### 📋 Teoría Sabermétrica de Construcción de Lineups (Tom Tango - *The Book*)
+            La optimización matemática demuestra que el orden de bateo debe estructurarse según el tipo de aporte del pelotero para maximizar la expectativa de carreras:
+
+            | Posición en el Orden | Rol Sabermétrico Ideal | Habilidades Requeridas |
+            |---|---|---|
+            | **1° Bate (Leadoff)** | El mejor en embasarse | Alto OBP, disciplina en el plato, velocidad en las bases y capacidad de ver muchos pitcheos. |
+            | **2° Bate** | El mejor bateador integral del equipo | Alto OBP y alto SLG (OPS élite). Consume la 2da mayor cantidad de turnos del juego. |
+            | **3° Bate** | Buen bateador de contacto | OBP y SLG sólidos. Con frecuencia batea con 2 outs y bases limpias. |
+            | **4° Bate (Cleanup)** | El bateador con más poder puro | Máximo SLG, HR y capacidad para conectar extrabases con corredores en circulación. |
+            | **5° Bate** | El segundo mejor bateador de poder | Protección del 4to bate para evitar que le den boletos intencionales. |
+            | **6° al 9° Bate** | Orden descendente de producción | El 9no bate actúa como un "segundo leadoff" para preparar la mesa antes de que el orden regrese al 1ro. |
+            """)
+
     else:
         st.info("No se encontraron datos de alineaciones para la temporada.")

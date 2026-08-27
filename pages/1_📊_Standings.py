@@ -444,6 +444,39 @@ if not standings_df.empty:
         else:
             st.info("No hay datos de los Leones del Caracas para esta temporada")
 
+        # Glosario y Leyenda Didáctica de la Tabla de Posiciones
+        with st.expander("📖 Guía y Glosario: ¿Cómo entender la Tabla de Posiciones y Métricas?", expanded=False):
+            st.markdown(r"""
+            ### 📌 Glosario de la Tabla de Clasificación
+
+            | Abreviatura / Métrica | Nombre Completo | ¿Qué significa y cómo se calcula? | ¿Cómo interpretarlo? (Valores de referencia) |
+            |---|---|---|---|
+            | **#** | Posición en la Tabla | Lugar numérico que ocupa el equipo en la clasificación oficial. | Los primeros 4 clasifican directo al Round Robin; 5° y 6° van a la Serie Comodín (Wild Card). |
+            | **Equipo** | Franquicia | Nombre y escudo oficial del equipo en la LVBP. | Resaltado en dorado para los Leones del Caracas. |
+            | **JJ** | Juegos Jugados | Cantidad total de partidos disputados en la temporada regular ($JJ = G + P$). | Temporada regular completa consta de 56 juegos por equipo. |
+            | **G** | Ganados (Victorias) | Partidos en los que el equipo anotó más carreras que el rival. | Más es mejor. Un equipo con 30+ victorias casi siempre clasifica. |
+            | **P** | Perdidos (Derrotas) | Partidos en los que el rival anotó más carreras. | Menos es mejor. |
+            | **PCT** | Porcentaje de Victorias | Proporción de juegos ganados: $\text{PCT} = \frac{G}{JJ}$. Se expresa con tres decimales (ej. `.554`). | **>.600:** Nivel Élite / Puntero.<br>**>.500:** Récord positivo (más ganados que perdidos).<br>**<.450:** Temporada complicada en riesgo de eliminación. |
+            | **JD / GB** | Juegos de Diferencia (Games Back) | Distancia matemática respecto al equipo en el 1er lugar: $\text{JD} = \frac{(G_{\text{líder}} - G) + (P - P_{\text{líder}})}{2}$. | **- / Líder:** El equipo está en la cima.<br>**1.0 a 3.0:** A tiro de alcanzar el liderato.<br>**6.0+:** Distancia considerable. |
+            | **CF** | Carreras a Favor (RF) | Total de carreras anotadas por la ofensiva del equipo a lo largo del torneo. | Mide la potencia del bateo y corrido de bases del equipo. |
+            | **CP** | Carreras en Contra (RA) | Total de carreras permitidas por el pitcheo y la defensa del equipo. | Menos es mejor. Mide la solidez defensiva y monticular. |
+            | **DIF** | Diferencial de Carreras | Resta directa entre ataque y defensa: $\text{DIF} = CF - CP$. | **Positivo (+):** El equipo anota más de lo que recibe (equipo dominante).<br>**Negativo (-):** El equipo recibe más de lo que anota (vulnerabilidad). |
+            | **Últimos 10 (L10)** | Récord Reciente | Victorias y derrotas en los últimos 10 juegos disputados. | Mide el momento actual de forma del equipo (ej. `7-3` indica gran momento). |
+            | **Racha (Streak)** | Racha Activa | Juegos ganados o perdidos consecutivamente hasta la fecha. | `3 W` = 3 triunfos seguidos; `2 L` = 2 caídas al hilo. |
+
+            ---
+
+            ### 🏟️ Glosario de Desgloses Situacionales
+
+            | Métrica Situacional | ¿Qué mide? | Interpretación Sabermétrica |
+            |---|---|---|
+            | **Home Club** | Récord jugando en el estadio sede como equipo local. | Ventaja de localía, bateo en último turno de cada inning y apoyo del público. |
+            | **Visitante** | Récord en la carretera en estadios rivales. | Capacidad del equipo para ganar bajo hostilidad foránea. |
+            | **De Noche** | Juegos iniciados a partir de las 7:00 PM. | Horario habitual estándar en el circuito LVBP. |
+            | **De Día** | Juegos disputados en horario diurno (1:00 PM a 5:00 PM). | Frecuente en fines de semana; condiciones de sol y visibilidad distintas. |
+            | **1 Carrera** | Partidos que terminan con margen de 1 carrera (ej. 4-3, 2-1). | Mide la solvencia del cerrador/bullpen en la 9na entrada y el oportunismo bajo máxima presión (clutch). |
+            """)
+
     with tab_pyth:
         st.subheader("🧮 Expectativa Pitagórica de Victorias (Pythagorean Record)")
         st.markdown(
@@ -537,6 +570,19 @@ if not standings_df.empty:
                 coloraxis_colorbar_title="Dif (W-xW)"
             )
             st.plotly_chart(fig_pyth_scatter, use_container_width=True)
+
+            with st.expander("📖 Guía y Glosario: ¿Cómo entender la Expectativa Pitagórica y la Suerte?", expanded=False):
+                st.markdown(r"""
+                ### 🧮 ¿Qué es el Récord Pitagórico?
+                Inventado por el padre de la sabermetría **Bill James**, el modelo pitagórico demuestra que **el diferencial de carreras es un predictor mucho más fiel del nivel real de un equipo que su récord de victorias y derrotas**.
+
+                | Métrica Pitagórica | Nombre / Fórmula | ¿Qué indica? |
+                |---|---|---|
+                | **xW (Victorias Esperadas)** | $JJ \times \frac{CF^{1.83}}{CF^{1.83} + CP^{1.83}}$ | La cantidad justa de partidos que el equipo debió haber ganado según las carreras que anotó y permitió. |
+                | **xL (Derrotas Esperadas)** | $JJ - xW$ | Los juegos que el equipo debió perder según su balance de carreras. |
+                | **PCT Pitagórico** | $\frac{CF^{1.83}}{CF^{1.83} + CP^{1.83}}$ | El porcentaje de victorias esperado matemáticamente. |
+                | **Diferencial (G - xW)** | $G_{\text{Reales}} - xW$ | **Factor Suerte / Clutch:**<br>• **Positivo ($\ge +1.5$):** *Sobre-rendimiento.* El equipo ganó más juegos de lo esperado gracias a bateo oportuno o efectividad en juegos de 1 carrera.<br>• **Negativo ($\le -1.5$):** *Sub-rendimiento.* El equipo jugó mejor de lo que refleja su récord, pero sufrió derrotas dolorosas por mal bullpen o mala suerte en juegos cerrados.<br>• **Cercano a 0:** El récord refleja con exactitud la calidad del equipo. |
+                """)
         else:
             st.info("Datos de carreras no disponibles para el cálculo pitagórico.")
             
@@ -546,6 +592,18 @@ if not standings_df.empty:
             "El sistema ELO evalúa la fuerza relativa de cada equipo de forma dinámica tras cada partido (+35 pts por localía). "
             "Mediante 5,000 iteraciones Monte Carlo, modelamos las probabilidades de clasificación regular, Wild Card, Round Robin y Campeonato LVBP."
         )
+
+        with st.expander("📖 Guía y Glosario: ¿Cómo funciona el Rating ELO y Monte Carlo?", expanded=False):
+            st.markdown(r"""
+            ### ⚡ Rating ELO
+            * **Base 1500:** Todos los equipos inician en 1500 puntos (promedio de la liga).
+            * **Dinámica:** Si le ganas a un rival con mayor ELO, ganas muchos puntos. Si pierdes contra un equipo débil, pierdes más puntos.
+            * **Ventaja de Localía (+35 pts):** Refleja la probabilidad histórica superior del equipo home club.
+
+            ### 🎲 Simulaciones Monte Carlo (5,000 Iteraciones)
+            * Cada iteración simula el calendario restante juego por juego utilizando las probabilidades exactas de victoria de cada enfrentamiento.
+            * Permite calcular con rigor científico el **% de clasificar a Round Robin**, **% de alcanzar la Serie Final** y **% de coronarse Campeón**.
+            """)
 
         elo_subtab1, elo_subtab2, elo_subtab3 = st.tabs([
             "🎲 Simulaciones Monte Carlo (Playoff & Campeón)",

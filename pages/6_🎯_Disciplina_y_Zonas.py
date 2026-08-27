@@ -352,3 +352,21 @@ with st.expander("📋 Registro Detallado de Lanzamientos y Secuencia", expanded
         
         csv = st_df.to_csv(index=False).encode("utf-8")
         st.download_button("📥 Descargar lanzamientos en CSV", data=csv, file_name=f"pitches_{selected_season}.csv", mime="text/csv")
+
+# Glosario y Leyenda Didáctica de Disciplina en el Plato y Zonas
+with st.expander("📖 Guía y Glosario: ¿Cómo entender la Disciplina en el Plato, Whiffs y CSW%?", expanded=False):
+    st.markdown(r"""
+    ### 🎯 Sabermetría de la Zona de Strike (Plate Discipline)
+    La disciplina en el plato evalúa la visión y juicio del bateador para reconocer lanzamientos buenos vs malos, así como la capacidad del lanzador para engañar y dominar.
+
+    | Métrica Sabermétrica | Nombre Completo | ¿Qué mide? | ¿Cómo interpretarlo? |
+    |---|---|---|---|
+    | **O-Swing% (Chase Rate)** | Swings Fuera de Zona | Porcentaje de lanzamientos en zona mala a los que el bateador les hace swing (*perseguir pitcheos*). | **Bateador:** Menor es mejor ($< 25\%$ indica gran disciplina de no regalar outs).<br>**Lanzador:** Mayor es mejor ($> 35\%$ indica lanzamientos de engaño letales). |
+    | **Z-Swing%** | Swings en Zona de Strike | Porcentaje de lanzamientos dentro de la zona a los que se les hace swing. | **Bateador:** Mide agresividad sobre lanzamientos buenos (idealmente $> 65\%$). |
+    | **Z-Contact%** | Contacto en Zona | Porcentaje de swings a lanzamientos en zona que logran tocar la pelota. | **Bateador élite de contacto:** $> 88\%$. |
+    | **O-Contact%** | Contacto Fuera de Zona | Porcentaje de swings a pitcheos malos que logran tocarse (generalmente fouls o roletazos débiles). | Mide la capacidad de protegerse con 2 strikes. |
+    | **Whiff%** | Tasa de Abanicado en Blanco | $\frac{\text{Swings al Aire}}{\text{Total de Swings}}$. Qué porcentaje de veces el bateador abanica sin tocar la pelota. | **Bateador:** Menos es mejor ($< 18\%$).<br>**Lanzador:** Más es mejor ($> 30\%$ indica repertorio ponchador). |
+    | **SwStr% (Swinging Strike)** | Tasa de Strike Abanicado | $\frac{\text{Swings al Aire}}{\text{Total de Pitcheos Recibidos/Lanzados}}$. | **Lanzador dominante:** $> 12.0\%$. |
+    | **CSW%** | Called Strikes + Whiffs | $\frac{\text{Strikes Cantados (sin swing) + Abanicados}}{\text{Total de Pitcheos}}$. **La métrica reina de pitcheo moderno.** | **Dominante / As:** $> 30.0\%$<br>**Bueno:** $27.0\% - 29.9\%$<br>**Vulnerable:** $< 25.0\%$. |
+    | **Zone%** | Porcentaje en Zona | Frecuencia con la que los lanzamientos caen dentro del rectángulo de strike. | Promedio de liga: $45\% - 50\%$. |
+    """)

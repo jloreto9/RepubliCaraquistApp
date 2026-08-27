@@ -359,3 +359,23 @@ with st.expander("📋 Ver Registro Detallado de Contactos (Jugada por Jugada)",
         )
     else:
         st.info("No hay jugadas que coincidan con los filtros seleccionados.")
+
+# Glosario y Leyenda de Spray Charts y Contacto
+with st.expander("📖 Guía y Glosario: ¿Cómo entender los Spray Charts y Métricas de Contacto?", expanded=False):
+    st.markdown(r"""
+    ### 🎯 ¿Qué nos enseña el Spray Chart?
+    El gráfico de dispersión espacial (*Spray Chart*) mapea las coordenadas exactas $(x, y)$ donde cayó cada batazo en el terreno de juego, revelando las tendencias del bateador y cómo los rivales deben posicionar sus formaciones defensivas (*defensive shifts*).
+
+    | Concepto / Métrica | ¿Qué significa? | ¿Cómo interpretarlo? |
+    |---|---|---|
+    | **Pull% (Halar)** | Batazos dirigidos a su banda natural (Left Field para derechos; Right Field para zurdos). | Donde se genera la mayor cantidad de jonrones y poder. |
+    | **Cent% (Centro)** | Batazos dirigidos hacia el Center Field. | Refleja un swing balanceado y contacto directo con la pelota. |
+    | **Oppo% (Banda Contraria)** | Batazos dirigidos hacia el campo opuesto (Right Field para derechos; Left Field para zurdos). | Mide la habilidad para batear lanzamientos afuera y aprovechar huecos defensivos. |
+    | **Hard% (Contacto Fuerte)** | Batazos conectados a gran velocidad de salida ($\ge 95\text{ mph}$). | Mayor probabilidad de convertirse en extrabases y hits. |
+    | **Med% (Contacto Medio)** | Batazos conectados con velocidad moderada. | Contacto promedio en bolas en juego. |
+    | **Soft% (Contacto Débil)** | Batazos mal conectados o rozados. | Facilidad para que la defensa retire al bateador. |
+    | **Line Drive (Línea)** | Batazo recto y tenso con ángulo de lanzamiento ideal ($10^\circ - 25^\circ$). | El tipo de batazo con mayor porcentaje de convertirse en hit ($>.600\text{ AVG}$). |
+    | **Flyball (Elevado)** | Batazo por el aire ($25^\circ - 50^\circ$). | Oportunidad de jonrón si se conecta con fuerza; out fácil si es débil. |
+    | **Groundball (Rolling)** | Batazo por el suelo ($< 10^\circ$). | Menor probabilidad de extrabase; riesgo de doble play. |
+    | **Pop Up (Elevado al Cuadro)** | Elevado altísimo dentro del infield ($> 50^\circ$). | Prácticamente un out seguro ($99\%$ de outs). |
+    """)
