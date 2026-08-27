@@ -1,4 +1,4 @@
-# pages/8_📊_Estadisticas_Colectivas.py
+# pages/3_📊_Estadisticas_Colectivas.py
 import streamlit as st
 import pandas as pd
 import numpy as np

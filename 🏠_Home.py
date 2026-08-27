@@ -6,6 +6,7 @@ import numpy as np
 import requests
 from datetime import datetime
 import os
+from dotenv import load_dotenv
 from utils.supabase_client import (
     get_standings,
     get_recent_games,
