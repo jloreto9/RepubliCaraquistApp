@@ -843,32 +843,45 @@ def get_individual_fielding_stats(season=None, team_id=None, phase='R') -> pd.Da
             t_name = team_info.get("name", "")
             pos_abbr = pos_info.get("abbreviation", "UT")
             
+            def _to_int(val, default=0):
+                try:
+                    return int(val) if val is not None and str(val).strip() != '' else default
+                except (ValueError, TypeError):
+                    return default
+
+            def _to_float(val, default=0.0):
+                try:
+                    return float(val) if val is not None and str(val).strip() != '' else default
+                except (ValueError, TypeError):
+                    return default
+
             row = {
                 "player_id": p_id,
                 "player_name": p_name,
                 "team_id": t_id,
                 "team_name": t_name,
                 "position": pos_abbr,
-                "games": stat.get("gamesPlayed", 0),
-                "games_started": stat.get("gamesStarted", 0),
-                "innings": stat.get("innings", "0.0"),
-                "putouts": stat.get("putOuts", 0),
-                "assists": stat.get("assists", 0),
-                "errors": stat.get("errors", 0),
-                "chances": stat.get("chances", 0),
-                "fielding_pct": stat.get("fielding", ".000"),
-                "double_plays": stat.get("doublePlays", 0),
-                "triple_plays": stat.get("triplePlays", 0),
-                "range_factor_per_9": stat.get("rangeFactorPer9Inn", "0.00"),
-                "caught_stealing": stat.get("caughtStealing", 0),
-                "stolen_bases": stat.get("stolenBases", 0),
-                "caught_stealing_pct": stat.get("caughtStealingPercentage", ".000"),
-                "passed_balls": stat.get("passedBall", 0),
-                "throwing_errors": stat.get("throwingErrors", 0)
+                "games": _to_int(stat.get("gamesPlayed", 0)),
+                "games_started": _to_int(stat.get("gamesStarted", 0)),
+                "innings": str(stat.get("innings", "0.0")),
+                "putouts": _to_int(stat.get("putOuts", 0)),
+                "assists": _to_int(stat.get("assists", 0)),
+                "errors": _to_int(stat.get("errors", 0)),
+                "chances": _to_int(stat.get("chances", 0)),
+                "fielding_pct": _to_float(stat.get("fielding", 0.0)),
+                "double_plays": _to_int(stat.get("doublePlays", 0)),
+                "triple_plays": _to_int(stat.get("triplePlays", 0)),
+                "range_factor_per_9": _to_float(stat.get("rangeFactorPer9Inn", 0.0)),
+                "caught_stealing": _to_int(stat.get("caughtStealing", 0)),
+                "stolen_bases": _to_int(stat.get("stolenBases", 0)),
+                "caught_stealing_pct": _to_float(stat.get("caughtStealingPercentage", 0.0)),
+                "passed_balls": _to_int(stat.get("passedBall", 0)),
+                "throwing_errors": _to_int(stat.get("throwingErrors", 0))
             }
             rows.append(row)
             
-        return pd.DataFrame(rows)
+        df = pd.DataFrame(rows)
+        return df
     except Exception as e:
         print(f"Error obteniendo estadísticas defensivas individuales: {e}")
         return pd.DataFrame()

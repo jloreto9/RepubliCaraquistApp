@@ -539,6 +539,16 @@ with tab_def:
     fielding_df = get_individual_fielding_stats(selected_season, team_id=695)
 
     if not fielding_df.empty:
+        # Convertir columnas numéricas de inmediato
+        num_cols = ['games', 'games_started', 'putouts', 'assists', 'errors', 'chances', 'double_plays', 'triple_plays', 'caught_stealing', 'stolen_bases', 'passed_balls']
+        for col in num_cols:
+            if col in fielding_df.columns:
+                fielding_df[col] = pd.to_numeric(fielding_df[col], errors='coerce').fillna(0).astype(int)
+
+        for col in ['fielding_pct', 'range_factor_per_9', 'caught_stealing_pct']:
+            if col in fielding_df.columns:
+                fielding_df[col] = pd.to_numeric(fielding_df[col], errors='coerce').fillna(0.0).astype(float)
+
         # Filtros
         col_f1, col_f2 = st.columns([2, 2])
         with col_f1:
@@ -554,16 +564,6 @@ with tab_def:
         if selected_pos != "Todas":
             filtered_f = filtered_f[filtered_f['position'] == selected_pos]
 
-        # Convertir columnas numéricas
-        num_cols = ['games', 'games_started', 'putouts', 'assists', 'errors', 'chances', 'double_plays', 'triple_plays', 'caught_stealing', 'stolen_bases', 'passed_balls']
-        for col in num_cols:
-            if col in filtered_f.columns:
-                filtered_f[col] = pd.to_numeric(filtered_f[col], errors='coerce').fillna(0).astype(int)
-
-        for col in ['fielding_pct', 'range_factor_per_9', 'caught_stealing_pct']:
-            if col in filtered_f.columns:
-                filtered_f[col] = pd.to_numeric(filtered_f[col], errors='coerce').fillna(0.0)
-
         # Leader cards
         f_card1, f_card2, f_card3, f_card4 = st.columns(4)
         
@@ -571,8 +571,9 @@ with tab_def:
         qual_f = fielding_df[fielding_df['chances'] >= 15]
         if not qual_f.empty:
             best_fpct = qual_f.sort_values(['fielding_pct', 'chances'], ascending=[False, False]).iloc[0]
+            val_fpct = float(best_fpct['fielding_pct'])
             with f_card1:
-                st.metric("🎯 Mejor % Fildeo (Mín 15 TC)", f"{best_fpct['fielding_pct']:.3f}", f"{best_fpct['player_name']} ({best_fpct['position']})")
+                st.metric("🎯 Mejor % Fildeo (Mín 15 TC)", f"{val_fpct:.3f}", f"{best_fpct['player_name']} ({best_fpct['position']})")
         else:
             with f_card1:
                 st.metric("🎯 % Fildeo", "N/A")
@@ -581,19 +582,19 @@ with tab_def:
         if not fielding_df.empty:
             lead_a = fielding_df.sort_values('assists', ascending=False).iloc[0]
             with f_card2:
-                st.metric("🧤 Líder en Asistencias", f"{lead_a['assists']}", f"{lead_a['player_name']} ({lead_a['position']})")
+                st.metric("🧤 Líder en Asistencias", f"{int(lead_a['assists'])}", f"{lead_a['player_name']} ({lead_a['position']})")
 
         # Líder en Doble Plays
         if not fielding_df.empty:
             lead_dp = fielding_df.sort_values('double_plays', ascending=False).iloc[0]
             with f_card3:
-                st.metric("⚡ Líder en Doble Plays", f"{lead_dp['double_plays']}", f"{lead_dp['player_name']} ({lead_dp['position']})")
+                st.metric("⚡ Líder en Doble Plays", f"{int(lead_dp['double_plays'])}", f"{lead_dp['player_name']} ({lead_dp['position']})")
 
         # Líder en Putouts
         if not fielding_df.empty:
             lead_po = fielding_df.sort_values('putouts', ascending=False).iloc[0]
             with f_card4:
-                st.metric("🛡️ Líder en Outs Realizados", f"{lead_po['putouts']}", f"{lead_po['player_name']} ({lead_po['position']})")
+                st.metric("🛡️ Líder en Outs Realizados", f"{int(lead_po['putouts'])}", f"{lead_po['player_name']} ({lead_po['position']})")
 
         st.markdown("---")
 
@@ -631,11 +632,11 @@ with tab_def:
 
         # Formatear números
         if 'FPCT' in display_table.columns:
-            display_table['FPCT'] = display_table['FPCT'].apply(lambda x: f"{x:.3f}" if isinstance(x, (int, float)) else x)
+            display_table['FPCT'] = display_table['FPCT'].apply(lambda x: f"{float(x):.3f}" if pd.notnull(x) else ".000")
         if 'RF/9' in display_table.columns:
-            display_table['RF/9'] = display_table['RF/9'].apply(lambda x: f"{x:.2f}" if isinstance(x, (int, float)) else x)
+            display_table['RF/9'] = display_table['RF/9'].apply(lambda x: f"{float(x):.2f}" if pd.notnull(x) else "0.00")
         if 'CS%' in display_table.columns:
-            display_table['CS%'] = display_table['CS%'].apply(lambda x: f"{x:.3f}" if isinstance(x, (int, float)) else x)
+            display_table['CS%'] = display_table['CS%'].apply(lambda x: f"{float(x):.3f}" if pd.notnull(x) else ".000")
 
         st.dataframe(
             display_table,
