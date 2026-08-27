@@ -371,6 +371,9 @@ def get_leones_advanced_stats(season=None, cache_version="v4_terreneadas_fixed")
         night_wins = sum(1 for p in parsed_clean if p["is_night"] and p["won"])
         night_losses = sum(1 for p in parsed_clean if p["is_night"] and not p["won"])
         
+        day_wins = sum(1 for p in parsed_clean if (not p["is_night"]) and p["won"])
+        day_losses = sum(1 for p in parsed_clean if (not p["is_night"]) and not p["won"])
+        
         shutouts = sum(1 for p in parsed_clean if p["shutout"])
         
         extra_wins = sum(1 for p in parsed_clean if p["is_extra"] and p["won"])
@@ -451,6 +454,7 @@ def get_leones_advanced_stats(season=None, cache_version="v4_terreneadas_fixed")
             'home_record': f"{home_wins}-{home_losses}",
             'away_record': f"{away_wins}-{away_losses}",
             'night_record': f"{night_wins}-{night_losses}",
+            'day_record': f"{day_wins}-{day_losses}",
             'shutouts': f"{shutouts}",
             'streak': streak,
             'extra_inning': f"{extra_wins}-{extra_losses}",
@@ -668,6 +672,207 @@ def calculate_batting_stats(df):
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_weekly_records(season=None, team_id=695, phase='regular') -> pd.DataFrame:
+    """
+    Calcula el desglose de rendimiento semana a semana (lunes a domingo)
+    para el equipo en la temporada y fase seleccionada.
+    """
+    if season is None:
+        season = get_current_season()
+        
+    supabase = init_supabase()
+    
+    PHASE_TYPE_MAP = {
+        'regular': ['R'],
+        'round_robin': ['L'],
+        'wildcard_playin': ['D'],
+        'final': ['F'],
+        'all': ['R', 'L', 'D', 'F']
+    }
+    game_types = PHASE_TYPE_MAP.get(phase, ['R'])
+    
+    try:
+        res = supabase.table('games') \
+            .select('*') \
+            .eq('season', season) \
+            .in_('status', ['Final', 'Completed', 'Completed Early', 'Game Over']) \
+            .in_('game_type', game_types) \
+            .or_(f'home_team_id.eq.{team_id},away_team_id.eq.{team_id}') \
+            .order('game_date', desc=False) \
+            .execute()
+            
+        games = res.data or []
+        if not games:
+            return pd.DataFrame()
+            
+        parsed = []
+        for g in games:
+            is_home = (g["home_team_id"] == team_id)
+            team_score = g["home_score"] if is_home else g["away_score"]
+            opp_score = g["away_score"] if is_home else g["home_score"]
+            won = (team_score > opp_score)
+            g_date = pd.to_datetime(g["game_date"]).date()
+            
+            # Semanas ISO: lunes (0) a domingo (6)
+            monday = g_date - timedelta(days=g_date.weekday())
+            sunday = monday + timedelta(days=6)
+            
+            parsed.append({
+                "game_pk": g["id"],
+                "game_date": g_date,
+                "monday": monday,
+                "sunday": sunday,
+                "won": won,
+                "runs_for": team_score or 0,
+                "runs_against": opp_score or 0
+            })
+            
+        df = pd.DataFrame(parsed)
+        weeks = df[["monday", "sunday"]].drop_duplicates().sort_values("monday").reset_index(drop=True)
+        weeks["week_num"] = range(1, len(weeks) + 1)
+        
+        df = pd.merge(df, weeks, on=["monday", "sunday"])
+        
+        weekly_summary = []
+        for (wn, mon, sun), group in df.groupby(["week_num", "monday", "sunday"], sort=True):
+            w = sum(group["won"])
+            l = len(group) - w
+            pct = w / len(group) if len(group) > 0 else 0
+            rf = sum(group["runs_for"])
+            ra = sum(group["runs_against"])
+            diff = rf - ra
+            
+            dates_label = f"{mon.strftime('%d/%m')} - {sun.strftime('%d/%m')}"
+            week_label = f"Semana {wn} ({dates_label})"
+            
+            weekly_summary.append({
+                "Semana": week_label,
+                "Juegos": len(group),
+                "G": w,
+                "P": l,
+                "PCT": f".{int(pct*1000):03d}",
+                "CF": rf,
+                "CP": ra,
+                "DIF": f"{diff:+d}" if diff != 0 else "0",
+                "Récord": f"{w}G-{l}P"
+            })
+            
+        return pd.DataFrame(weekly_summary)
+    except Exception as e:
+        print(f"Error obteniendo récord semanal: {e}")
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_collective_team_stats(season=None, phase='R', group='hitting') -> pd.DataFrame:
+    """
+    Descarga estadísticas colectivas de los 8 equipos de la LVBP vía MLB Stats API.
+    Soporta group='hitting' (Bateo), 'pitching' (Pitcheo) y 'fielding' (Fildeo).
+    """
+    if season is None:
+        season = get_current_season()
+        
+    url = f"https://statsapi.mlb.com/api/v1/teams/stats?season={season}&sportIds=17&leagueIds=135&group={group}&stats=season&gameType={phase}"
+    try:
+        r = requests.get(url, timeout=20)
+        if r.status_code != 200:
+            return pd.DataFrame()
+        data = r.json()
+        stats_list = data.get("stats", [])
+        if not stats_list:
+            return pd.DataFrame()
+        splits = stats_list[0].get("splits", [])
+        if not splits:
+            return pd.DataFrame()
+            
+        rows = []
+        for s in splits:
+            team_info = s.get("team", {})
+            tid = team_info.get("id")
+            tname = team_info.get("name", "Equipo")
+            stat = s.get("stat", {})
+            row = {"team_id": tid, "team_name": tname}
+            row.update(stat)
+            rows.append(row)
+            
+        df = pd.DataFrame(rows)
+        return df
+    except Exception as e:
+        print(f"Error obteniendo estadísticas colectivas ({group}): {e}")
+        return pd.DataFrame()
+
+
+@st.cache_data(ttl=1800, show_spinner=False)
+def get_individual_fielding_stats(season=None, team_id=None, phase='R') -> pd.DataFrame:
+    """
+    Descarga estadísticas individuales de fildeo (defensa) vía MLB Stats API.
+    Si team_id está presente, filtra por ese equipo (ej: 695 para Leones).
+    """
+    if season is None:
+        season = get_current_season()
+        
+    url = f"https://statsapi.mlb.com/api/v1/stats?stats=season&group=fielding&season={season}&sportId=17&leagueId=135&playerPool=all&gameType={phase}&limit=1000"
+    if team_id:
+        url += f"&teamId={team_id}"
+        
+    try:
+        r = requests.get(url, timeout=25)
+        if r.status_code != 200:
+            return pd.DataFrame()
+        data = r.json()
+        stats_list = data.get("stats", [])
+        if not stats_list:
+            return pd.DataFrame()
+        splits = stats_list[0].get("splits", [])
+        if not splits:
+            return pd.DataFrame()
+            
+        rows = []
+        for s in splits:
+            player_info = s.get("player", {})
+            team_info = s.get("team", {})
+            pos_info = s.get("position", {})
+            stat = s.get("stat", {})
+            
+            p_id = player_info.get("id")
+            p_name = player_info.get("fullName", "Desconocido")
+            t_id = team_info.get("id")
+            t_name = team_info.get("name", "")
+            pos_abbr = pos_info.get("abbreviation", "UT")
+            
+            row = {
+                "player_id": p_id,
+                "player_name": p_name,
+                "team_id": t_id,
+                "team_name": t_name,
+                "position": pos_abbr,
+                "games": stat.get("gamesPlayed", 0),
+                "games_started": stat.get("gamesStarted", 0),
+                "innings": stat.get("innings", "0.0"),
+                "putouts": stat.get("putOuts", 0),
+                "assists": stat.get("assists", 0),
+                "errors": stat.get("errors", 0),
+                "chances": stat.get("chances", 0),
+                "fielding_pct": stat.get("fielding", ".000"),
+                "double_plays": stat.get("doublePlays", 0),
+                "triple_plays": stat.get("triplePlays", 0),
+                "range_factor_per_9": stat.get("rangeFactorPer9Inn", "0.00"),
+                "caught_stealing": stat.get("caughtStealing", 0),
+                "stolen_bases": stat.get("stolenBases", 0),
+                "caught_stealing_pct": stat.get("caughtStealingPercentage", ".000"),
+                "passed_balls": stat.get("passedBall", 0),
+                "throwing_errors": stat.get("throwingErrors", 0)
+            }
+            rows.append(row)
+            
+        return pd.DataFrame(rows)
+    except Exception as e:
+        print(f"Error obteniendo estadísticas defensivas individuales: {e}")
+        return pd.DataFrame()
+
 
 
 

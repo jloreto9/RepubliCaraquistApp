@@ -10,6 +10,7 @@ from utils.situational import (
     fetch_season_situational_data,
     compute_all_situational_splits,
     compute_bvp_summary,
+    compute_lob_analytics,
     summarize_slash_line,
     LEONES_TEAM_ID
 )
@@ -162,6 +163,80 @@ with tab_sit:
         
         csv_sit = splits_df.to_csv(index=False).encode("utf-8")
         st.download_button("📥 Descargar Splits en CSV", data=csv_sit, file_name=f"splits_{selected_season}_{target_name.replace(' ', '_')}.csv", mime="text/csv")
+
+    # ================= SUB-SECCIÓN: DEJADOS EN BASE (LOB TRACKER) =================
+    st.markdown("---")
+    st.subheader("🛑 Analítica de Dejados en Base (LOB Tracker)")
+    st.markdown("Evalúa la cantidad de corredores que se quedaron esperando remolque en las almohadillas, distinguiendo entre el **3er out de la entrada** y **oportunidades dentro del inning**.")
+
+    team_lob_totals, df_lob_players = compute_lob_analytics(leones_pa)
+
+    if team_lob_totals:
+        lob_c1, lob_c2, lob_c3, lob_c4 = st.columns(4)
+        with lob_c1:
+            st.metric(
+                "LOB al Terminar Inning",
+                f"{team_lob_totals.get('total_lob_ending', 0)}",
+                help="Corredores totales en base al momento de caer el 3er out de la entrada (LOB oficial de boxscore)."
+            )
+        with lob_c2:
+            st.metric(
+                "RISP LOB al Terminar Inning",
+                f"{team_lob_totals.get('total_risp_lob_ending', 0)}",
+                help="Corredores en 2B o 3B al momento de caer el 3er out (oportunidades críticas desperdiciadas con 2 outs)."
+            )
+        with lob_c3:
+            st.metric(
+                "RISP LOB Dentro de Inning",
+                f"{team_lob_totals.get('total_risp_lob_mid', 0)}",
+                help="Corredores en 2B o 3B con 0 o 1 out cuando el bateador consumió un out sin remolcar carrera."
+            )
+        with lob_c4:
+            st.metric(
+                "Total General RISP LOB",
+                f"{team_lob_totals.get('total_risp_lob', 0)}",
+                help="Suma total de corredores en posición anotadora dejados en base a lo largo de la temporada."
+            )
+
+        with st.expander("📖 Glosario & Metodología de Dejados en Base (LOB)", expanded=False):
+            st.markdown(r"""
+            | Métrica LOB | Definición y Cálculo | Impacto Sabermétrico |
+            |---|---|---|
+            | **LOB al Terminar Inning (3er Out)** | Corredores varados en 1B, 2B o 3B cuando el bateador es puesto out con 2 outs en la pizarra. | Equivale al LOB oficial del boxscore colectivo de MLB. |
+            | **RISP LOB al Terminar Inning (2 Outs)** | Corredores varados específicamente en 2da o 3ra base en el último out de la entrada. | Mide la falta de bateo oportuno (clutch) antes de cerrar el inning. |
+            | **RISP LOB Dentro de Inning (0-1 Out)** | Corredores en 2B/3B en turnos con 0 o 1 out donde el bateador hizo out y no impulsó carreras ($RBI=0$). | Oportunidades desaprovechadas donde no se logró productivo avance o elevado de sacrificio. |
+            | **Total RISP LOB** | $RISP\ LOB_{\text{2-Outs}} + RISP\ LOB_{\text{Dentro de Inning}}$ | Volumen acumulado de tráfico en posición anotadora no capitalizado. |
+            """)
+
+        c_lob_tab, c_lob_plot = st.columns([7, 5])
+        with c_lob_tab:
+            st.markdown("#### 📋 Desglose Individual de Dejados en Base")
+            st.caption("Top bateadores de los Leones según corredores varados en base y en posición anotadora.")
+            st.dataframe(df_lob_players, use_container_width=True, hide_index=True)
+
+        with c_lob_plot:
+            st.markdown("#### 📊 Top Bateadores con Más RISP LOB")
+            st.caption("Comparativa de corredores en posición anotadora dejados en base.")
+            if not df_lob_players.empty:
+                top_lob = df_lob_players.head(10).copy()
+                fig_lob = px.bar(
+                    top_lob,
+                    x="Total RISP LOB",
+                    y="Bateador",
+                    orientation="h",
+                    color="Total RISP LOB",
+                    color_continuous_scale="Reds",
+                    text_auto=True
+                )
+                fig_lob.update_layout(
+                    template="plotly_dark",
+                    yaxis=dict(autorange="reversed"),
+                    height=380,
+                    margin=dict(l=10, r=10, t=10, b=10),
+                    coloraxis_showscale=False,
+                    xaxis_title="Corredores Dejados en RISP"
+                )
+                st.plotly_chart(fig_lob, use_container_width=True)
 
 # ================= TAB 2: BvP =================
 with tab_bvp:

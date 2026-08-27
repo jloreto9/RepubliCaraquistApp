@@ -15,6 +15,7 @@ try:
     from utils.supabase_client import (
         get_batting_stats,
         get_pitching_stats,
+        get_individual_fielding_stats,
         get_current_season,
         get_available_seasons,
         init_supabase
@@ -24,6 +25,7 @@ except:
     from streamlit_app.utils.supabase_client import (
         get_batting_stats,
         get_pitching_stats,
+        get_individual_fielding_stats,
         get_current_season,
         get_available_seasons,
         init_supabase
@@ -53,7 +55,7 @@ with col_h_logo:
     st.image(get_brand_logo(), width=75)
 with col_h_txt:
     st.title("⚾ Estadísticas Individuales")
-    st.markdown("### Líderes de Bateo y Pitcheo — Leones del Caracas")
+    st.markdown("### Líderes de Bateo, Pitcheo y Fildeo — Leones del Caracas")
 
 # Selector de temporada
 col1, col2 = st.columns([3, 1])
@@ -85,7 +87,7 @@ with col1:
     selected_season = season_options[selected_season_display]
 
 # Tabs principales
-tab1, tab2, tab3 = st.tabs(["🏏 Bateo", "⚾ Pitcheo", "📊 Comparaciones"])
+tab1, tab2, tab_def, tab3 = st.tabs(["🏏 Bateo", "⚾ Pitcheo", "🧤 Fildeo / Defensa", "📊 Comparaciones"])
 
 # ==================== TAB 1: BATEO ====================
 with tab1:
@@ -528,6 +530,157 @@ with tab2:
         - El proceso de actualización diaria se ejecute
         - Se sincronicen los datos con la base de datos
         """)
+
+# ==================== TAB DEF: FILDEO / DEFENSA ====================
+with tab_def:
+    st.markdown("### 🧤 Estadísticas de Fildeo y Rendimiento Defensivo")
+    st.markdown("Analiza la solvencia defensiva, asistencias, dobles matanzas y porcentaje de fildeo de los Leones del Caracas.")
+
+    fielding_df = get_individual_fielding_stats(selected_season, team_id=695)
+
+    if not fielding_df.empty:
+        # Filtros
+        col_f1, col_f2 = st.columns([2, 2])
+        with col_f1:
+            search_f = st.text_input("🔍 Buscar defensor", placeholder="Nombre del jugador...", key="search_fielding")
+        with col_f2:
+            positions_available = ["Todas"] + sorted([p for p in fielding_df['position'].unique() if p])
+            selected_pos = st.selectbox("📍 Filtrar por Posición", positions_available, index=0)
+
+        # Aplicar filtros
+        filtered_f = fielding_df.copy()
+        if search_f:
+            filtered_f = filtered_f[filtered_f['player_name'].str.contains(search_f, case=False, na=False)]
+        if selected_pos != "Todas":
+            filtered_f = filtered_f[filtered_f['position'] == selected_pos]
+
+        # Convertir columnas numéricas
+        num_cols = ['games', 'games_started', 'putouts', 'assists', 'errors', 'chances', 'double_plays', 'triple_plays', 'caught_stealing', 'stolen_bases', 'passed_balls']
+        for col in num_cols:
+            if col in filtered_f.columns:
+                filtered_f[col] = pd.to_numeric(filtered_f[col], errors='coerce').fillna(0).astype(int)
+
+        for col in ['fielding_pct', 'range_factor_per_9', 'caught_stealing_pct']:
+            if col in filtered_f.columns:
+                filtered_f[col] = pd.to_numeric(filtered_f[col], errors='coerce').fillna(0.0)
+
+        # Leader cards
+        f_card1, f_card2, f_card3, f_card4 = st.columns(4)
+        
+        # Mejor FPCT con al menos 15 lances
+        qual_f = fielding_df[fielding_df['chances'] >= 15]
+        if not qual_f.empty:
+            best_fpct = qual_f.sort_values(['fielding_pct', 'chances'], ascending=[False, False]).iloc[0]
+            with f_card1:
+                st.metric("🎯 Mejor % Fildeo (Mín 15 TC)", f"{best_fpct['fielding_pct']:.3f}", f"{best_fpct['player_name']} ({best_fpct['position']})")
+        else:
+            with f_card1:
+                st.metric("🎯 % Fildeo", "N/A")
+
+        # Líder en Asistencias
+        if not fielding_df.empty:
+            lead_a = fielding_df.sort_values('assists', ascending=False).iloc[0]
+            with f_card2:
+                st.metric("🧤 Líder en Asistencias", f"{lead_a['assists']}", f"{lead_a['player_name']} ({lead_a['position']})")
+
+        # Líder en Doble Plays
+        if not fielding_df.empty:
+            lead_dp = fielding_df.sort_values('double_plays', ascending=False).iloc[0]
+            with f_card3:
+                st.metric("⚡ Líder en Doble Plays", f"{lead_dp['double_plays']}", f"{lead_dp['player_name']} ({lead_dp['position']})")
+
+        # Líder en Putouts
+        if not fielding_df.empty:
+            lead_po = fielding_df.sort_values('putouts', ascending=False).iloc[0]
+            with f_card4:
+                st.metric("🛡️ Líder en Outs Realizados", f"{lead_po['putouts']}", f"{lead_po['player_name']} ({lead_po['position']})")
+
+        st.markdown("---")
+
+        # Preparar tabla para visualización
+        display_f = filtered_f.copy()
+        
+        # Mapeo de columnas amigables
+        cols_map = {
+            'player_name': 'Jugador',
+            'position': 'Pos',
+            'games': 'JJ',
+            'games_started': 'JI',
+            'innings': 'Inn',
+            'putouts': 'PO',
+            'assists': 'A',
+            'errors': 'E',
+            'chances': 'TC',
+            'fielding_pct': 'FPCT',
+            'double_plays': 'DP',
+            'range_factor_per_9': 'RF/9',
+            'caught_stealing': 'CS',
+            'stolen_bases': 'SB',
+            'caught_stealing_pct': 'CS%',
+            'passed_balls': 'PB'
+        }
+
+        # Si no es receptor, mostrar columnas estándar
+        if selected_pos == "C":
+            cols_to_show = ['player_name', 'position', 'games', 'games_started', 'innings', 'putouts', 'assists', 'errors', 'chances', 'fielding_pct', 'caught_stealing', 'stolen_bases', 'caught_stealing_pct', 'passed_balls', 'double_plays']
+        else:
+            cols_to_show = ['player_name', 'position', 'games', 'games_started', 'innings', 'putouts', 'assists', 'errors', 'chances', 'fielding_pct', 'double_plays', 'range_factor_per_9']
+
+        cols_avail = [c for c in cols_to_show if c in display_f.columns]
+        display_table = display_f[cols_avail].rename(columns=cols_map).sort_values('TC' if 'TC' in cols_map.values() else 'PO', ascending=False)
+
+        # Formatear números
+        if 'FPCT' in display_table.columns:
+            display_table['FPCT'] = display_table['FPCT'].apply(lambda x: f"{x:.3f}" if isinstance(x, (int, float)) else x)
+        if 'RF/9' in display_table.columns:
+            display_table['RF/9'] = display_table['RF/9'].apply(lambda x: f"{x:.2f}" if isinstance(x, (int, float)) else x)
+        if 'CS%' in display_table.columns:
+            display_table['CS%'] = display_table['CS%'].apply(lambda x: f"{x:.3f}" if isinstance(x, (int, float)) else x)
+
+        st.dataframe(
+            display_table,
+            use_container_width=True,
+            hide_index=True
+        )
+
+        # Gráficos defensivos
+        st.markdown("#### 📊 Comparativas Defensivas")
+        g_col1, g_col2 = st.columns(2)
+
+        with g_col1:
+            top_assists = filtered_f.nlargest(10, 'assists')
+            if not top_assists.empty and top_assists['assists'].sum() > 0:
+                fig_a = px.bar(
+                    top_assists,
+                    x='assists',
+                    y='player_name',
+                    orientation='h',
+                    title='Top 10 — Líderes en Asistencias',
+                    labels={'assists': 'Asistencias', 'player_name': 'Jugador'},
+                    color='assists',
+                    color_continuous_scale=['#1a1a2e', '#FDB827']
+                )
+                fig_a.update_layout(yaxis={'categoryorder': 'total ascending'}, template="plotly_dark", height=380)
+                st.plotly_chart(fig_a, use_container_width=True)
+
+        with g_col2:
+            top_dp = filtered_f.nlargest(10, 'double_plays')
+            if not top_dp.empty and top_dp['double_plays'].sum() > 0:
+                fig_dp = px.bar(
+                    top_dp,
+                    x='double_plays',
+                    y='player_name',
+                    orientation='h',
+                    title='Top 10 — Participación en Double Plays',
+                    labels={'double_plays': 'Double Plays', 'player_name': 'Jugador'},
+                    color='double_plays',
+                    color_continuous_scale=['#1a1a2e', '#CE1141']
+                )
+                fig_dp.update_layout(yaxis={'categoryorder': 'total ascending'}, template="plotly_dark", height=380)
+                st.plotly_chart(fig_dp, use_container_width=True)
+
+    else:
+        st.info("🧤 No hay datos de fildeo disponibles para esta temporada.")
 
 # ==================== TAB 3: COMPARACIONES ====================
 with tab3:

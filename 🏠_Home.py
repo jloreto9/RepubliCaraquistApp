@@ -6,9 +6,16 @@ import numpy as np
 import requests
 from datetime import datetime
 import os
-from dotenv import load_dotenv
-from utils.supabase_client import get_standings, get_recent_games, get_current_season, get_available_seasons, get_leones_advanced_stats, get_batting_stats, get_pitching_stats
-from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS
+from utils.supabase_client import (
+    get_standings,
+    get_recent_games,
+    get_current_season,
+    get_available_seasons,
+    get_leones_advanced_stats,
+    get_batting_stats,
+    get_pitching_stats,
+    get_weekly_records
+)
 from utils.wpa_engine import process_game_wpa_advanced, calculate_player_game_wpa
 
 # Constantes para WPA
@@ -540,6 +547,7 @@ with tab4:
             st.markdown(f"**Home Club:** {advanced_stats.get('home_record', '')}")
             st.markdown(f"**Visitante:** {advanced_stats.get('away_record', '')}")
             st.markdown(f"**De noche:** {advanced_stats.get('night_record', '')}")
+            st.markdown(f"**De día:** {advanced_stats.get('day_record', '')}")
             st.markdown(f"**Blanqueo:** {advanced_stats.get('shutouts', '')}")
             st.markdown(f"**Racha:** {advanced_stats.get('streak', '')}")
             st.markdown(f"**En extrainning:** {advanced_stats.get('extra_inning', '')}")
@@ -566,6 +574,18 @@ with tab4:
             st.markdown(f"**Viernes:** {advanced_stats.get('viernes', '0G-0P')}")
             st.markdown(f"**Sábado:** {advanced_stats.get('sabado', '0G-0P')}")
             st.markdown(f"**Domingo:** {advanced_stats.get('domingo', '0G-0P')}")
+
+        st.markdown("---")
+        st.markdown("#### 📅 Desglose Semana a Semana")
+        weekly_df = get_weekly_records(selected_season, team_id=695, phase="regular")
+        if not weekly_df.empty:
+            st.dataframe(
+                weekly_df[["Semana", "Juegos", "G", "P", "PCT", "CF", "CP", "DIF", "Récord"]],
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.info("No hay datos de desglose semanal disponibles.")
     else:
         st.info("No hay datos disponibles para estadísticas avanzadas.")
 

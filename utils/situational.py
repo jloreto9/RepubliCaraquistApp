@@ -288,3 +288,81 @@ def compute_bvp_summary(df_pas: pd.DataFrame, batter_id: int = None, pitcher_id:
     res_df = pd.DataFrame(rows).sort_values("PA", ascending=False)
     cols = [label_col, "Equipo Rival", "PA", "AB", "H", "2B", "3B", "HR", "BB", "SO", "RBI", "AVG", "OBP", "SLG", "OPS"]
     return res_df[cols]
+
+
+def compute_lob_analytics(df_team_pa: pd.DataFrame) -> tuple[dict, pd.DataFrame]:
+    """
+    Calcula métricas analíticas de Dejados en Base (LOB) para el equipo y por bateador:
+    1. LOB al terminar inning (3er out con corredores en base).
+    2. RISP LOB al terminar inning (3er out con corredores en 2da o 3ra base).
+    3. RISP LOB dentro de inning (0 o 1 out con corredores en 2da o 3ra base donde no se remolcó carrera).
+    4. Total General de Oportunidades RISP LOB.
+    """
+    if df_team_pa.empty:
+        return {}, pd.DataFrame()
+        
+    df = df_team_pa.copy()
+    
+    # Corredores en base y en posición anotadora previos a la jugada
+    df["runners_on_base"] = df["runner_1b"].astype(int) + df["runner_2b"].astype(int) + df["runner_3b"].astype(int)
+    df["runners_in_risp"] = df["runner_2b"].astype(int) + df["runner_3b"].astype(int)
+    
+    # Out registrado en la jugada
+    is_out_event = ~df["is_hit"] & ~df["is_walk"] & ~df["is_hbp"]
+    df["is_out"] = is_out_event
+    
+    # 1. LOB al terminar inning (2 outs antes de la jugada y resultado es out)
+    df["is_inning_ending_out"] = df["is_2_outs"] & df["is_out"]
+    df["lob_inning_ending"] = np.where(df["is_inning_ending_out"], df["runners_on_base"], 0)
+    df["risp_lob_inning_ending"] = np.where(df["is_inning_ending_out"], df["runners_in_risp"], 0)
+    
+    # 2. RISP LOB dentro de inning (0 o 1 out con hombres en RISP, resultado es out y 0 RBI)
+    df["is_mid_inning_risp_out"] = (~df["is_2_outs"]) & df["is_risp"] & df["is_out"] & (df["rbi"] == 0)
+    df["risp_lob_mid_inning"] = np.where(df["is_mid_inning_risp_out"], df["runners_in_risp"], 0)
+    
+    # Total RISP LOB combinado
+    df["risp_lob_total"] = df["risp_lob_inning_ending"] + df["risp_lob_mid_inning"]
+    
+    # Resumen por jugador
+    player_summary = []
+    for b_name, group in df.groupby("batter_name"):
+        pa_count = len(group)
+        if pa_count < 5:
+            continue
+        tot_lob_ending = int(group["lob_inning_ending"].sum())
+        risp_lob_end = int(group["risp_lob_inning_ending"].sum())
+        risp_lob_mid = int(group["risp_lob_mid_inning"].sum())
+        risp_lob_tot = int(group["risp_lob_total"].sum())
+        
+        risp_sub = group[group["is_risp"] == True]
+        risp_opps = len(risp_sub)
+        risp_hits = len(risp_sub[risp_sub["is_hit"] == True])
+        risp_ab = len(risp_sub[risp_sub["is_ab"] == True])
+        risp_avg = (risp_hits / risp_ab) if risp_ab > 0 else 0.0
+        rbi = int(group["rbi"].sum())
+        
+        player_summary.append({
+            "Bateador": b_name,
+            "PA": pa_count,
+            "PA en RISP": risp_opps,
+            "RBI": rbi,
+            "AVG en RISP": f".{int(risp_avg*1000):03d}",
+            "LOB al Terminar Inning": tot_lob_ending,
+            "RISP LOB al Terminar Inning": risp_lob_end,
+            "RISP LOB Dentro de Inning": risp_lob_mid,
+            "Total RISP LOB": risp_lob_tot,
+        })
+        
+    df_players = pd.DataFrame(player_summary).sort_values("Total RISP LOB", ascending=False).reset_index(drop=True)
+    
+    # Totales del equipo
+    team_totals = {
+        "total_pa": len(df),
+        "total_lob_ending": int(df["lob_inning_ending"].sum()),
+        "total_risp_lob_ending": int(df["risp_lob_inning_ending"].sum()),
+        "total_risp_lob_mid": int(df["risp_lob_mid_inning"].sum()),
+        "total_risp_lob": int(df["risp_lob_total"].sum()),
+    }
+    
+    return team_totals, df_players
+

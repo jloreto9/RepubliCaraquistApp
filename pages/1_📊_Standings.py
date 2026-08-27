@@ -12,7 +12,15 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Importar funciones
 try:
-    from utils.supabase_client import get_standings, get_recent_games, init_supabase, get_available_seasons, get_current_season
+    from utils.supabase_client import (
+        get_standings,
+        get_recent_games,
+        init_supabase,
+        get_available_seasons,
+        get_current_season,
+        get_leones_advanced_stats,
+        get_weekly_records
+    )
     from utils.teams import (
         LVBP_TEAMS,
         LVBP_ABBR,
@@ -408,6 +416,31 @@ if not standings_df.empty:
             with col5:
                 diff = leones.get('run_diff', 0)
                 st.metric("🎯 Diferencial", f"{diff:+d}")
+
+            # Desglose situacional avanzado
+            adv = get_leones_advanced_stats(selected_season)
+            if adv:
+                sc1, sc2, sc3, sc4, sc5 = st.columns(5)
+                with sc1:
+                    st.metric("🏠 Home Club", adv.get('home_record', '-'))
+                with sc2:
+                    st.metric("✈️ Visitante", adv.get('away_record', '-'))
+                with sc3:
+                    st.metric("🌙 De Noche", adv.get('night_record', '-'))
+                with sc4:
+                    st.metric("☀️ De Día", adv.get('day_record', '-'))
+                with sc5:
+                    st.metric("⚡ 1 Carrera", adv.get('one_run', '-'))
+
+            # Récord por semana de campeonato
+            st.markdown("##### 📅 Récord por Semana de Campeonato")
+            weekly_df = get_weekly_records(selected_season, team_id=695, phase=selected_phase)
+            if not weekly_df.empty:
+                st.dataframe(
+                    weekly_df[["Semana", "Juegos", "G", "P", "PCT", "CF", "CP", "DIF", "Récord"]],
+                    use_container_width=True,
+                    hide_index=True
+                )
         else:
             st.info("No hay datos de los Leones del Caracas para esta temporada")
 
