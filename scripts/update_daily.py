@@ -2,6 +2,10 @@
 import os
 import sys
 from datetime import datetime, timedelta
+
+# Asegurar que el directorio raíz del proyecto esté en sys.path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from supabase import create_client
 import statsapi
 from utils.elo import BASE_ELO, HOME_ADVANTAGE, K_BY_PHASE, update_elo

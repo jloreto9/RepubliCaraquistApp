@@ -11,26 +11,15 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Importar funciones
-try:
-    from utils.supabase_client import (
-        get_batting_stats,
-        get_pitching_stats,
-        get_individual_fielding_stats,
-        get_current_season,
-        get_available_seasons,
-        init_supabase
-    )
-    from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS, get_brand_logo
-except:
-    from streamlit_app.utils.supabase_client import (
-        get_batting_stats,
-        get_pitching_stats,
-        get_individual_fielding_stats,
-        get_current_season,
-        get_available_seasons,
-        init_supabase
-    )
-    from streamlit_app.utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS, get_brand_logo
+from utils.supabase_client import (
+    get_batting_stats,
+    get_pitching_stats,
+    get_individual_fielding_stats,
+    get_current_season,
+    get_available_seasons,
+    init_supabase
+)
+from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS, get_brand_logo
 
 st.set_page_config(page_title="Estadísticas Individuales - RepubliCaraquistApp", page_icon="⚾", layout="wide")
 
@@ -94,7 +83,7 @@ with tab1:
     st.markdown("### 🏏 Estadísticas de Bateo")
 
     # Obtener datos de bateo para la temporada seleccionada (ya vienen agregados)
-    batting_df = get_batting_stats(team_id=695, limit=100, season=selected_season)
+    batting_df = get_batting_stats(team_id=695, limit=100, season=selected_season).copy()
 
     if not batting_df.empty:
         # Los datos ya vienen con player_name y todas las estadísticas calculadas
@@ -120,9 +109,10 @@ with tab1:
 
             with col1:
                 top_avg = batting_filtered.nlargest(1, 'avg').iloc[0]
+                avg_display = "1.000" if top_avg['avg'] >= 1.0 else f".{int(top_avg['avg']*1000):03d}"
                 st.metric(
                     "AVG Líder",
-                    f".{int(top_avg['avg']*1000):03d}",
+                    avg_display,
                     top_avg['player_name']
                 )
 
@@ -337,7 +327,7 @@ with tab2:
     st.markdown("### ⚾ Estadísticas de Pitcheo")
 
     # Obtener datos de pitcheo para la temporada seleccionada (ya vienen agregados)
-    pitching_df = get_pitching_stats(team_id=695, limit=100, season=selected_season)
+    pitching_df = get_pitching_stats(team_id=695, limit=100, season=selected_season).copy()
 
     if not pitching_df.empty:
         # Los datos ya vienen con player_name y todas las estadísticas calculadas
@@ -583,7 +573,7 @@ with tab_def:
     st.markdown("### 🧤 Estadísticas de Fildeo y Rendimiento Defensivo")
     st.markdown("Analiza la solvencia defensiva, asistencias, dobles matanzas y porcentaje de fildeo de los Leones del Caracas.")
 
-    fielding_df = get_individual_fielding_stats(selected_season, team_id=695)
+    fielding_df = get_individual_fielding_stats(selected_season, team_id=695).copy()
 
     if not fielding_df.empty:
         # Convertir columnas numéricas de inmediato
@@ -743,7 +733,7 @@ with tab_def:
             | **RF/9** | Factor de Rango por 9 Entradas | $\text{RF/9} = \frac{(PO + A) \times 9}{Inn}$. Cantidad de outs en los que participa por cada 9 innings jugados. | Mide el **alcance y cobertura de terreno** (a mayor RF/9, mayor terreno cubre el defensor). |
             | **CS** | Corredores Atrapados Robando (Caught Stealing) | Corredores puestos out por el tiro del receptor intentando robar base. | Métrica exclusiva para catchers. |
             | **SB** | Bases Robadas Permitidas | Corredores que le estafaron almohadillas al receptor y lanzador. | Menos es mejor. |
-            | **CS%** | Porcentaje de Captura de Receptores | $\text{CS\%} = \frac{CS}{CS + SB}$. Porcentaje de corredores que fusiló el receptor. | **Brazo de Cañón / Élite:** $> 35.0\%$ | **Bueno:** $28.0\% - 34.0\%$ | **Vulnerable:** $< 20.0\%$. |
+            | **CS%** | Porcentaje de Captura de Receptores | $\text{CS\%} = \frac{CS}{CS + SB}$. Porcentaje de corredores que fusiló el receptor. | **Brazo de Cañón / Élite:** $> 35.0\%$ | **Bueno:** $28.0\% - 34.0\%$ | **Vulnerable:** $< 20.0\%$ |
             | **PB** | Passed Balls | Lanzamientos normales que se le escapan al receptor permitiendo avance de corredores. | Menos es mejor. |
             """)
 
@@ -755,8 +745,8 @@ with tab3:
     st.markdown("### 📊 Comparaciones y Análisis")
 
     # Verificar si hay datos para la temporada seleccionada (ya vienen agregados)
-    batting_df = get_batting_stats(team_id=695, limit=100, season=selected_season)
-    pitching_df = get_pitching_stats(team_id=695, limit=100, season=selected_season)
+    batting_df = get_batting_stats(team_id=695, limit=100, season=selected_season).copy()
+    pitching_df = get_pitching_stats(team_id=695, limit=100, season=selected_season).copy()
 
     if not batting_df.empty and not pitching_df.empty:
         # Los datos ya vienen con todas las columnas y estadísticas calculadas
@@ -882,7 +872,8 @@ with tab3:
                 total_hr = batting_df['hr'].sum() if 'hr' in batting_df.columns else 0
                 total_rbi = batting_df['rbi'].sum() if 'rbi' in batting_df.columns else 0
                 total_h = batting_df['h'].sum() if 'h' in batting_df.columns else 0
-                team_avg = batting_df['avg'].mean() if 'avg' in batting_df.columns else 0
+                total_ab = batting_df['ab'].sum() if 'ab' in batting_df.columns else 0
+                team_avg = (total_h / total_ab) if total_ab > 0 else 0.0
 
                 metric_col1, metric_col2 = st.columns(2)
                 with metric_col1:
@@ -895,10 +886,15 @@ with tab3:
         with analysis_col2:
             st.markdown("##### ⚾ Resumen de Pitcheo")
             if not pitching_df.empty:
-                team_era = pitching_df['era'].mean() if 'era' in pitching_df.columns else 0
+                total_ip = pitching_df['ip'].sum() if 'ip' in pitching_df.columns else 0.0
+                total_er = pitching_df['er'].sum() if 'er' in pitching_df.columns else 0
+                total_p_h = pitching_df['h'].sum() if 'h' in pitching_df.columns else 0
+                total_p_bb = pitching_df['bb'].sum() if 'bb' in pitching_df.columns else 0
                 total_so = pitching_df['so'].sum() if 'so' in pitching_df.columns else 0
                 total_wins = pitching_df['w'].sum() if 'w' in pitching_df.columns else 0
-                team_whip = pitching_df['whip'].mean() if 'whip' in pitching_df.columns else 0
+
+                team_era = ((total_er * 9.0) / total_ip) if total_ip > 0 else 0.0
+                team_whip = ((total_p_h + total_p_bb) / total_ip) if total_ip > 0 else 0.0
 
                 metric_col1, metric_col2 = st.columns(2)
                 with metric_col1:
@@ -922,7 +918,7 @@ with tab3:
 # Footer
 st.markdown("---")
 st.markdown("""
-<div style='text-align: center; color: #666; padding: 1rem;'>
+<div style='text-align: center; color: #94A3B8; padding: 1rem;'>
     <p>📊 Estadísticas actualizadas diariamente | 🦁 Leones del Caracas - LVBP</p>
     <p style='font-size: 0.8rem;'>Los datos se sincronizan automáticamente con la base de datos</p>
 </div>

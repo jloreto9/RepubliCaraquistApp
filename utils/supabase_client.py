@@ -1,8 +1,8 @@
-# utils/supabase_client.py
 import os
 from supabase import create_client, Client
 import streamlit as st
 import pandas as pd
+import numpy as np
 import requests
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
@@ -552,9 +552,13 @@ def get_batting_stats(team_id=695, limit=50, season=None):
         grouped = df.groupby(['player_id', 'player_name']).agg(agg_dict).reset_index()
 
         # Calcular estadísticas derivadas
-        grouped['avg'] = (grouped['h'] / grouped['ab']).fillna(0).round(3)
-        grouped['obp'] = ((grouped['h'] + grouped['bb']) / (grouped['ab'] + grouped['bb'])).fillna(0).round(3)
-        grouped['slg'] = ((grouped['h'] + grouped['doubles'] + 2*grouped['triples'] + 3*grouped['hr']) / grouped['ab']).fillna(0).round(3)
+        hbp_col = grouped['hbp'] if 'hbp' in grouped.columns else 0
+        sf_col = grouped['sf'] if 'sf' in grouped.columns else 0
+        obp_den = grouped['ab'] + grouped['bb'] + hbp_col + sf_col
+
+        grouped['avg'] = np.where(grouped['ab'] > 0, (grouped['h'] / grouped['ab']), 0.0).round(3)
+        grouped['obp'] = np.where(obp_den > 0, ((grouped['h'] + grouped['bb'] + hbp_col) / obp_den), 0.0).round(3)
+        grouped['slg'] = np.where(grouped['ab'] > 0, ((grouped['h'] + grouped['doubles'] + 2*grouped['triples'] + 3*grouped['hr']) / grouped['ab']), 0.0).round(3)
         grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
 
         # Crear columna 'players' con el formato esperado
@@ -626,8 +630,8 @@ def get_pitching_stats(team_id=695, limit=50, season=None):
         })
 
         # Calcular estadísticas derivadas
-        grouped['era'] = ((grouped['er'] * 9) / grouped['ip']).fillna(0).round(2)
-        grouped['whip'] = ((grouped['h'] + grouped['bb']) / grouped['ip']).fillna(0).round(2)
+        grouped['era'] = np.where(grouped['ip'] > 0, ((grouped['er'] * 9.0) / grouped['ip']), 0.0).round(2)
+        grouped['whip'] = np.where(grouped['ip'] > 0, ((grouped['h'] + grouped['bb']) / grouped['ip']), 0.0).round(2)
 
         # Estas estadísticas no están disponibles en el boxscore individual
         # Las inicializamos en 0 por ahora
@@ -652,7 +656,7 @@ def calculate_batting_stats(df):
     if df.empty:
         return df
     
-    grouped = df.groupby('player_id').agg({
+    agg_dict = {
         'ab': 'sum',
         'r': 'sum',
         'h': 'sum',
@@ -663,12 +667,26 @@ def calculate_batting_stats(df):
         'bb': 'sum',
         'so': 'sum',
         'sb': 'sum'
-    }).reset_index()
+    }
+    if 'hbp' in df.columns:
+        agg_dict['hbp'] = 'sum'
+    if 'sf' in df.columns:
+        agg_dict['sf'] = 'sum'
+    if 'sh' in df.columns:
+        agg_dict['sh'] = 'sum'
+    if 'cs' in df.columns:
+        agg_dict['cs'] = 'sum'
+
+    grouped = df.groupby('player_id').agg(agg_dict).reset_index()
     
     # Calcular promedios
-    grouped['avg'] = (grouped['h'] / grouped['ab']).round(3).fillna(0)
-    grouped['obp'] = ((grouped['h'] + grouped['bb']) / (grouped['ab'] + grouped['bb'])).round(3).fillna(0)
-    grouped['slg'] = ((grouped['h'] + grouped['doubles'] + 2*grouped['triples'] + 3*grouped['hr']) / grouped['ab']).round(3).fillna(0)
+    hbp_col = grouped['hbp'] if 'hbp' in grouped.columns else 0
+    sf_col = grouped['sf'] if 'sf' in grouped.columns else 0
+    obp_den = grouped['ab'] + grouped['bb'] + hbp_col + sf_col
+
+    grouped['avg'] = np.where(grouped['ab'] > 0, (grouped['h'] / grouped['ab']), 0.0).round(3)
+    grouped['obp'] = np.where(obp_den > 0, ((grouped['h'] + grouped['bb'] + hbp_col) / obp_den), 0.0).round(3)
+    grouped['slg'] = np.where(grouped['ab'] > 0, ((grouped['h'] + grouped['doubles'] + 2*grouped['triples'] + 3*grouped['hr']) / grouped['ab']), 0.0).round(3)
     grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
     
     return grouped.sort_values('avg', ascending=False)

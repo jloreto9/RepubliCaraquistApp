@@ -54,7 +54,7 @@ selected_season_str = st.sidebar.selectbox("⚾ Temporada", season_options, inde
 selected_season = int(selected_season_str.split("-")[0])
 
 with st.spinner("Cargando datos de batazos de la temporada..."):
-    df_raw = fetch_season_batted_balls(selected_season, team_id=LEONES_TEAM_ID)
+    df_raw = fetch_season_batted_balls(selected_season, team_id=LEONES_TEAM_ID).copy()
 
 if df_raw.empty:
     st.warning(f"⚠️ No se encontraron datos de pelotas en juego para la temporada {selected_season_str}.")

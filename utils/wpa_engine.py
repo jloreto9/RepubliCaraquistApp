@@ -1,4 +1,4 @@
-﻿# utils/wpa_engine.py
+# utils/wpa_engine.py
 """
 Motor Sabermétrico de Win Expectancy (WE), Win Probability Added (WPA) y Leverage Index (LI)
 Basado en modelos estocásticos de 24 estados Base-Out (RE24) y distribuciones de carreras restantes.
@@ -31,20 +31,37 @@ AVG_RUNS_PER_INNING = 0.50
 VAR_PER_INNING = 1.25
 
 
+BASE_STATE_MAP = {
+    (False, False, False): 0,  # ---
+    (True, False, False): 1,   # 1--
+    (False, True, False): 2,   # -2-
+    (False, False, True): 3,   # --3
+    (True, True, False): 4,    # 12-
+    (True, False, True): 5,    # 1-3
+    (False, True, True): 6,    # -23
+    (True, True, True): 7,     # 123
+}
+
+BASE_STATE_DIAMONDS = {
+    0: ("◇", "◇", "◇"),  # ---
+    1: ("◇", "◇", "◆"),  # 1--
+    2: ("◇", "◆", "◇"),  # -2-
+    3: ("◆", "◇", "◇"),  # --3
+    4: ("◇", "◆", "◆"),  # 12-
+    5: ("◆", "◇", "◆"),  # 1-3
+    6: ("◆", "◆", "◇"),  # -23
+    7: ("◆", "◆", "◆"),  # 123
+}
+
+
 def encode_base_state(on_1b: bool, on_2b: bool, on_3b: bool) -> int:
-    """Codifica el estado de bases en un entero de 0 a 7"""
-    return int(bool(on_1b)) * 1 + int(bool(on_2b)) * 2 + int(bool(on_3b)) * 4
+    """Codifica el estado de bases en un entero de 0 a 7 alineado exactamente con la matriz RE24."""
+    return BASE_STATE_MAP.get((bool(on_1b), bool(on_2b), bool(on_3b)), 0)
 
 
 def format_base_state(base_state: int) -> str:
-    """Retorna representación visual de las bases (ej: '◆ ◇ ◇')"""
-    on_1b = bool(base_state & 1)
-    on_2b = bool(base_state & 2)
-    on_3b = bool(base_state & 4)
-    
-    b3 = "◆" if on_3b else "◇"
-    b2 = "◆" if on_2b else "◇"
-    b1 = "◆" if on_1b else "◇"
+    """Retorna representación visual de las bases (ej: '◆ ◇ ◇') alineada con RE24."""
+    b3, b2, b1 = BASE_STATE_DIAMONDS.get(base_state, ("◇", "◇", "◇"))
     return f"{b3} {b2} {b1}"
 
 
@@ -373,10 +390,7 @@ def get_season_wpa_leaderboard(season: int = 2025) -> Dict[str, Any]:
     Procesa todos los juegos de la temporada para calcular los rankings acumulados
     de WPA, WPA/LI, Clutch y las mejores jugadas de todo el año.
     """
-    try:
-        from utils.supabase_client import init_supabase
-    except Exception:
-        from streamlit_app.utils.supabase_client import init_supabase
+    from utils.supabase_client import init_supabase
         
     supabase = init_supabase()
     games_response = supabase.table('games') \

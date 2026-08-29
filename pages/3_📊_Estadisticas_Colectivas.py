@@ -10,34 +10,19 @@ import sys
 # Agregar el directorio padre al path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-try:
-    from utils.supabase_client import (
-        get_collective_team_stats,
-        get_available_seasons,
-        get_current_season
-    )
-    from utils.teams import (
-        get_team_logo,
-        get_team_name,
-        get_team_abbr,
-        get_team_color,
-        LVBP_TEAMS,
-        get_brand_logo
-    )
-except:
-    from streamlit_app.utils.supabase_client import (
-        get_collective_team_stats,
-        get_available_seasons,
-        get_current_season
-    )
-    from streamlit_app.utils.teams import (
-        get_team_logo,
-        get_team_name,
-        get_team_abbr,
-        get_team_color,
-        LVBP_TEAMS,
-        get_brand_logo
-    )
+from utils.supabase_client import (
+    get_collective_team_stats,
+    get_available_seasons,
+    get_current_season
+)
+from utils.teams import (
+    get_team_logo,
+    get_team_name,
+    get_team_abbr,
+    get_team_color,
+    LVBP_TEAMS,
+    get_brand_logo
+)
 
 st.set_page_config(
     page_title="Estadísticas Colectivas - RepubliCaraquistApp",

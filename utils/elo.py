@@ -22,28 +22,16 @@ K_BY_PHASE = {
     'unknown': 20,
 }
 
-try:
-    from utils.teams import (
-        LVBP_TEAMS,
-        LVBP_ABBR,
-        LVBP_COLORS,
-        get_team_logo,
-        get_team_name,
-        get_team_abbr,
-        get_team_color,
-        resolve_team_id
-    )
-except ImportError:
-    from streamlit_app.utils.teams import (
-        LVBP_TEAMS,
-        LVBP_ABBR,
-        LVBP_COLORS,
-        get_team_logo,
-        get_team_name,
-        get_team_abbr,
-        get_team_color,
-        resolve_team_id
-    )
+from utils.teams import (
+    LVBP_TEAMS,
+    LVBP_ABBR,
+    LVBP_COLORS,
+    get_team_logo,
+    get_team_name,
+    get_team_abbr,
+    get_team_color,
+    resolve_team_id
+)
 
 
 def expected_score(r_a: float, r_b: float) -> float:

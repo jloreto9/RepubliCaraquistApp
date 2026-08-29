@@ -81,7 +81,7 @@ with col2:
                            text-shadow: 2px 2px 4px rgba(0,0,0,0.3); margin: 0;'>
                     RepubliCaraquistApp
                 </h1>
-                <p style='font-size: clamp(0.85rem, 2.5vw, 1rem); color: #666; margin: 5px 0;'>
+                <p style='font-size: clamp(0.85rem, 2.5vw, 1rem); color: #94A3B8; margin: 5px 0;'>
                     Análisis Avanzado de los Leones del Caracas - LVBP
                 </p>
             </div>
@@ -89,9 +89,6 @@ with col2:
 
 with col3:
     st.write("")
-
-# Importar funciones DESPUÉS del header
-from utils.supabase_client import get_standings, get_recent_games, get_current_season, get_available_seasons
 
 # Sidebar COMPLETO
 with st.sidebar:
@@ -594,9 +591,9 @@ with tab4:
 
 # Footer
 st.markdown("""
-<div style='text-align: center; color: #666; padding: 2rem;'>
+<div style='text-align: center; color: #94A3B8; padding: 2rem;'>
     <p>Desarrollado por Jorge Leonardo Loreto</p>
-    <p>📊 Científico de Datos | ⚾ Analista de Béisbol | 🦁 Fanático de los Leones del Caracas</p>
+    <p>📊 AI Data Scientist | ⚾ Analista de Béisbol | 🦁 Fanático de los Leones del Caracas</p>
     <p>Twitter: @JorgeLoreto / @RepubCaraquista</p>
     <p>📊 Datos actualizados diariamente a las 2:00 AM VET</p>
     <p>Powered by MLB Stats API & Supabase</p>

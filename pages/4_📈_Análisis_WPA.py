@@ -15,44 +15,24 @@ import os
 # Path imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-try:
-    from utils.supabase_client import init_supabase, get_available_seasons, get_current_season
-    from utils.teams import (
-        LVBP_TEAMS,
-        LVBP_ABBR,
-        LVBP_COLORS,
-        get_team_logo,
-        get_team_name,
-        get_team_abbr,
-        get_team_color,
-        resolve_team_id,
-        get_brand_logo
-    )
-    from utils.wpa_engine import (
-        process_game_wpa_advanced,
-        calculate_player_game_wpa,
-        get_season_wpa_leaderboard,
-        format_base_state
-    )
-except Exception:
-    from streamlit_app.utils.supabase_client import init_supabase, get_available_seasons, get_current_season
-    from streamlit_app.utils.teams import (
-        LVBP_TEAMS,
-        LVBP_ABBR,
-        LVBP_COLORS,
-        get_team_logo,
-        get_team_name,
-        get_team_abbr,
-        get_team_color,
-        resolve_team_id,
-        get_brand_logo
-    )
-    from streamlit_app.utils.wpa_engine import (
-        process_game_wpa_advanced,
-        calculate_player_game_wpa,
-        get_season_wpa_leaderboard,
-        format_base_state
-    )
+from utils.supabase_client import init_supabase, get_available_seasons, get_current_season
+from utils.teams import (
+    LVBP_TEAMS,
+    LVBP_ABBR,
+    LVBP_COLORS,
+    get_team_logo,
+    get_team_name,
+    get_team_abbr,
+    get_team_color,
+    resolve_team_id,
+    get_brand_logo
+)
+from utils.wpa_engine import (
+    process_game_wpa_advanced,
+    calculate_player_game_wpa,
+    get_season_wpa_leaderboard,
+    format_base_state
+)
 
 st.set_page_config(
     page_title="Análisis WPA & Apalancamiento - RepubliCaraquistApp",
@@ -231,7 +211,7 @@ def create_wp_evolution_chart(df_wpa: pd.DataFrame, game_info: dict) -> go.Figur
                 text=f"<b>{res_str}</b>",
                 showarrow=False,
                 font=dict(size=13, color=res_color),
-                bgcolor='rgba(255, 255, 255, 0.9)',
+                bgcolor='rgba(13, 21, 43, 0.9)',
                 bordercolor=res_color,
                 borderwidth=2,
                 borderpad=4

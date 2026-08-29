@@ -1,6 +1,7 @@
 # pages/Standings.py
 import streamlit as st
 import pandas as pd
+import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime
@@ -11,52 +12,32 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Importar funciones
-try:
-    from utils.supabase_client import (
-        get_standings,
-        get_recent_games,
-        init_supabase,
-        get_available_seasons,
-        get_current_season,
-        get_leones_advanced_stats,
-        get_weekly_records
-    )
-    from utils.teams import (
-        LVBP_TEAMS,
-        LVBP_ABBR,
-        LVBP_COLORS,
-        get_team_logo,
-        get_team_name,
-        get_team_abbr,
-        get_team_color,
-        resolve_team_id,
-        get_brand_logo
-    )
-    from utils.elo import (
-        calculate_matchup_win_prob,
-        simulate_monte_carlo_projections,
-        BASE_ELO,
-        HOME_ADVANTAGE
-    )
-except:
-    from streamlit_app.utils.supabase_client import get_standings, get_recent_games, init_supabase, get_available_seasons, get_current_season
-    from streamlit_app.utils.teams import (
-        LVBP_TEAMS,
-        LVBP_ABBR,
-        LVBP_COLORS,
-        get_team_logo,
-        get_team_name,
-        get_team_abbr,
-        get_team_color,
-        resolve_team_id,
-        get_brand_logo
-    )
-    from streamlit_app.utils.elo import (
-        calculate_matchup_win_prob,
-        simulate_monte_carlo_projections,
-        BASE_ELO,
-        HOME_ADVANTAGE
-    )
+from utils.supabase_client import (
+    get_standings,
+    get_recent_games,
+    init_supabase,
+    get_available_seasons,
+    get_current_season,
+    get_leones_advanced_stats,
+    get_weekly_records
+)
+from utils.teams import (
+    LVBP_TEAMS,
+    LVBP_ABBR,
+    LVBP_COLORS,
+    get_team_logo,
+    get_team_name,
+    get_team_abbr,
+    get_team_color,
+    resolve_team_id,
+    get_brand_logo
+)
+from utils.elo import (
+    calculate_matchup_win_prob,
+    simulate_monte_carlo_projections,
+    BASE_ELO,
+    HOME_ADVANTAGE
+)
 
 ELO_PHASE_OPTIONS = {
     "regular": "1. Temporada Regular",
@@ -491,7 +472,8 @@ if not standings_df.empty:
             tot_games = pyth_df['wins'].astype(float) + pyth_df['losses'].astype(float)
             
             # Exponente estándar 1.83
-            pyth_pct = (cf**1.83) / ((cf**1.83) + (cp**1.83))
+            denom_pyth = (cf**1.83) + (cp**1.83)
+            pyth_pct = np.where(denom_pyth > 0, (cf**1.83) / denom_pyth, 0.500)
             pyth_df['xW'] = (pyth_pct * tot_games).round(1)
             pyth_df['xL'] = (tot_games - pyth_df['xW']).round(1)
             pyth_df['W_diff'] = (pyth_df['wins'] - pyth_df['xW']).round(1)
@@ -525,8 +507,8 @@ if not standings_df.empty:
             # Tabla formateada
             pyth_display = pyth_df[['team_name', 'wins', 'losses', 'runs_for', 'runs_against', 'run_diff', 'pct', 'pyth_pct', 'xW', 'W_diff']].copy()
             pyth_display['Logo'] = pyth_display['team_name'].apply(lambda x: get_team_logo(x, size=72))
-            pyth_display['pct_fmt'] = pyth_display['pct'].apply(lambda x: f".{int(x*1000):03d}")
-            pyth_display['pyth_fmt'] = pyth_display['pyth_pct'].apply(lambda x: f".{int(x*1000):03d}")
+            pyth_display['pct_fmt'] = pyth_display['pct'].apply(lambda x: ".000" if pd.isna(x) else ("1.000" if x >= 1.0 else f".{int(x*1000):03d}"))
+            pyth_display['pyth_fmt'] = pyth_display['pyth_pct'].apply(lambda x: ".500" if pd.isna(x) else ("1.000" if x >= 1.0 else f".{int(x*1000):03d}"))
             pyth_display['diff_fmt'] = pyth_display['W_diff'].apply(lambda x: f"{x:+.1f}")
             pyth_display['diagnostico'] = pyth_display['W_diff'].apply(
                 lambda x: "🔥 Sobre-rendimiento (Clutch)" if x >= 1.5 else ("❄️ Sub-rendimiento (Mala Suerte)" if x <= -1.5 else "⚖️ En línea con lo esperado")
