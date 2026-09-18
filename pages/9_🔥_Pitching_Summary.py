@@ -608,7 +608,7 @@ with tab_graphs:
 # ── 10. Generación y Descarga de la Tarjeta Gráfica Oficial ────────────────────
 
 with tab_card:
-    st.markdown("### 🖼️ Tarjeta Panorámica Oficial de Pitcheo (Matplotlib HD)")
+    st.markdown("### 🖼️ Tarjeta Panorámica Oficial de Pitcheo")
     st.caption("Resolución de exportación: 2400 x 1350 px a 300 DPI • Diseño inspirado en Thomas Nestico (@TJStats)")
 
     # Botón para forzar generación o regeneración

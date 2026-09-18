@@ -246,6 +246,19 @@ class TestPitchingCardHDGeneration(unittest.TestCase):
         self.assertEqual(_get_pitch_color("Changeup"), (29, 190, 58))
         self.assertEqual(_get_pitch_color("Otro Pitcheo"), (140, 140, 140))
 
+    def test_build_card_streamlit_named_args(self):
+        """Valida que build_pitching_summary_card acepte pitcher_info, game_summary, analysis, etc."""
+        png_bytes = build_pitching_summary_card(
+            pitcher_info=self.dummy_pitcher,
+            game_summary=self.dummy_game,
+            analysis=self.dummy_statcast_analysis,
+            is_lvbp=False,
+            mode="game",
+            season=2024,
+        )
+        self.assertIsInstance(png_bytes, bytes)
+        self.assertGreater(len(png_bytes), 50000)
+
 
 class TestMatchup360Card(unittest.TestCase):
     """Pruebas del generador gráfico de tarjetas Matchup 360 H2H (utils/matchup_card.py)."""

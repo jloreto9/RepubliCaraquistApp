@@ -1203,57 +1203,89 @@ def build_lvbp_matplotlib_summary(
 # ── 5. Wrapper de Compatibilidad Retroactiva ───────────────────────────────────
 
 def build_pitching_summary_card(
-    pitcher_data: Dict[str, Any],
-    game_data: Dict[str, Any],
-    pitch_analysis: Dict[str, Any],
+    pitcher_data: Optional[Dict[str, Any]] = None,
+    game_data: Optional[Dict[str, Any]] = None,
+    pitch_analysis: Optional[Dict[str, Any]] = None,
     is_lvbp: bool = False,
     season: int = 2024,
+    # Parámetros alternativos y expandidos para compatibilidad universal
+    pitcher_info: Optional[Dict[str, Any]] = None,
+    game_summary: Optional[Dict[str, Any]] = None,
+    analysis: Optional[Dict[str, Any]] = None,
+    mode: str = "game",
+    game_logs: Optional[List[Dict[str, Any]]] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    df_statcast: Optional[pd.DataFrame] = None,
+    df: Optional[pd.DataFrame] = None,
+    dpi: int = 150,
+    **kwargs,
 ) -> bytes:
     """
-    Función de compatibilidad retroactiva para los tests unitarios previos.
-    Garantiza retorno de bytes PNG de tamaño exacto CANVAS_SIZE a 300 DPI.
+    Función de compatibilidad universal para generación de tarjetas HD (2400x1350 px a 300 DPI).
+    Admite indistintamente (pitcher_info / pitcher_data), (game_summary / game_data),
+    (analysis / pitch_analysis), modos de tiempo ('game', 'season', 'range') y DataFrames Statcast.
     """
+    p_info = pitcher_info or pitcher_data or {}
+    g_data = game_summary or game_data or {}
+    p_analysis = analysis or pitch_analysis or {}
+    statcast_df = df if df is not None else df_statcast
+
     if is_lvbp:
-        raw_bytes = build_lvbp_matplotlib_summary(pitcher_data, game_data, pitch_analysis, season=season, dpi=150)
+        raw_bytes = build_lvbp_matplotlib_summary(
+            pitcher_info=p_info,
+            game_summary=g_data,
+            analysis=p_analysis,
+            season=season,
+            dpi=dpi,
+            mode=mode,
+            start_date=start_date,
+            end_date=end_date,
+            game_logs=game_logs,
+        )
     else:
-        # Convertir pitch_analysis en un DataFrame compatible
-        pitches = pitch_analysis.get("pitches", [])
-        if pitches:
-            df = pd.DataFrame(pitches)
-            if 'pitch_name' in df.columns and 'pitch_type' not in df.columns:
-                # Mapear nombre a abreviatura
-                rev_pitch = {v['name'].lower(): k for k, v in PITCH_COLOURS.items()}
-                df['pitch_type'] = df['pitch_name'].apply(lambda n: rev_pitch.get(str(n).lower(), 'FF'))
-            if 'release_speed' not in df.columns:
-                df['release_speed'] = 93.0
-            if 'pfx_x' not in df.columns:
-                df['pfx_x'] = df.get('hb', 0.0)
-            if 'pfx_z' not in df.columns:
-                df['pfx_z'] = df.get('ivb', 0.0)
-            if 'game_date' not in df.columns:
-                df['game_date'] = game_data.get('date', '2024-04-17')
-            if 'p_throws' not in df.columns:
-                df['p_throws'] = pitcher_data.get('throws', 'R')
-            df['swing'] = True
-            df['whiff'] = df.get('is_whiff', False)
-            df['in_zone'] = True
-            df['out_zone'] = False
-            df['chase'] = False
+        if statcast_df is not None and not statcast_df.empty:
+            df_to_use = statcast_df
         else:
-            df = pd.DataFrame()
+            pitches = p_analysis.get("pitches", [])
+            if pitches:
+                df_to_use = pd.DataFrame(pitches)
+                if 'pitch_name' in df_to_use.columns and 'pitch_type' not in df_to_use.columns:
+                    rev_pitch = {v['name'].lower(): k for k, v in PITCH_COLOURS.items()}
+                    df_to_use['pitch_type'] = df_to_use['pitch_name'].apply(lambda n: rev_pitch.get(str(n).lower(), 'FF'))
+                if 'release_speed' not in df_to_use.columns:
+                    df_to_use['release_speed'] = 93.0
+                if 'pfx_x' not in df_to_use.columns:
+                    df_to_use['pfx_x'] = df_to_use.get('hb', 0.0)
+                if 'pfx_z' not in df_to_use.columns:
+                    df_to_use['pfx_z'] = df_to_use.get('ivb', 0.0)
+                if 'game_date' not in df_to_use.columns:
+                    df_to_use['game_date'] = g_data.get('date', '2024-04-17')
+                if 'p_throws' not in df_to_use.columns:
+                    df_to_use['p_throws'] = p_info.get('throws', 'R')
+                df_to_use['swing'] = True
+                df_to_use['whiff'] = df_to_use.get('is_whiff', False)
+                df_to_use['in_zone'] = True
+                df_to_use['out_zone'] = False
+                df_to_use['chase'] = False
+            else:
+                df_to_use = pd.DataFrame()
 
         raw_bytes = build_nestico_pitching_summary(
-            df=df,
-            pitcher_info=pitcher_data,
-            mode="game",
+            df=df_to_use,
+            pitcher_info=p_info,
+            mode=mode,
             season=season,
-            game_summary=game_data,
-            dpi=150
+            start_date=start_date,
+            end_date=end_date,
+            game_summary=g_data,
+            dpi=dpi,
         )
 
-    # Redimensionar al CANVAS_SIZE exacto (2400x1350) para pasar la suite de tests
+    # Redimensionar al CANVAS_SIZE exacto (2400x1350) para garantizar salida HD 300 DPI
     im = Image.open(io.BytesIO(raw_bytes))
     im_resized = im.resize(CANVAS_SIZE, Image.Resampling.LANCZOS)
     out_buf = io.BytesIO()
     im_resized.save(out_buf, format="PNG", dpi=DPI)
     return out_buf.getvalue()
+
