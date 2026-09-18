@@ -608,8 +608,11 @@ with tab_graphs:
 # ── 10. Generación y Descarga de la Tarjeta Gráfica Oficial ────────────────────
 
 with tab_card:
-    st.markdown("### 🖼️ Tarjeta Panorámica Oficial de Pitcheo")
-    st.caption("Resolución de exportación: 2400 x 1350 px a 300 DPI • Diseño inspirado en Thomas Nestico (@TJStats)")
+    st.markdown("### 🖼️ Tarjeta Oficial de Pitcheo")
+    if active_branch == "lvbp":
+        st.caption("Resolución de exportación: 2400 x 2400 px (1:1) a 300 DPI • Diseño inspirado en Thomas Nestico (@TJStats)")
+    else:
+        st.caption("Resolución de exportación: 2400 x 1350 px (16:9) a 300 DPI • Diseño inspirado en Thomas Nestico (@TJStats)")
 
     # Botón para forzar generación o regeneración
     with st.spinner("Renderizando tarjeta oficial en alta resolución..."):

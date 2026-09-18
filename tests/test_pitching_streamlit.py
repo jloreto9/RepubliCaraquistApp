@@ -34,6 +34,7 @@ from utils.pitching_card import (
     build_pitching_summary_card,
     _get_pitch_color,
     CANVAS_SIZE,
+    CANVAS_SIZE_LVBP,
     DPI,
 )
 from utils.matchup_card import build_matchup_image
@@ -237,7 +238,7 @@ class TestPitchingCardHDGeneration(unittest.TestCase):
 
         img = Image.open(io.BytesIO(png_bytes))
         self.assertEqual(img.format, "PNG")
-        self.assertEqual(img.size, CANVAS_SIZE)
+        self.assertEqual(img.size, CANVAS_SIZE_LVBP)
 
     def test_pitch_colors_coverage(self):
         """Valida que los lanzamientos reconocidos tengan asignación de color."""
