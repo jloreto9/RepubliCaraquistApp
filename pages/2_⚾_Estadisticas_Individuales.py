@@ -19,7 +19,8 @@ from utils.supabase_client import (
     get_available_seasons,
     init_supabase
 )
-from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS, get_brand_logo
+from utils.teams import get_team_logo, get_team_name, get_team_abbr, LVBP_TEAMS, LVBP_ABBR, get_brand_logo
+from utils.matchup_card import build_matchup_image
 
 st.set_page_config(page_title="Estadísticas Individuales - RepubliCaraquistApp", page_icon="⚾", layout="wide")
 
@@ -76,7 +77,7 @@ with col1:
     selected_season = season_options[selected_season_display]
 
 # Tabs principales
-tab1, tab2, tab_def, tab3 = st.tabs(["🏏 Bateo", "⚾ Pitcheo", "🧤 Fildeo / Defensa", "📊 Comparaciones"])
+tab1, tab2, tab_def, tab3 = st.tabs(["🏏 Bateo", "⚾ Pitcheo", "🧤 Fildeo / Defensa", "⚔️ Matchup 360 H2H"])
 
 # ==================== TAB 1: BATEO ====================
 with tab1:
@@ -444,6 +445,29 @@ with tab2:
                 height=400
             )
 
+            # Acceso directo al módulo de Pitching Summary & Telemetría
+            st.markdown("##### 🔥 Telemetría y Tarjetas HD de Pitcheo")
+            col_insp1, col_insp2 = st.columns([3, 1])
+            with col_insp1:
+                pitcher_opts = {
+                    f"{row['player_name']} ({row.get('w', 0)}W-{row.get('l', 0)}L, {float(row.get('era', 0.0)):.2f} ERA, {row.get('so', 0)} K)": row['player_id']
+                    for _, row in pitching_filtered.iterrows()
+                    if 'player_id' in row and pd.notna(row['player_id'])
+                }
+                if pitcher_opts:
+                    sel_p_lbl = st.selectbox(
+                        "Seleccionar lanzador para analizar telemetría y generar tarjeta gráfica Nestico (300 DPI):",
+                        list(pitcher_opts.keys()),
+                        key="sb_inspect_pitcher"
+                    )
+                    sel_p_id = pitcher_opts[sel_p_lbl]
+            with col_insp2:
+                if pitcher_opts:
+                    st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                    if st.button("🔥 Abrir Pitching Summary", key="btn_go_pitching", use_container_width=True):
+                        st.session_state["selected_pitcher_id"] = int(sel_p_id)
+                        st.switch_page("pages/9_🔥_Pitching_Summary.py")
+
             st.markdown("---")
 
             # Gráficos
@@ -571,9 +595,25 @@ with tab2:
 # ==================== TAB DEF: FILDEO / DEFENSA ====================
 with tab_def:
     st.markdown("### 🧤 Estadísticas de Fildeo y Rendimiento Defensivo")
-    st.markdown("Analiza la solvencia defensiva, asistencias, dobles matanzas y porcentaje de fildeo de los Leones del Caracas.")
+    st.markdown("Analiza la solvencia defensiva, asistencias, dobles matanzas y porcentaje de fildeo de los peloteros en la LVBP.")
 
-    fielding_df = get_individual_fielding_stats(selected_season, team_id=695).copy()
+    team_opts = {
+        "🦁 Leones del Caracas": 695,
+        "🌐 Toda la LVBP (Overall)": None,
+        "⚓ Navegantes del Magallanes": 696,
+        "🦈 Tiburones de La Guaira": 698,
+        "🐯 Tigres de Aragua": 699,
+        "🐦 Cardenales de Lara": 693,
+        "🦅 Águilas del Zulia": 692,
+        "🏹 Caribes de Anzoátegui": 694,
+        "🏝️ Bravos de Margarita": 697,
+    }
+    col_t_def, col_f1, col_f2 = st.columns([2, 2, 2])
+    with col_t_def:
+        sel_team_f_name = st.selectbox("Franquicia / Alcance", list(team_opts.keys()), index=0, key="sb_field_team")
+        sel_team_f_id = team_opts[sel_team_f_name]
+
+    fielding_df = get_individual_fielding_stats(selected_season, team_id=sel_team_f_id).copy()
 
     if not fielding_df.empty:
         # Convertir columnas numéricas de inmediato
@@ -587,7 +627,6 @@ with tab_def:
                 fielding_df[col] = pd.to_numeric(fielding_df[col], errors='coerce').fillna(0.0).astype(float)
 
         # Filtros
-        col_f1, col_f2 = st.columns([2, 2])
         with col_f1:
             search_f = st.text_input("🔍 Buscar defensor", placeholder="Nombre del jugador...", key="search_fielding")
         with col_f2:
@@ -740,180 +779,379 @@ with tab_def:
     else:
         st.info("🧤 No hay datos de fildeo disponibles para esta temporada.")
 
-# ==================== TAB 3: COMPARACIONES ====================
+# ==================== TAB 3: MATCHUP 360 H2H ====================
 with tab3:
-    st.markdown("### 📊 Comparaciones y Análisis")
+    st.markdown("### ⚔️ Matchup 360 Head-to-Head (H2H)")
+    st.caption("Comparativa sabermétrica multidimensional cara a cara con radar polar de 8 ejes, percentiles relativos (0-100%) y tarjeta gráfica oficial descargable en PNG (300 DPI).")
 
-    # Verificar si hay datos para la temporada seleccionada (ya vienen agregados)
-    batting_df = get_batting_stats(team_id=695, limit=100, season=selected_season).copy()
-    pitching_df = get_pitching_stats(team_id=695, limit=100, season=selected_season).copy()
+    # Controles superiores de Matchup
+    ctrl_col1, ctrl_col2 = st.columns([1, 1])
+    with ctrl_col1:
+        m360_type = st.radio("Perfil de Jugadores", ["🏏 Bateadores", "⚾ Lanzadores"], horizontal=True, key="m360_radio_type")
+        is_batter = (m360_type == "🏏 Bateadores")
+    with ctrl_col2:
+        sync_phases = st.checkbox("🔄 Sincronizar Fases de Campeonato", value=True, key="m360_sync_phases")
 
-    if not batting_df.empty and not pitching_df.empty:
-        # Los datos ya vienen con todas las columnas y estadísticas calculadas
+    phase_map = {
+        "Temporada Regular": "R",
+        "Round Robin": "L",
+        "Serie Final": "F",
+        "Todas las Fases": "all",
+    }
+    phase_labels = list(phase_map.keys())
 
-        col1, col2 = st.columns(2)
+    team_options_m360 = {
+        "🌐 Toda la LVBP": None,
+        "🦁 Leones del Caracas": 695,
+        "⚓ Navegantes del Magallanes": 696,
+        "🦈 Tiburones de La Guaira": 698,
+        "🐯 Tigres de Aragua": 699,
+        "🐦 Cardenales de Lara": 693,
+        "🦅 Águilas del Zulia": 692,
+        "🏹 Caribes de Anzoátegui": 694,
+        "🏝️ Bravos de Margarita": 697,
+    }
 
-        with col1:
-            st.markdown("#### ⚔️ Comparar Bateadores")
+    # Selectores independientes para Jugador 1 y Jugador 2
+    col_p1, col_p2 = st.columns(2)
 
-            player_names = batting_df['player_name'].unique().tolist()
+    with col_p1:
+        st.markdown("#### 🔴 Jugador 1")
+        col_t1, col_ph1 = st.columns(2)
+        with col_t1:
+            team1_label = st.selectbox("Franquicia 1", list(team_options_m360.keys()), index=1, key="sb_m360_t1")
+            team1_id = team_options_m360[team1_label]
+        with col_ph1:
+            phase1_label = st.selectbox("Fase 1", phase_labels, index=0, key="sb_m360_ph1")
+            phase1_code = phase_map[phase1_label]
 
-            selected_batters = st.multiselect(
-                "Seleccionar bateadores (2-5)",
-                options=player_names,
-                max_selections=5
-            )
+    with col_p2:
+        st.markdown("#### 🔵 Jugador 2")
+        col_t2, col_ph2 = st.columns(2)
+        with col_t2:
+            team2_label = st.selectbox("Franquicia 2", list(team_options_m360.keys()), index=0, key="sb_m360_t2")
+            team2_id = team_options_m360[team2_label]
+        with col_ph2:
+            if sync_phases:
+                phase2_label = phase1_label
+                phase2_code = phase1_code
+                st.selectbox("Fase 2 (Sincronizada)", [phase1_label], disabled=True, key="sb_m360_ph2_sync")
+            else:
+                phase2_label = st.selectbox("Fase 2", phase_labels, index=0, key="sb_m360_ph2")
+                phase2_code = phase_map[phase2_label]
 
-            if len(selected_batters) >= 2:
-                # Filtrar datos
-                comparison_df = batting_df[batting_df['player_name'].isin(selected_batters)]
-
-                # Preparar datos para comparación
-                metrics = ['avg', 'hr', 'rbi', 'ops']
-                available_metrics = [m for m in metrics if m in comparison_df.columns]
-
-                if available_metrics:
-                    # Gráfico de radar
-                    fig_radar = go.Figure()
-
-                    for player in selected_batters:
-                        player_data = comparison_df[comparison_df['player_name'] == player].iloc[0]
-                        values = [player_data.get(m, 0) for m in available_metrics]
-
-                        fig_radar.add_trace(go.Scatterpolar(
-                            r=values,
-                            theta=[m.upper() for m in available_metrics],
-                            fill='toself',
-                            name=player
-                        ))
-
-                    fig_radar.update_layout(
-                        polar=dict(radialaxis=dict(visible=True)),
-                        showlegend=True,
-                        title="Comparación de Bateadores",
-                        height=400
-                    )
-
-                    st.plotly_chart(fig_radar, use_container_width=True)
-
-                    # Tabla comparativa
-                    st.markdown("##### Tabla Comparativa")
-                    compare_cols = ['player_name', 'ab', 'h', 'avg', 'hr', 'rbi', 'ops']
-                    available_compare = [c for c in compare_cols if c in comparison_df.columns]
-                    st.dataframe(
-                        comparison_df[available_compare],
-                        use_container_width=True,
-                        hide_index=True
-                    )
-
-        with col2:
-            st.markdown("#### ⚔️ Comparar Lanzadores")
-
-            pitcher_names = pitching_df['player_name'].unique().tolist()
-
-            selected_pitchers = st.multiselect(
-                "Seleccionar lanzadores (2-5)",
-                options=pitcher_names,
-                max_selections=5
-            )
-
-            if len(selected_pitchers) >= 2:
-                # Filtrar datos
-                comparison_df_p = pitching_df[pitching_df['player_name'].isin(selected_pitchers)]
-
-                # Preparar datos
-                metrics_p = ['w', 'so', 'ip']
-                available_metrics_p = [m for m in metrics_p if m in comparison_df_p.columns]
-
-                if available_metrics_p:
-                    # Gráfico de radar
-                    fig_radar_p = go.Figure()
-
-                    for pitcher in selected_pitchers:
-                        pitcher_data = comparison_df_p[comparison_df_p['player_name'] == pitcher].iloc[0]
-                        values_p = [pitcher_data.get(m, 0) for m in available_metrics_p]
-
-                        fig_radar_p.add_trace(go.Scatterpolar(
-                            r=values_p,
-                            theta=[m.upper() for m in available_metrics_p],
-                            fill='toself',
-                            name=pitcher
-                        ))
-
-                    fig_radar_p.update_layout(
-                        polar=dict(radialaxis=dict(visible=True)),
-                        showlegend=True,
-                        title="Comparación de Lanzadores",
-                        height=400
-                    )
-
-                    st.plotly_chart(fig_radar_p, use_container_width=True)
-
-                    # Tabla comparativa
-                    st.markdown("##### Tabla Comparativa")
-                    compare_cols_p = ['player_name', 'w', 'l', 'era', 'so', 'ip', 'whip']
-                    available_compare_p = [c for c in compare_cols_p if c in comparison_df_p.columns]
-                    st.dataframe(
-                        comparison_df_p[available_compare_p],
-                        use_container_width=True,
-                        hide_index=True
-                    )
-
-        st.markdown("---")
-
-        # Análisis de equipo
-        st.markdown("#### 🦁 Análisis General del Equipo")
-
-        analysis_col1, analysis_col2 = st.columns(2)
-
-        with analysis_col1:
-            st.markdown("##### 🏏 Resumen Ofensivo")
-            if not batting_df.empty:
-                total_hr = batting_df['hr'].sum() if 'hr' in batting_df.columns else 0
-                total_rbi = batting_df['rbi'].sum() if 'rbi' in batting_df.columns else 0
-                total_h = batting_df['h'].sum() if 'h' in batting_df.columns else 0
-                total_ab = batting_df['ab'].sum() if 'ab' in batting_df.columns else 0
-                team_avg = (total_h / total_ab) if total_ab > 0 else 0.0
-
-                metric_col1, metric_col2 = st.columns(2)
-                with metric_col1:
-                    st.metric("Total HR", int(total_hr))
-                    st.metric("Total Hits", int(total_h))
-                with metric_col2:
-                    st.metric("Total RBI", int(total_rbi))
-                    st.metric("AVG Equipo", f"{team_avg:.3f}")
-
-        with analysis_col2:
-            st.markdown("##### ⚾ Resumen de Pitcheo")
-            if not pitching_df.empty:
-                total_ip = pitching_df['ip'].sum() if 'ip' in pitching_df.columns else 0.0
-                total_er = pitching_df['er'].sum() if 'er' in pitching_df.columns else 0
-                total_p_h = pitching_df['h'].sum() if 'h' in pitching_df.columns else 0
-                total_p_bb = pitching_df['bb'].sum() if 'bb' in pitching_df.columns else 0
-                total_so = pitching_df['so'].sum() if 'so' in pitching_df.columns else 0
-                total_wins = pitching_df['w'].sum() if 'w' in pitching_df.columns else 0
-
-                team_era = ((total_er * 9.0) / total_ip) if total_ip > 0 else 0.0
-                team_whip = ((total_p_h + total_p_bb) / total_ip) if total_ip > 0 else 0.0
-
-                metric_col1, metric_col2 = st.columns(2)
-                with metric_col1:
-                    st.metric("ERA Equipo", f"{team_era:.2f}")
-                    st.metric("Total Ponches", int(total_so))
-                with metric_col2:
-                    st.metric("Total Victorias", int(total_wins))
-                    st.metric("WHIP Equipo", f"{team_whip:.2f}")
-
-        # Glosario de Comparativas y Radar
-        with st.expander("📖 Guía: ¿Cómo interpretar las Comparativas y Gráficos de Radar?", expanded=False):
-            st.markdown(r"""
-            ### 🕸️ Gráficos de Radar Multidimensional
-            * **Área poligonal:** A mayor área cubierta por la figura de un jugador, mayor es su dominio integral en las categorías analizadas.
-            * **Superposición:** Permite identificar a simple vista el perfil del jugador (ej. un bateador de poder con alto SLG y HR vs un bateador de contacto con alto AVG y OBP).
-            """)
-
+    # Cargar datos para cada fase
+    if is_batter:
+        pool_all_1 = get_batting_stats(team_id=None, limit=None, season=selected_season, phase=phase1_code)
+        pool_all_2 = pool_all_1 if phase1_code == phase2_code else get_batting_stats(team_id=None, limit=None, season=selected_season, phase=phase2_code)
+        
+        df_p1 = pool_all_1 if team1_id is None else pool_all_1[pool_all_1['team_id'] == team1_id]
+        df_p2 = pool_all_2 if team2_id is None else pool_all_2[pool_all_2['team_id'] == team2_id]
     else:
-        st.info("📊 Se necesitan datos de bateo y pitcheo para realizar comparaciones.")
+        pool_all_1 = get_pitching_stats(team_id=None, limit=None, season=selected_season, phase=phase1_code)
+        pool_all_2 = pool_all_1 if phase1_code == phase2_code else get_pitching_stats(team_id=None, limit=None, season=selected_season, phase=phase2_code)
+
+        df_p1 = pool_all_1 if team1_id is None else pool_all_1[pool_all_1['team_id'] == team1_id]
+        df_p2 = pool_all_2 if team2_id is None else pool_all_2[pool_all_2['team_id'] == team2_id]
+
+    # Selectboxes para los jugadores
+    with col_p1:
+        if not df_p1.empty:
+            p1_names = df_p1['player_name'].unique().tolist()
+            sel_player_1 = st.selectbox("Seleccionar Jugador 1", p1_names, index=0, key="sb_m360_p1")
+            row1 = df_p1[df_p1['player_name'] == sel_player_1].iloc[0].to_dict()
+        else:
+            st.warning("No hay datos para esta franquicia/fase.")
+            row1 = {}
+
+    with col_p2:
+        if not df_p2.empty:
+            p2_names = df_p2['player_name'].unique().tolist()
+            default_p2_idx = 1 if len(p2_names) > 1 and p2_names[0] == row1.get('player_name') else 0
+            sel_player_2 = st.selectbox("Seleccionar Jugador 2", p2_names, index=default_p2_idx, key="sb_m360_p2")
+            row2 = df_p2[df_p2['player_name'] == sel_player_2].iloc[0].to_dict()
+        else:
+            st.warning("No hay datos para esta franquicia/fase.")
+            row2 = {}
+
+    if row1 and row2:
+        st.markdown("---")
+        # Computar Percentiles Sabermétricos (8 ejes)
+        if is_batter:
+            axes = [
+                ("Contacto (AVG)", "avg", True),
+                ("Embasado (OBP)", "obp", True),
+                ("Poder (SLG)", "slg", True),
+                ("Producción (OPS)", "ops", True),
+                ("wOBA", "woba", True),
+                ("wRC+", "wrc_plus", True),
+                ("Extrabases (ISO)", "iso", True),
+                ("Paciencia (BB%)", "bb_pct", True),
+            ]
+            for r in [row1, row2]:
+                ab_val = r.get("ab", 0)
+                h_val = r.get("h", 0)
+                bb_val = r.get("bb", 0)
+                d_val = r.get("doubles", 0)
+                t_val = r.get("triples", 0)
+                hr_val = r.get("hr", 0)
+                singles = max(0, h_val - d_val - t_val - hr_val)
+                tb = singles + 2*d_val + 3*t_val + 4*hr_val
+                r["iso"] = round((tb - h_val) / ab_val, 3) if ab_val > 0 else 0.0
+                pa = ab_val + bb_val + r.get("hbp", 0) + r.get("sf", 0)
+                r["bb_pct"] = round((bb_val / pa) * 100, 1) if pa > 0 else 0.0
+                woba_val = (0.69*bb_val + 0.89*singles + 1.27*d_val + 1.62*t_val + 2.10*hr_val) / pa if pa > 0 else 0.0
+                r["woba"] = round(woba_val, 3)
+                r["wrc_plus"] = int(max(20, min(220, round(100 + (woba_val - 0.320) / 0.320 * 100)))) if pa > 0 else 100
+
+            pool1 = pool_all_1[pool_all_1['ab'] >= 5].to_dict('records') or pool_all_1.to_dict('records')
+            pool2 = pool_all_2[pool_all_2['ab'] >= 5].to_dict('records') or pool_all_2.to_dict('records')
+
+            for p_item in pool1 + pool2:
+                ab_v = p_item.get("ab", 0)
+                h_v = p_item.get("h", 0)
+                bb_v = p_item.get("bb", 0)
+                d_v = p_item.get("doubles", 0)
+                t_v = p_item.get("triples", 0)
+                hr_v = p_item.get("hr", 0)
+                s_v = max(0, h_v - d_v - t_v - hr_v)
+                tb_v = s_v + 2*d_v + 3*t_v + 4*hr_v
+                p_item["iso"] = round((tb_v - h_v) / ab_v, 3) if ab_v > 0 else 0.0
+                pa_v = ab_v + bb_v + p_item.get("hbp", 0) + p_item.get("sf", 0)
+                p_item["bb_pct"] = round((bb_v / pa_v) * 100, 1) if pa_v > 0 else 0.0
+                woba_v = (0.69*bb_v + 0.89*s_v + 1.27*d_v + 1.62*t_v + 2.10*hr_v) / pa_v if pa_v > 0 else 0.0
+                p_item["woba"] = round(woba_v, 3)
+                p_item["wrc_plus"] = int(max(20, min(220, round(100 + (woba_v - 0.320) / 0.320 * 100)))) if pa_v > 0 else 100
+
+        else:
+            axes = [
+                ("Efectividad (ERA)", "era", False),
+                ("Control (WHIP)", "whip", False),
+                ("FIP Independiente", "fip", False),
+                ("Dominio (K/9)", "k9", True),
+                ("Comando (BB/9)", "bb9", False),
+                ("Relación K/BB", "k_bb", True),
+                ("Innings (IP)", "ip", True),
+                ("Ponches (SO)", "so", True),
+            ]
+            for r in [row1, row2]:
+                ip_v = float(r.get("ip", 0.0))
+                so_v = float(r.get("so", 0))
+                bb_v = float(r.get("bb", 0))
+                hr_v = float(r.get("hr", 0))
+                r["k9"] = round((so_v * 9.0) / ip_v, 2) if ip_v > 0 else 0.0
+                r["bb9"] = round((bb_v * 9.0) / ip_v, 2) if ip_v > 0 else 0.0
+                r["k_bb"] = round(so_v / bb_v, 2) if bb_v > 0 else (round(so_v, 2) if so_v > 0 else 1.0)
+                r["fip"] = round(((13*hr_v + 3*bb_v - 2*so_v) / ip_v) + 3.80, 2) if ip_v > 0 else 4.50
+
+            pool1 = pool_all_1[pool_all_1['ip'] >= 2.0].to_dict('records') or pool_all_1.to_dict('records')
+            pool2 = pool_all_2[pool_all_2['ip'] >= 2.0].to_dict('records') or pool_all_2.to_dict('records')
+
+            for p_item in pool1 + pool2:
+                ip_v = float(p_item.get("ip", 0.0))
+                so_v = float(p_item.get("so", 0))
+                bb_v = float(p_item.get("bb", 0))
+                hr_v = float(p_item.get("hr", 0))
+                p_item["k9"] = round((so_v * 9.0) / ip_v, 2) if ip_v > 0 else 0.0
+                p_item["bb9"] = round((bb_v * 9.0) / ip_v, 2) if ip_v > 0 else 0.0
+                p_item["k_bb"] = round(so_v / bb_v, 2) if bb_v > 0 else (round(so_v, 2) if so_v > 0 else 1.0)
+                p_item["fip"] = round(((13*hr_v + 3*bb_v - 2*so_v) / ip_v) + 3.80, 2) if ip_v > 0 else 4.50
+
+        def _get_pct(val, key, higher_better, pool):
+            vals = [float(x.get(key, 0.0) or 0.0) for x in pool]
+            if not vals:
+                return 50
+            if higher_better:
+                return min(100, max(5, int((sum(1 for v in vals if v <= val) / len(vals)) * 100)))
+            else:
+                return min(100, max(5, int((sum(1 for v in vals if v >= val) / len(vals)) * 100)))
+
+        r1_pcts = [_get_pct(float(row1.get(k, 0.0) or 0.0), k, hb, pool1) for _, k, hb in axes]
+        r2_pcts = [_get_pct(float(row2.get(k, 0.0) or 0.0), k, hb, pool2) for _, k, hb in axes]
+        theta_names = [a[0] for a in axes]
+
+        # Comparativa y líder por métrica
+        h2h_rows = []
+        p1_wins = 0
+        p2_wins = 0
+        for i, (name, key, hb) in enumerate(axes):
+            pct1 = r1_pcts[i]
+            pct2 = r2_pcts[i]
+            v1_raw = row1.get(key, 0)
+            v2_raw = row2.get(key, 0)
+            if pct1 > pct2:
+                leader = f"{row1['player_name']} ({row1.get('team_abbr', 'CAR')})"
+                p1_wins += 1
+            elif pct2 > pct1:
+                leader = f"{row2['player_name']} ({row2.get('team_abbr', 'LVBP')})"
+                p2_wins += 1
+            else:
+                leader = "Empate"
+
+            h2h_rows.append({
+                "metric": name,
+                "val_1": f"{v1_raw:.3f}" if isinstance(v1_raw, float) else str(v1_raw),
+                "pct_1": pct1,
+                "pct_1_str": f"P{pct1}",
+                "val_2": f"{v2_raw:.3f}" if isinstance(v2_raw, float) else str(v2_raw),
+                "pct_2": pct2,
+                "pct_2_str": f"P{pct2}",
+                "leader": leader,
+            })
+
+        # Banner de Veredicto
+        if p1_wins > p2_wins:
+            st.success(f"🏆 **Veredicto Sabermétrico:** **{row1['player_name']}** domina **{p1_wins} de {len(axes)}** dimensiones frente a **{row2['player_name']}**.")
+        elif p2_wins > p1_wins:
+            st.info(f"🏆 **Veredicto Sabermétrico:** **{row2['player_name']}** domina **{p2_wins} de {len(axes)}** dimensiones frente a **{row1['player_name']}**.")
+        else:
+            st.warning(f"🤝 **Veredicto Sabermétrico:** **Empate técnico total** ({p1_wins} a {p2_wins}) en las 8 dimensiones sabermétricas.")
+
+        # Radar Polar y Tabla Comparativa
+        col_radar, col_tbl = st.columns([1, 1])
+
+        with col_radar:
+            fig_rad = go.Figure()
+            r1_closed = r1_pcts + [r1_pcts[0]]
+            r2_closed = r2_pcts + [r2_pcts[0]]
+            theta_closed = theta_names + [theta_names[0]]
+
+            fig_rad.add_trace(go.Scatterpolar(
+                r=r1_closed,
+                theta=theta_closed,
+                fill='toself',
+                name=f"🔴 {row1['player_name']} ({row1.get('team_abbr', 'CAR')})",
+                line=dict(color="#FDB827", width=2.5),
+                fillcolor="rgba(253, 184, 39, 0.25)",
+            ))
+            fig_rad.add_trace(go.Scatterpolar(
+                r=r2_closed,
+                theta=theta_closed,
+                fill='toself',
+                name=f"🔵 {row2['player_name']} ({row2.get('team_abbr', 'LVBP')})",
+                line=dict(color="#3B82F6", width=2.5),
+                fillcolor="rgba(59, 130, 246, 0.25)",
+            ))
+            fig_rad.update_layout(
+                polar=dict(
+                    radialaxis=dict(visible=True, range=[0, 100], tickfont=dict(size=10, color="#94A3B8"), gridcolor="rgba(255,255,255,0.1)"),
+                    angularaxis=dict(tickfont=dict(size=11, color="#F8FAFC", family="Inter, sans-serif"), gridcolor="rgba(255,255,255,0.1)"),
+                    bgcolor="#0D152B"
+                ),
+                paper_bgcolor="#070B19",
+                font=dict(color="#94A3B8"),
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=1.05, xanchor="center", x=0.5),
+                height=450,
+                margin=dict(l=40, r=40, t=60, b=40)
+            )
+            st.plotly_chart(fig_rad, use_container_width=True)
+
+        with col_tbl:
+            st.markdown("##### 📊 Desglose de Percentiles Relativos:")
+            df_comp_display = pd.DataFrame(h2h_rows)[["metric", "val_1", "pct_1_str", "val_2", "pct_2_str", "leader"]]
+            df_comp_display.columns = [
+                "Dimensión",
+                f"{row1['player_name']} (Valor)",
+                "Percentil J1",
+                f"{row2['player_name']} (Valor)",
+                "Percentil J2",
+                "Líder"
+            ]
+            st.dataframe(df_comp_display, use_container_width=True, hide_index=True)
+
+        # Generador y Descarga de Tarjeta Matchup 360 HD (300 DPI)
+        st.markdown("---")
+        st.markdown("##### 🖼️ Tarjeta Matchup 360 en Alta Resolución (PNG 300 DPI)")
+        p1_for_card = {
+            "name": row1['player_name'],
+            "team": row1.get('team_name', 'Leones del Caracas'),
+            "team_abbr": row1.get('team_abbr', 'CAR'),
+            "photo_url": f"https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current/w_213,q_auto:best/v1/people/{row1.get('player_id', 0)}/headshot/67/current",
+            "phase": phase1_label,
+            "color_hex": "#FDB827",
+        }
+        p2_for_card = {
+            "name": row2['player_name'],
+            "team": row2.get('team_name', 'Equipo LVBP'),
+            "team_abbr": row2.get('team_abbr', 'LVBP'),
+            "photo_url": f"https://img.mlbstatic.com/mlb-photos/image/upload/d_people:generic:headshot:67:current/w_213,q_auto:best/v1/people/{row2.get('player_id', 0)}/headshot/67/current",
+            "phase": phase2_label,
+            "color_hex": "#3B82F6",
+        }
+
+        with st.spinner("Construyendo tarjeta gráfica HD..."):
+            try:
+                card_png_bytes = build_matchup_image(
+                    player_1=p1_for_card,
+                    player_2=p2_for_card,
+                    h2h_rows=h2h_rows,
+                    is_batter=is_batter,
+                    season=selected_season,
+                    phase=phase1_label,
+                    phase_1=phase1_label,
+                    phase_2=phase2_label,
+                    scale=2.0
+                )
+            except Exception as e:
+                card_png_bytes = None
+
+        if card_png_bytes:
+            st.image(card_png_bytes, use_container_width=True)
+            safe_n1 = "".join(c for c in row1['player_name'] if c.isalnum() or c == "_")
+            safe_n2 = "".join(c for c in row2['player_name'] if c.isalnum() or c == "_")
+            st.download_button(
+                "📥 Descargar Tarjeta Matchup 360 (PNG 300 DPI)",
+                data=card_png_bytes,
+                file_name=f"Matchup360_{safe_n1}_vs_{safe_n2}_{selected_season}.png",
+                mime="image/png",
+                use_container_width=True,
+                key="btn_dl_m360"
+            )
+
+    st.markdown("---")
+
+    # Análisis de equipo (Resumen General Preservado)
+    st.markdown("#### 🦁 Análisis General del Equipo")
+    analysis_col1, analysis_col2 = st.columns(2)
+
+    with analysis_col1:
+        st.markdown("##### 🏏 Resumen Ofensivo")
+        if not batting_df.empty:
+            total_hr = batting_df['hr'].sum() if 'hr' in batting_df.columns else 0
+            total_rbi = batting_df['rbi'].sum() if 'rbi' in batting_df.columns else 0
+            total_h = batting_df['h'].sum() if 'h' in batting_df.columns else 0
+            total_ab = batting_df['ab'].sum() if 'ab' in batting_df.columns else 0
+            team_avg = (total_h / total_ab) if total_ab > 0 else 0.0
+
+            metric_col1, metric_col2 = st.columns(2)
+            with metric_col1:
+                st.metric("Total HR", int(total_hr))
+                st.metric("Total Hits", int(total_h))
+            with metric_col2:
+                st.metric("Total RBI", int(total_rbi))
+                st.metric("AVG Equipo", f"{team_avg:.3f}")
+
+    with analysis_col2:
+        st.markdown("##### ⚾ Resumen de Pitcheo")
+        if not pitching_df.empty:
+            total_ip = pitching_df['ip'].sum() if 'ip' in pitching_df.columns else 0.0
+            total_er = pitching_df['er'].sum() if 'er' in pitching_df.columns else 0
+            total_p_h = pitching_df['h'].sum() if 'h' in pitching_df.columns else 0
+            total_p_bb = pitching_df['bb'].sum() if 'bb' in pitching_df.columns else 0
+            total_so = pitching_df['so'].sum() if 'so' in pitching_df.columns else 0
+            total_wins = pitching_df['w'].sum() if 'w' in pitching_df.columns else 0
+
+            team_era = ((total_er * 9.0) / total_ip) if total_ip > 0 else 0.0
+            team_whip = ((total_p_h + total_p_bb) / total_ip) if total_ip > 0 else 0.0
+
+            metric_col1, metric_col2 = st.columns(2)
+            with metric_col1:
+                st.metric("ERA Equipo", f"{team_era:.2f}")
+                st.metric("Total Ponches", int(total_so))
+            with metric_col2:
+                st.metric("Total Victorias", int(total_wins))
+                st.metric("WHIP Equipo", f"{team_whip:.2f}")
 
 # Footer
 st.markdown("---")

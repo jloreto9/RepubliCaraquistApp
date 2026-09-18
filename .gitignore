@@ -24,3 +24,7 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Cache local y data pesada
+.cache/
+*.parquet

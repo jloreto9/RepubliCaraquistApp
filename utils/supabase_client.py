@@ -1,3 +1,4 @@
+from typing import Any, Dict, List, Optional, Union
 import os
 from supabase import create_client, Client
 import streamlit as st
@@ -501,61 +502,73 @@ def get_recent_games(team_id=695, limit=10, season=None):
     except:
         return pd.DataFrame()
 
-@st.cache_data(ttl=3600)
-def get_batting_stats(team_id=695, limit=50, season=None):
-    """Obtiene estadísticas de bateo agregadas por jugador"""
+@st.cache_data(ttl=600, show_spinner=False)
+def get_batting_stats(team_id=695, limit=50, season=None, phase='R'):
+    """Obtiene estadísticas de bateo agregadas por jugador y fase. Si team_id es None o 'all', obtiene de toda la LVBP."""
     supabase = init_supabase()
 
     if season is None:
         season = get_current_season()
 
     try:
-        # Obtener todos los registros de bateo del equipo para la temporada
-        response = supabase.table('batting_stats') \
-            .select('*, players!inner(full_name), games!inner(season)') \
-            .eq('team_id', team_id) \
-            .eq('games.season', season) \
-            .execute()
+        query = supabase.table('batting_stats') \
+            .select('*, players!inner(full_name), games!inner(season, game_type)') \
+            .eq('games.season', season)
+
+        if phase and phase != 'all':
+            query = query.eq('games.game_type', phase)
+
+        if team_id is not None and team_id != "all":
+            query = query.eq('team_id', team_id)
+
+        response = query.execute()
 
         if not response.data:
             return pd.DataFrame()
 
         df = pd.DataFrame(response.data)
 
-        # Extraer nombre del jugador
-        df['player_name'] = df['players'].apply(
-            lambda x: x.get('full_name', 'N/A') if isinstance(x, dict) else 'N/A'
-        )
+        if 'players' in df.columns:
+            df['player_name'] = df['players'].apply(
+                lambda x: x.get('full_name', 'N/A') if isinstance(x, dict) else 'N/A'
+            )
+        elif 'player_name' not in df.columns:
+            df['player_name'] = 'N/A'
 
-        # Agrupar por jugador y sumar estadísticas (incluir todas las columnas disponibles)
-        agg_dict = {
-            'ab': 'sum',
-            'r': 'sum',
-            'h': 'sum',
-            'doubles': 'sum',
-            'triples': 'sum',
-            'hr': 'sum',
-            'rbi': 'sum',
-            'bb': 'sum',
-            'so': 'sum',
-            'sb': 'sum'
-        }
+        # Determinar franquicia canónica por temporada regular
+        primary_team_map = {}
+        for p_id, p_df in df.groupby('player_id'):
+            if phase and phase != 'all':
+                if 'team_id' in p_df.columns:
+                    primary_team_map[p_id] = p_df['team_id'].value_counts().index[0]
+            else:
+                r_df = p_df[p_df['games'].apply(lambda g: g.get('game_type') == 'R' if isinstance(g, dict) else False)] if 'games' in p_df.columns else pd.DataFrame()
+                if not r_df.empty and 'team_id' in r_df.columns:
+                    primary_team_map[p_id] = r_df['team_id'].value_counts().index[0]
+                elif 'team_id' in p_df.columns:
+                    primary_team_map[p_id] = p_df['team_id'].value_counts().index[0]
 
-        # Agregar columnas adicionales si existen
-        if 'cs' in df.columns:
-            agg_dict['cs'] = 'sum'
-        if 'hbp' in df.columns:
-            agg_dict['hbp'] = 'sum'
-        if 'sf' in df.columns:
-            agg_dict['sf'] = 'sum'
-        if 'sh' in df.columns:
-            agg_dict['sh'] = 'sum'
+        possible_cols = ['ab', 'r', 'h', 'doubles', 'triples', 'hr', 'rbi', 'bb', 'so', 'sb', 'cs', 'hbp', 'sf', 'sh']
+        agg_dict = {c: 'sum' for c in possible_cols if c in df.columns}
 
         grouped = df.groupby(['player_id', 'player_name']).agg(agg_dict).reset_index()
 
-        # Calcular estadísticas derivadas
-        hbp_col = grouped['hbp'] if 'hbp' in grouped.columns else 0
-        sf_col = grouped['sf'] if 'sf' in grouped.columns else 0
+        grouped['team_id'] = grouped['player_id'].map(primary_team_map).fillna(team_id if team_id else 695).astype(int)
+
+        from utils.teams import LVBP_TEAMS, LVBP_ABBR
+        grouped['team_name'] = grouped['team_id'].apply(
+            lambda tid: LVBP_TEAMS.get(int(tid) if pd.notna(tid) else 0, "Equipo LVBP")
+        )
+        grouped['team_abbr'] = grouped['team_id'].apply(
+            lambda tid: LVBP_ABBR.get(int(tid) if pd.notna(tid) else 0, "LVBP")
+        )
+
+        for col in ['ab', 'r', 'h', 'doubles', 'triples', 'hr', 'rbi', 'bb', 'so', 'sb', 'cs', 'hbp', 'sf', 'sh']:
+            if col not in grouped.columns:
+                grouped[col] = 0
+
+        hbp_col = grouped['hbp']
+        sf_col = grouped['sf']
         obp_den = grouped['ab'] + grouped['bb'] + hbp_col + sf_col
 
         grouped['avg'] = np.where(grouped['ab'] > 0, (grouped['h'] / grouped['ab']), 0.0).round(3)
@@ -563,91 +576,107 @@ def get_batting_stats(team_id=695, limit=50, season=None):
         grouped['slg'] = np.where(grouped['ab'] > 0, ((grouped['h'] + grouped['doubles'] + 2*grouped['triples'] + 3*grouped['hr']) / grouped['ab']), 0.0).round(3)
         grouped['ops'] = (grouped['obp'] + grouped['slg']).round(3)
 
-        # Crear columna 'players' con el formato esperado
         grouped['players'] = grouped.apply(
             lambda row: {'full_name': row['player_name']}, axis=1
         )
 
-        return grouped.sort_values('ops', ascending=False).head(limit)
+        res = grouped.sort_values('ops', ascending=False)
+        if limit is not None:
+            res = res.head(limit)
+        return res
 
     except Exception as e:
         print(f"Error obteniendo estadísticas de bateo: {str(e)}")
         return pd.DataFrame()
 
-@st.cache_data(ttl=3600)
-def get_pitching_stats(team_id=695, limit=50, season=None):
-    """Obtiene estadísticas de pitcheo agregadas por jugador"""
+
+@st.cache_data(ttl=600, show_spinner=False)
+def get_pitching_stats(team_id=695, limit=50, season=None, phase='R'):
+    """Obtiene estadísticas de pitcheo agregadas por jugador y fase. Si team_id es None o 'all', obtiene de toda la LVBP."""
     supabase = init_supabase()
 
     if season is None:
         season = get_current_season()
 
     try:
-        # Obtener todos los registros de pitcheo del equipo para la temporada
-        response = supabase.table('pitching_stats') \
-            .select('*, players!inner(full_name), games!inner(season)') \
-            .eq('team_id', team_id) \
-            .eq('games.season', season) \
-            .execute()
+        query = supabase.table('pitching_stats') \
+            .select('*, players!inner(full_name), games!inner(season, game_type)') \
+            .eq('games.season', season)
+
+        if phase and phase != 'all':
+            query = query.eq('games.game_type', phase)
+
+        if team_id is not None and team_id != "all":
+            query = query.eq('team_id', team_id)
+
+        response = query.execute()
 
         if not response.data:
             return pd.DataFrame()
 
         df = pd.DataFrame(response.data)
 
-        # Extraer nombre del jugador
-        df['player_name'] = df['players'].apply(
-            lambda x: x.get('full_name', 'N/A') if isinstance(x, dict) else 'N/A'
-        )
+        if 'players' in df.columns:
+            df['player_name'] = df['players'].apply(
+                lambda x: x.get('full_name', 'N/A') if isinstance(x, dict) else 'N/A'
+            )
+        elif 'player_name' not in df.columns:
+            df['player_name'] = 'N/A'
 
-        # Contar juegos (apariciones)
+        primary_p_team_map = {}
+        for p_id, p_df in df.groupby('player_id'):
+            if phase and phase != 'all':
+                if 'team_id' in p_df.columns:
+                    primary_p_team_map[p_id] = p_df['team_id'].value_counts().index[0]
+            else:
+                r_df = p_df[p_df['games'].apply(lambda g: g.get('game_type') == 'R' if isinstance(g, dict) else False)] if 'games' in p_df.columns else pd.DataFrame()
+                if not r_df.empty and 'team_id' in r_df.columns:
+                    primary_p_team_map[p_id] = r_df['team_id'].value_counts().index[0]
+                elif 'team_id' in p_df.columns:
+                    primary_p_team_map[p_id] = p_df['team_id'].value_counts().index[0]
+
         df['g_count'] = 1
 
-        # Agrupar por jugador y sumar estadísticas (incluir todas las columnas disponibles)
-        agg_dict = {
-            'ip_decimal': 'sum',
-            'h': 'sum',
-            'r': 'sum',
-            'er': 'sum',
-            'bb': 'sum',
-            'so': 'sum',
-            'hr': 'sum',
-            'g_count': 'sum'
-        }
-
-        # Agregar columnas adicionales si existen
-        if 'hbp' in df.columns:
-            agg_dict['hbp'] = 'sum'
-        if 'wp' in df.columns:
-            agg_dict['wp'] = 'sum'
-        if 'bk' in df.columns:
-            agg_dict['bk'] = 'sum'
+        possible_p_cols = ['ip_decimal', 'h', 'r', 'er', 'bb', 'so', 'hr', 'w', 'l', 'sv', 'g_count', 'gs', 'hbp', 'wp', 'bk']
+        agg_dict = {c: 'sum' for c in possible_p_cols if c in df.columns}
 
         grouped = df.groupby(['player_id', 'player_name']).agg(agg_dict).reset_index()
 
-        # Renombrar columnas
+        grouped['team_id'] = grouped['player_id'].map(primary_p_team_map).fillna(team_id if team_id else 695).astype(int)
+
+        from utils.teams import LVBP_TEAMS, LVBP_ABBR
+        grouped['team_name'] = grouped['team_id'].apply(
+            lambda tid: LVBP_TEAMS.get(int(tid) if pd.notna(tid) else 0, "Equipo LVBP")
+        )
+        grouped['team_abbr'] = grouped['team_id'].apply(
+            lambda tid: LVBP_ABBR.get(int(tid) if pd.notna(tid) else 0, "LVBP")
+        )
+
+        for col in ['ip_decimal', 'h', 'r', 'er', 'bb', 'so', 'hr', 'w', 'l', 'sv', 'g_count', 'gs', 'hbp', 'wp', 'bk']:
+            if col not in grouped.columns:
+                grouped[col] = 0
+
         grouped = grouped.rename(columns={
             'ip_decimal': 'ip',
             'g_count': 'g'
         })
 
-        # Calcular estadísticas derivadas
-        grouped['era'] = np.where(grouped['ip'] > 0, ((grouped['er'] * 9.0) / grouped['ip']), 0.0).round(2)
+        grouped['era'] = np.where(grouped['ip'] > 0, ((grouped['er'] * 9) / grouped['ip']), 0.0).round(2)
         grouped['whip'] = np.where(grouped['ip'] > 0, ((grouped['h'] + grouped['bb']) / grouped['ip']), 0.0).round(2)
 
-        # Estas estadísticas no están disponibles en el boxscore individual
-        # Las inicializamos en 0 por ahora
         grouped['w'] = 0
         grouped['l'] = 0
         grouped['sv'] = 0
         grouped['gs'] = 0
 
-        # Crear columna 'players' con el formato esperado
         grouped['players'] = grouped.apply(
             lambda row: {'full_name': row['player_name']}, axis=1
         )
 
-        return grouped.sort_values('ip', ascending=False).head(limit)
+        res = grouped.sort_values('ip', ascending=False)
+        if limit is not None:
+            res = res.head(limit)
+        return res
 
     except Exception as e:
         print(f"Error obteniendo estadísticas de pitcheo: {str(e)}")
@@ -787,42 +816,59 @@ def get_weekly_records(season=None, team_id=695, phase='regular') -> pd.DataFram
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
-def get_collective_team_stats(season=None, phase='R', group='hitting') -> pd.DataFrame:
+def get_collective_team_stats(season=None, phase='R', group=None) -> Any:
     """
     Descarga estadísticas colectivas de los 8 equipos de la LVBP vía MLB Stats API.
-    Soporta group='hitting' (Bateo), 'pitching' (Pitcheo) y 'fielding' (Fildeo).
+    Soporta group='hitting' (Bateo), 'pitching' (Pitcheo), 'fielding' (Fildeo) o None/'all'
+    (que retorna un diccionario con {'batting': df_bat, 'pitching': df_pitch, 'fielding': df_field}).
     """
     if season is None:
         season = get_current_season()
         
-    url = f"https://statsapi.mlb.com/api/v1/teams/stats?season={season}&sportIds=17&leagueIds=135&group={group}&stats=season&gameType={phase}"
-    try:
-        r = requests.get(url, timeout=20)
-        if r.status_code != 200:
+    def _fetch_group(grp: str) -> pd.DataFrame:
+        url = f"https://statsapi.mlb.com/api/v1/teams/stats?season={season}&sportIds=17&leagueIds=135&group={grp}&stats=season&gameType={phase}"
+        try:
+            r = requests.get(url, timeout=20)
+            if r.status_code != 200:
+                return pd.DataFrame()
+            data = r.json()
+            stats_list = data.get("stats", [])
+            if not stats_list:
+                return pd.DataFrame()
+            splits = stats_list[0].get("splits", [])
+            if not splits:
+                return pd.DataFrame()
+                
+            rows = []
+            for s in splits:
+                team_info = s.get("team", {})
+                tid = team_info.get("id")
+                tname = team_info.get("name", "Equipo")
+                stat = s.get("stat", {})
+                row = {"team_id": tid, "team_name": tname}
+                row.update(stat)
+                rows.append(row)
+                
+            return pd.DataFrame(rows)
+        except Exception as e:
+            print(f"Error obteniendo estadísticas colectivas ({grp}): {e}")
             return pd.DataFrame()
-        data = r.json()
-        stats_list = data.get("stats", [])
-        if not stats_list:
-            return pd.DataFrame()
-        splits = stats_list[0].get("splits", [])
-        if not splits:
-            return pd.DataFrame()
-            
-        rows = []
-        for s in splits:
-            team_info = s.get("team", {})
-            tid = team_info.get("id")
-            tname = team_info.get("name", "Equipo")
-            stat = s.get("stat", {})
-            row = {"team_id": tid, "team_name": tname}
-            row.update(stat)
-            rows.append(row)
-            
-        df = pd.DataFrame(rows)
-        return df
-    except Exception as e:
-        print(f"Error obteniendo estadísticas colectivas ({group}): {e}")
-        return pd.DataFrame()
+
+    if group in ['hitting', 'batting']:
+        return _fetch_group('hitting')
+    elif group == 'pitching':
+        return _fetch_group('pitching')
+    elif group == 'fielding':
+        return _fetch_group('fielding')
+    else:
+        df_bat = _fetch_group('hitting')
+        df_pitch = _fetch_group('pitching')
+        df_field = _fetch_group('fielding')
+        return {
+            'batting': df_bat,
+            'pitching': df_pitch,
+            'fielding': df_field
+        }
 
 
 @st.cache_data(ttl=1800, show_spinner=False)
@@ -830,11 +876,13 @@ def get_individual_fielding_stats(season=None, team_id=None, phase='R') -> pd.Da
     """
     Descarga estadísticas individuales de fildeo (defensa) vía MLB Stats API.
     Si team_id está presente, filtra por ese equipo (ej: 695 para Leones).
+    Retorna DataFrame completo de métricas defensivas para fildeadores y receptores.
     """
+    from utils.teams import LVBP_ABBR
     if season is None:
         season = get_current_season()
-        
-    url = f"https://statsapi.mlb.com/api/v1/stats?stats=season&group=fielding&season={season}&sportId=17&leagueId=135&playerPool=all&gameType={phase}&limit=1000"
+    game_type_param = f"&gameType={phase}" if phase and phase != "all" else ""
+    url = f"https://statsapi.mlb.com/api/v1/stats?stats=season&group=fielding&season={season}&sportId=17&leagueId=135&playerPool=all{game_type_param}&limit=1000"
     if team_id:
         url += f"&teamId={team_id}"
         
@@ -875,6 +923,20 @@ def get_individual_fielding_stats(season=None, team_id=None, phase='R') -> pd.Da
                 except (ValueError, TypeError):
                     return default
 
+            po = _to_int(stat.get("putOuts", 0))
+            a = _to_int(stat.get("assists", 0))
+            e = _to_int(stat.get("errors", 0))
+            tc = _to_int(stat.get("chances", 0))
+            fpct = _to_float(stat.get("fielding", 0.0))
+            dp = _to_int(stat.get("doublePlays", 0))
+            tp = _to_int(stat.get("triplePlays", 0))
+            rf9 = _to_float(stat.get("rangeFactorPer9Inn", 0.0))
+            cs = _to_int(stat.get("caughtStealing", 0))
+            sb = _to_int(stat.get("stolenBases", 0))
+            cs_pct = _to_float(stat.get("caughtStealingPercentage", 0.0))
+            pb = _to_int(stat.get("passedBall", 0))
+            te = _to_int(stat.get("throwingErrors", 0))
+
             row = {
                 "player_id": p_id,
                 "player_name": p_name,
@@ -884,19 +946,32 @@ def get_individual_fielding_stats(season=None, team_id=None, phase='R') -> pd.Da
                 "games": _to_int(stat.get("gamesPlayed", 0)),
                 "games_started": _to_int(stat.get("gamesStarted", 0)),
                 "innings": str(stat.get("innings", "0.0")),
-                "putouts": _to_int(stat.get("putOuts", 0)),
-                "assists": _to_int(stat.get("assists", 0)),
-                "errors": _to_int(stat.get("errors", 0)),
-                "chances": _to_int(stat.get("chances", 0)),
-                "fielding_pct": _to_float(stat.get("fielding", 0.0)),
-                "double_plays": _to_int(stat.get("doublePlays", 0)),
-                "triple_plays": _to_int(stat.get("triplePlays", 0)),
-                "range_factor_per_9": _to_float(stat.get("rangeFactorPer9Inn", 0.0)),
-                "caught_stealing": _to_int(stat.get("caughtStealing", 0)),
-                "stolen_bases": _to_int(stat.get("stolenBases", 0)),
-                "caught_stealing_pct": _to_float(stat.get("caughtStealingPercentage", 0.0)),
-                "passed_balls": _to_int(stat.get("passedBall", 0)),
-                "throwing_errors": _to_int(stat.get("throwingErrors", 0))
+                "putouts": po,
+                "po": po,
+                "assists": a,
+                "a": a,
+                "errors": e,
+                "e": e,
+                "chances": tc,
+                "tc": tc,
+                "fielding_pct": fpct,
+                "fpct": fpct,
+                "double_plays": dp,
+                "dp": dp,
+                "triple_plays": tp,
+                "tp": tp,
+                "range_factor_per_9": rf9,
+                "rf9": rf9,
+                "caught_stealing": cs,
+                "cs": cs,
+                "stolen_bases": sb,
+                "sb": sb,
+                "caught_stealing_pct": cs_pct,
+                "cs_pct": cs_pct,
+                "passed_balls": pb,
+                "pb": pb,
+                "throwing_errors": te,
+                "team_abbr": LVBP_ABBR.get(int(t_id) if pd.notna(t_id) else 0, "LVBP")
             }
             rows.append(row)
             

@@ -1,5 +1,9 @@
 # Rama de pruebas
 
+import socket
+# Blindaje de red global: timeout seguro de 30 segundos
+socket.setdefaulttimeout(30.0)
+
 import streamlit as st
 import pandas as pd
 import numpy as np
