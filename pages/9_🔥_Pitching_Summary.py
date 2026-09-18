@@ -13,8 +13,13 @@ Soporta:
 """
 
 import os
+import sys
 import io
 import datetime
+
+# Asegurar path raíz en sys.path para compatibilidad absoluta en Streamlit Cloud
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import streamlit as st
 import pandas as pd
 import numpy as np

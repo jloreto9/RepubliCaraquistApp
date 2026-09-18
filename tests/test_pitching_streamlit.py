@@ -27,6 +27,8 @@ from utils.pitching_engine import (
     get_pitcher_by_id,
     search_pitchers,
     _get_caracas_pitcher_ids,
+    get_available_seasons,
+    get_pitch_analysis_for_df,
 )
 from utils.pitching_card import (
     build_pitching_summary_card,
@@ -77,6 +79,27 @@ class TestPitchingEngineResolution(unittest.TestCase):
         pitcher = get_pitcher_by_id(99999999)
         if pitcher is not None:
             self.assertIn("id", pitcher)
+
+    def test_available_seasons(self):
+        """get_available_seasons debe retornar temporadas canónicas."""
+        seasons = get_available_seasons()
+        self.assertIn(2025, seasons)
+        self.assertIn(2024, seasons)
+
+    def test_pitch_analysis_for_df(self):
+        """get_pitch_analysis_for_df debe resumir métricas Statcast de un DataFrame."""
+        df_dummy = pd.DataFrame([
+            {
+                "pitch_name": "4-Seam Fastball", "release_speed": 95.0,
+                "release_spin_rate": 2400, "pfx_x": 0.8, "pfx_z": 1.4,
+                "whiff": True, "description": "swinging_strike", "in_zone": True,
+                "plate_x": 0.0, "plate_z": 2.5
+            }
+        ])
+        analysis = get_pitch_analysis_for_df(df_dummy)
+        self.assertEqual(analysis["total_pitches"], 1)
+        self.assertEqual(len(analysis["statcast_table"]), 1)
+        self.assertEqual(analysis["pbp_kpis"]["whiff_pct"], "100.0%")
 
 
 class TestPitchingCardHDGeneration(unittest.TestCase):
