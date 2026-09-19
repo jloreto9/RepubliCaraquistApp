@@ -1380,10 +1380,10 @@ def get_pitcher_bio_data(pitcher_id: int) -> Dict[str, Any]:
 
 def get_available_seasons() -> List[int]:
     """Retorna las temporadas canónicas disponibles para análisis."""
-    return [2025, 2024, 2023, 2022]
+    return [2026, 2025, 2024, 2023, 2022]
 
 
-def get_pitcher_season_statcast_df(pitcher_id: int, season: int = 2024) -> pd.DataFrame:
+def get_pitcher_season_statcast_df(pitcher_id: int, season: int = 2026) -> pd.DataFrame:
     """Descarga lanzamientos Statcast para un lanzador en una temporada completa."""
     return get_statcast_pitcher_df(pitcher_id, season=season, mode="season")
 

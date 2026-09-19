@@ -84,6 +84,7 @@ class TestPitchingEngineResolution(unittest.TestCase):
     def test_available_seasons(self):
         """get_available_seasons debe retornar temporadas canónicas."""
         seasons = get_available_seasons()
+        self.assertIn(2026, seasons)
         self.assertIn(2025, seasons)
         self.assertIn(2024, seasons)
 

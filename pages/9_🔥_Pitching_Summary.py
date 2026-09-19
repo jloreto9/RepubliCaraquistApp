@@ -109,7 +109,7 @@ if "selected_pitcher" not in st.session_state:
 if "active_branch" not in st.session_state:
     st.session_state["active_branch"] = "lvbp"
 if "pitcher_season" not in st.session_state:
-    st.session_state["pitcher_season"] = 2025
+    st.session_state["pitcher_season"] = 2026
 if "time_mode" not in st.session_state:
     st.session_state["time_mode"] = "game"
 if "pitcher_phase" not in st.session_state:
@@ -118,8 +118,8 @@ if "selected_game_pk" not in st.session_state:
     st.session_state["selected_game_pk"] = None
 if "range_dates" not in st.session_state:
     st.session_state["range_dates"] = (
-        datetime.date(2024, 10, 1),
-        datetime.date(2025, 1, 31)
+        datetime.date(2026, 4, 1),
+        datetime.date(2026, 10, 31)
     )
 
 # Comprobar si viene un parámetro por URL (?pitcher_id=...) o session_state
@@ -147,7 +147,7 @@ with st.sidebar:
     st.subheader("⚙️ Control de Pitcheo")
 
     # Selector de Temporada
-    available_seasons = [2025, 2024, 2023, 2022]
+    available_seasons = get_engine_seasons()
     sel_season = st.selectbox(
         "Temporada",
         available_seasons,
@@ -426,30 +426,38 @@ with st.spinner("Cargando historial de salidas..."):
             phase=selected_phase,
         )
 
-    # Fallback automático de temporada si la actual no tiene salidas (solo en modo 'all')
+    # Fallback inteligente si la temporada actual no tiene salidas (solo en modo 'all')
+    effective_season = season_int
+    fallback_used = False
     if not game_logs and selected_phase == "all":
-        for fallback_s in [2025, 2024, 2023, 2022]:
-            if fallback_s != season_int:
-                try:
-                    test_logs = get_pitcher_game_logs(
-                        p_id,
-                        season=fallback_s,
-                        is_lvbp=(active_branch == "lvbp"),
-                        branch=active_branch,
-                        phase="all"
-                    )
-                except TypeError:
-                    test_logs = get_pitcher_game_logs(
-                        p_id,
-                        season=fallback_s,
-                        is_lvbp=(active_branch == "lvbp"),
-                        phase="all"
-                    )
-                if test_logs:
-                    season_int = fallback_s
+        fallback_candidates = [s for s in available_seasons if s != season_int]
+        for fallback_s in fallback_candidates:
+            try:
+                test_logs = get_pitcher_game_logs(
+                    p_id,
+                    season=fallback_s,
+                    is_lvbp=(active_branch == "lvbp"),
+                    branch=active_branch,
+                    phase="all"
+                )
+            except TypeError:
+                test_logs = get_pitcher_game_logs(
+                    p_id,
+                    season=fallback_s,
+                    is_lvbp=(active_branch == "lvbp"),
+                    phase="all"
+                )
+            if test_logs:
+                effective_season = fallback_s
+                game_logs = test_logs
+                fallback_used = True
+                # Si no es LVBP en 2026 (temporada de invierno aún no iniciada), sincronizar pitcher_season
+                if not (active_branch == "lvbp" and season_int == 2026):
                     st.session_state["pitcher_season"] = fallback_s
-                    game_logs = test_logs
-                    break
+                break
+
+    if fallback_used and active_branch == "lvbp" and season_int == 2026:
+        st.info(f"ℹ️ La temporada 2026-2027 de la LVBP comienza el 3 de octubre de 2026 (aún sin salidas disputadas). Mostrando la última actuación en LVBP (Temporada {effective_season}). Para ver lo que hizo este año 2026 en verano, puedes consultar las ramas de **🇲🇽 México** o **⚾ MLB / MiLB**.")
 
 # Selector de juego o rango según el modo
 selected_game_summary = {}
@@ -464,7 +472,7 @@ if time_mode == "game":
         selected_game_summary = opts_dict[selected_label]
         st.session_state["selected_game_pk"] = selected_game_summary.get("game_pk")
     else:
-        st.warning(f"No se encontraron salidas registradas en la fase seleccionada para la temporada {season_int}.")
+        st.warning(f"No se encontraron salidas registradas en la fase seleccionada para la temporada {effective_season}.")
 elif time_mode == "range":
     col_d1, col_d2 = st.columns(2)
     with col_d1:
@@ -490,7 +498,7 @@ if time_mode == "game" and current_game_pk:
 elif time_mode in ("season", "range"):
     with st.spinner("Agregando métricas del período..."):
         if active_branch == "mlb":
-            df_statcast_season = get_pitcher_season_statcast_df(p_id, season=season_int)
+            df_statcast_season = get_pitcher_season_statcast_df(p_id, season=effective_season)
             if time_mode == "range" and not df_statcast_season.empty and "game_date" in df_statcast_season.columns:
                 s_str = str(st.session_state["range_dates"][0])
                 e_str = str(st.session_state["range_dates"][1])
@@ -712,7 +720,7 @@ with tab_card:
                 game_logs=game_logs,
                 start_date=str(st.session_state["range_dates"][0]) if time_mode == "range" else None,
                 end_date=str(st.session_state["range_dates"][1]) if time_mode == "range" else None,
-                season=season_int,
+                season=effective_season,
                 df_statcast=df_statcast_season,
                 phase=selected_phase,
             )
@@ -725,7 +733,7 @@ with tab_card:
 
         safe_name = "".join(c for c in p_name if c.isalnum() or c == "_")
         league_tag = "MEX" if active_branch == "mexico" else ("LVBP" if active_branch == "lvbp" else "MLB")
-        file_label = f"PitchingSummary_{safe_name}_{league_tag}_{season_int}_{time_mode}.png"
+        file_label = f"PitchingSummary_{safe_name}_{league_tag}_{effective_season}_{time_mode}.png"
 
         st.download_button(
             label=f"📥 Descargar Tarjeta HD (PNG 300 DPI)",
