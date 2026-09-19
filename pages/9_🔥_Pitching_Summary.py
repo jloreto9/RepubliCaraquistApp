@@ -457,7 +457,7 @@ with st.spinner("Cargando historial de salidas..."):
                 break
 
     if fallback_used and active_branch == "lvbp" and season_int == 2026:
-        st.info(f"ℹ️ La temporada 2026-2027 de la LVBP comienza el 3 de octubre de 2026 (aún sin salidas disputadas). Mostrando la última actuación en LVBP (Temporada {effective_season}). Para ver lo que hizo este año 2026 en verano, puedes consultar las ramas de **🇲🇽 México** o **⚾ MLB / MiLB**.")
+        st.info(f"ℹ️ La temporada 2026-2027 de la LVBP comienza el 12 de octubre de 2026 (aún sin salidas disputadas). Mostrando la última actuación en LVBP (Temporada {effective_season}). Para ver lo que hizo este año 2026 en verano, puedes consultar las ramas de **🇲🇽 México** o **⚾ MLB / MiLB**.")
 
 # Selector de juego o rango según el modo
 selected_game_summary = {}
