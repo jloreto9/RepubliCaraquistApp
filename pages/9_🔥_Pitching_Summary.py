@@ -344,6 +344,7 @@ with col_ctrl1:
 
     if new_b != st.session_state["active_branch"]:
         st.session_state["active_branch"] = new_b
+        st.session_state["pitcher_phase"] = "all"
         st.session_state["selected_game_pk"] = None
         st.rerun()
 
@@ -695,10 +696,7 @@ with tab_graphs:
 
 with tab_card:
     st.markdown("### 🖼️ Tarjeta Oficial de Pitcheo")
-    if active_branch in ("lvbp", "mexico"):
-        st.caption("Resolución de exportación: 2400 x 2400 px (1:1) a 300 DPI • Diseño inspirado en Thomas Nestico (@TJStats)")
-    else:
-        st.caption("Resolución de exportación: 2400 x 1350 px (16:9) a 300 DPI • Diseño inspirado en Thomas Nestico (@TJStats)")
+    st.caption("Resolución de exportación: 2400 x 2400 px a 300 DPI • Diseño inspirado en Thomas Nestico (@TJStats)")
 
     # Botón para forzar generación o regeneración
     with st.spinner("Renderizando tarjeta oficial en alta resolución..."):

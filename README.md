@@ -101,6 +101,16 @@ Alimentada directamente por los feeds oficiales de **MLB Stats API**, procesada 
 
 ---
 
+### 🔥 9. Pitching Summary & Telemetría Nestico (`🔥 Pitching Summary`)
+* **Buscador Universal de Lanzadores:** Soporte completo para lanzadores de LVBP, Liga Mexicana de Béisbol (LMB Verano, `sportId=23`) y MLB/MiLB.
+* **Filtros por Fase de Campeonato:** Desglose reactivo por *Temporada Regular*, *Round Robin*, *Serie Final*, *Postemporada* y *Temporada Completa*.
+* **Historial y Decisiones Oficiales:** Registro de rol (*Abridor* / *Relevista*), decisión oficial (*W*, *L*, *SV*, *HLD*), entradas lanzadas, carreras limpias, ponches y conteo exacto de lanzamientos (P-S).
+* **Tarjeta de Exportación HD en Matplotlib:** Generación de tarjetas sabermétricas de alta resolución (2400 x 2400 px a 300 DPI) con diseño vertical inspirado en Thomas Nestico (@TJStats):
+  * **Rama LVBP / México:** Desglose de carga por entrada (Strikes vs. Bolas), apalancamiento Leverage Index (Tango RE24), splits de pelotón (LHB vs. RHB) y tabla de repertorio/destinos PBP.
+  * **Rama MLB / MiLB:** Ridgeplots de distribución de velocidad (KDEs), evolución de uso de pitcheos (5-Game Rolling Usage), gráficos de quiebre (Induced Vertical Break vs. Horizontal Break) y matriz de repertorio con mapas de calor celulares contra el promedio de las Grandes Ligas.
+
+---
+
 ## 🧱 Arquitectura de Datos
 
 ```mermaid
