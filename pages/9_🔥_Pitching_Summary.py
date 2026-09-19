@@ -20,6 +20,12 @@ import datetime
 # Asegurar path raíz en sys.path para compatibilidad absoluta en Streamlit Cloud
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import importlib
+import utils.pitching_engine
+importlib.reload(utils.pitching_engine)
+import utils.pitching_card
+importlib.reload(utils.pitching_card)
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -403,25 +409,41 @@ selected_phase = st.session_state.get("pitcher_phase", "all")
 # ── 6. Carga de Salidas e Historial ───────────────────────────────────────────
 
 with st.spinner("Cargando historial de salidas..."):
-    game_logs = get_pitcher_game_logs(
-        p_id,
-        season=season_int,
-        is_lvbp=(active_branch == "lvbp"),
-        branch=active_branch,
-        phase=selected_phase,
-    )
+    try:
+        game_logs = get_pitcher_game_logs(
+            p_id,
+            season=season_int,
+            is_lvbp=(active_branch == "lvbp"),
+            branch=active_branch,
+            phase=selected_phase,
+        )
+    except TypeError:
+        game_logs = get_pitcher_game_logs(
+            p_id,
+            season=season_int,
+            is_lvbp=(active_branch == "lvbp"),
+            phase=selected_phase,
+        )
 
     # Fallback automático de temporada si la actual no tiene salidas (solo en modo 'all')
     if not game_logs and selected_phase == "all":
         for fallback_s in [2025, 2024, 2023, 2022]:
             if fallback_s != season_int:
-                test_logs = get_pitcher_game_logs(
-                    p_id,
-                    season=fallback_s,
-                    is_lvbp=(active_branch == "lvbp"),
-                    branch=active_branch,
-                    phase="all"
-                )
+                try:
+                    test_logs = get_pitcher_game_logs(
+                        p_id,
+                        season=fallback_s,
+                        is_lvbp=(active_branch == "lvbp"),
+                        branch=active_branch,
+                        phase="all"
+                    )
+                except TypeError:
+                    test_logs = get_pitcher_game_logs(
+                        p_id,
+                        season=fallback_s,
+                        is_lvbp=(active_branch == "lvbp"),
+                        phase="all"
+                    )
                 if test_logs:
                     season_int = fallback_s
                     st.session_state["pitcher_season"] = fallback_s
