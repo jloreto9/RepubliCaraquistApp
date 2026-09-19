@@ -49,3 +49,12 @@
 ### 2. Timeouts en Peticiones HTTP y Sockets en Python
 - Todas las peticiones con `requests` o `urllib.request` deben declarar un argumento `timeout=` explícito (ej: `timeout=15` o `timeout=30`).
 - Fijar siempre `socket.setdefaulttimeout(30.0)` al inicio de la aplicación para blindar llamadas internas de librerías de terceros (`pybaseball`, etc.).
+
+## Gestión de Estado y Ciclo de Vida de Widgets en Streamlit
+
+### 1. Robustez en Alternancia de Ramas, Fases y Caché
+- **Prohibición de `importlib.reload` en producción:** Nunca invocar `importlib.reload` en scripts de páginas sobre módulos que utilizan decoradores de caché (`@st.cache_data`), ya que redefinen las funciones en memoria, invalidando los hashes de firma y provocando `TypeError: _handle_cache_miss` en `cache_utils.py`.
+- **Claves de widgets dinámicas / scoped:** Cuando las opciones de un `st.selectbox` o `st.radio` dependen del contexto (ej: `branch`, `season`, `phase`, `pitcher_id`), usar siempre claves dinámicas compuestas (ej: `f"sb_game_select_{active_branch}_{effective_season}_{selected_phase}_{p_id}"`).
+- **Purga defensiva de claves obsoletas:** Antes de instanciar un widget cuyo valor anterior pueda quedar huérfano, verificar si la clave existe en `st.session_state` y no pertenece a las nuevas opciones (`if k in st.session_state and st.session_state[k] not in options: del st.session_state[k]`). Asimismo, purgar claves hijas en los callbacks o bloques de alternancia de ramas (`new_b != st.session_state["active_branch"]`).
+- **Inmutabilidad de estado de widgets padre:** Nunca mutar en medio de la ejecución del script claves de `st.session_state` vinculadas a widgets ya instanciados en el sidebar (como `st.session_state["pitcher_season"] = fallback_s`), ya que provoca desincronización y advertencias de mutación posterior. En su lugar, utilizar variables locales de ámbito efectivo (`effective_season = fallback_s`).
+
