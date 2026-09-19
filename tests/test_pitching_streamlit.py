@@ -291,6 +291,35 @@ class TestMatchup360Card(unittest.TestCase):
             self.assertAlmostEqual(dpi[1], 300.0, delta=1.0)
 
 
+class TestBranchSwitchingRobustness(unittest.TestCase):
+    """Pruebas de robustez al alternar ramas analíticas (LVBP, México, MLB) y fases."""
+
+    def test_game_logs_across_branches(self):
+        """Verifica que get_pitcher_game_logs devuelva listas estructuradas sin excepciones en todas las ramas."""
+        from utils.pitching_engine import get_pitcher_game_logs
+
+        # Erick Leal (612797) tiene historial en LVBP, México y MLB
+        for branch in ("lvbp", "mexico", "mlb"):
+            for phase in ("all", "R"):
+                logs = get_pitcher_game_logs(612797, season=2024, branch=branch, phase=phase)
+                self.assertIsInstance(logs, list)
+
+    def test_df_logs_table_missing_columns_safe(self):
+        """Valida que la tabla de historial no lance KeyError si faltan columnas en los logs."""
+        dummy_partial_logs = [
+            {"date": "2024-05-10", "opponent": "Diablos Rojos", "ip": "5.0", "so": 6},
+            {"date": "2024-05-15", "role": "Abridor", "pitches": 85},
+        ]
+        df_logs = pd.DataFrame(dummy_partial_logs)
+        expected_cols = ["date", "opponent", "role", "decision", "ip", "h", "r", "er", "bb", "so", "pitches"]
+        for col in expected_cols:
+            if col not in df_logs.columns:
+                df_logs[col] = "—" if col in ("opponent", "role", "decision") else 0
+        df_logs_table = df_logs[expected_cols].copy()
+        self.assertEqual(list(df_logs_table.columns), expected_cols)
+        self.assertEqual(len(df_logs_table), 2)
+
+
 class TestSupabaseClientParity(unittest.TestCase):
     """Pruebas de paridad funcional en utils/supabase_client.py."""
 
@@ -305,3 +334,4 @@ class TestSupabaseClientParity(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

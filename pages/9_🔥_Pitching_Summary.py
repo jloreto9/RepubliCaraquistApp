@@ -20,11 +20,7 @@ import datetime
 # Asegurar path raíz en sys.path para compatibilidad absoluta en Streamlit Cloud
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import importlib
-import utils.pitching_engine
-importlib.reload(utils.pitching_engine)
-import utils.pitching_card
-importlib.reload(utils.pitching_card)
+
 
 import streamlit as st
 import pandas as pd
@@ -157,6 +153,9 @@ with st.sidebar:
     if sel_season != st.session_state["pitcher_season"]:
         st.session_state["pitcher_season"] = sel_season
         st.session_state["selected_game_pk"] = None
+        for k in list(st.session_state.keys()):
+            if k.startswith("sb_game_select"):
+                del st.session_state[k]
         st.rerun()
 
     # Botón para cambiar de lanzador
@@ -165,6 +164,9 @@ with st.sidebar:
         if st.button("🔍 Buscar Otro Lanzador", use_container_width=True):
             st.session_state["selected_pitcher"] = None
             st.session_state["selected_game_pk"] = None
+            for k in list(st.session_state.keys()):
+                if k.startswith("sb_game_select") or k.startswith("rb_pitcher_phase") or k.startswith("rb_branch"):
+                    del st.session_state[k]
             if "pitcher_id" in st.query_params:
                 del st.query_params["pitcher_id"]
             st.rerun()
@@ -260,7 +262,11 @@ if not pitcher:
                     if st.button("Ver Resumen", key=f"sel_{res_p.get('id')}", use_container_width=True):
                         st.session_state["selected_pitcher"] = res_p
                         st.session_state["active_branch"] = "lvbp" if res_p.get("has_lvbp_history") else "mlb"
+                        st.session_state["pitcher_phase"] = "all"
                         st.session_state["selected_game_pk"] = None
+                        for k in list(st.session_state.keys()):
+                            if k.startswith("sb_game_select") or k.startswith("rb_pitcher_phase") or k.startswith("rb_branch"):
+                                del st.session_state[k]
                         st.rerun()
                 st.markdown("---")
         else:
@@ -299,6 +305,9 @@ with col_head3:
     if st.button("🔄 Cambiar Lanzador", use_container_width=True):
         st.session_state["selected_pitcher"] = None
         st.session_state["selected_game_pk"] = None
+        for k in list(st.session_state.keys()):
+            if k.startswith("sb_game_select") or k.startswith("rb_pitcher_phase") or k.startswith("rb_branch"):
+                del st.session_state[k]
         if "pitcher_id" in st.query_params:
             del st.query_params["pitcher_id"]
         st.rerun()
@@ -328,12 +337,16 @@ with col_ctrl1:
     else:
         curr_b_idx = len(branch_opts) - 1
 
+    rb_branch_key = f"rb_branch_{p_id}"
+    if rb_branch_key in st.session_state and st.session_state[rb_branch_key] not in branch_opts:
+        del st.session_state[rb_branch_key]
+
     sel_branch_str = st.radio(
         "Rama Analítica",
         branch_opts,
         index=curr_b_idx,
         horizontal=True,
-        key="rb_branch"
+        key=rb_branch_key
     )
     if "LVBP" in sel_branch_str:
         new_b = "lvbp"
@@ -346,6 +359,9 @@ with col_ctrl1:
         st.session_state["active_branch"] = new_b
         st.session_state["pitcher_phase"] = "all"
         st.session_state["selected_game_pk"] = None
+        for k in list(st.session_state.keys()):
+            if k.startswith("sb_game_select") or k.startswith("rb_pitcher_phase"):
+                del st.session_state[k]
         st.rerun()
 
 if col_ctrl2 is not None:
@@ -368,18 +384,29 @@ if col_ctrl2 is not None:
 
         curr_ph_codes = [p[1] for p in phase_modes]
         curr_ph = st.session_state.get("pitcher_phase", "all")
-        curr_ph_idx = curr_ph_codes.index(curr_ph) if curr_ph in curr_ph_codes else 0
+        if curr_ph not in curr_ph_codes:
+            curr_ph = "all"
+            st.session_state["pitcher_phase"] = "all"
+        curr_ph_idx = curr_ph_codes.index(curr_ph)
+
+        rb_ph_key = f"rb_pitcher_phase_{st.session_state['active_branch']}_{p_id}"
+        if rb_ph_key in st.session_state and st.session_state[rb_ph_key] not in phase_modes:
+            del st.session_state[rb_ph_key]
+
         sel_ph_tuple = st.radio(
             ph_title,
             phase_modes,
             index=curr_ph_idx,
             format_func=lambda x: x[0],
             horizontal=True,
-            key="rb_pitcher_phase"
+            key=rb_ph_key
         )
         if sel_ph_tuple[1] != st.session_state.get("pitcher_phase"):
             st.session_state["pitcher_phase"] = sel_ph_tuple[1]
             st.session_state["selected_game_pk"] = None
+            for k in list(st.session_state.keys()):
+                if k.startswith("sb_game_select"):
+                    del st.session_state[k]
             st.rerun()
 
 with col_ctrl3:
@@ -451,13 +478,13 @@ with st.spinner("Cargando historial de salidas..."):
                 effective_season = fallback_s
                 game_logs = test_logs
                 fallback_used = True
-                # Si no es LVBP en 2026 (temporada de invierno aún no iniciada), sincronizar pitcher_season
-                if not (active_branch == "lvbp" and season_int == 2026):
-                    st.session_state["pitcher_season"] = fallback_s
                 break
 
-    if fallback_used and active_branch == "lvbp" and season_int == 2026:
-        st.info(f"ℹ️ La temporada 2026-2027 de la LVBP comienza el 12 de octubre de 2026 (aún sin salidas disputadas). Mostrando la última actuación en LVBP (Temporada {effective_season}). Para ver lo que hizo este año 2026 en verano, puedes consultar las ramas de **🇲🇽 México** o **⚾ MLB / MiLB**.")
+    if fallback_used:
+        if active_branch == "lvbp" and season_int == 2026:
+            st.info(f"ℹ️ La temporada 2026-2027 de la LVBP comienza el 12 de octubre de 2026 (aún sin salidas disputadas). Mostrando la última actuación en LVBP (Temporada {effective_season}). Para ver lo que hizo este año 2026 en verano, puedes consultar las ramas de **🇲🇽 México** o **⚾ MLB / MiLB**.")
+        else:
+            st.info(f"ℹ️ No se encontraron salidas registradas en la temporada {season_int} para esta rama. Mostrando la última temporada disponible ({effective_season}).")
 
 # Selector de juego o rango según el modo
 selected_game_summary = {}
@@ -468,10 +495,14 @@ if time_mode == "game":
             for g in game_logs
         }
         labels = list(opts_dict.keys())
-        selected_label = st.selectbox("Seleccionar Salida", labels, key="sb_game_select")
-        selected_game_summary = opts_dict[selected_label]
+        sb_key = f"sb_game_select_{active_branch}_{effective_season}_{selected_phase}_{p_id}"
+        if sb_key in st.session_state and st.session_state[sb_key] not in labels:
+            del st.session_state[sb_key]
+        selected_label = st.selectbox("Seleccionar Salida", labels, key=sb_key)
+        selected_game_summary = opts_dict.get(selected_label, game_logs[0] if game_logs else {})
         st.session_state["selected_game_pk"] = selected_game_summary.get("game_pk")
     else:
+        st.session_state["selected_game_pk"] = None
         st.warning(f"No se encontraron salidas registradas en la fase seleccionada para la temporada {effective_season}.")
 elif time_mode == "range":
     col_d1, col_d2 = st.columns(2)
@@ -694,7 +725,12 @@ with tab_graphs:
     # Tabla de salidas registradas
     st.markdown("##### 📋 Historial de Salidas del Período:")
     if game_logs:
-        df_logs_table = pd.DataFrame(game_logs)[["date", "opponent", "role", "decision", "ip", "h", "r", "er", "bb", "so", "pitches"]].copy()
+        df_logs = pd.DataFrame(game_logs)
+        expected_cols = ["date", "opponent", "role", "decision", "ip", "h", "r", "er", "bb", "so", "pitches"]
+        for col in expected_cols:
+            if col not in df_logs.columns:
+                df_logs[col] = "—" if col in ("opponent", "role", "decision") else 0
+        df_logs_table = df_logs[expected_cols].copy()
         df_logs_table["decision"] = df_logs_table["decision"].apply(lambda d: d if d and str(d).strip() not in ("", "None", "nan") else "—")
         df_logs_table.columns = ["Fecha", "Rival", "Rol", "Decisión", "IP", "H", "C", "CL", "BB", "K", "Pitcheos"]
         st.dataframe(df_logs_table, use_container_width=True, hide_index=True)
