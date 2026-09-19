@@ -284,13 +284,14 @@ def search_pitchers(query: str) -> List[Dict[str, Any]]:
 # ── 2. Obtención de Game Logs (Salidas) ────────────────────────────────────────
 
 @cache_ttl(ttl_seconds=1800)
-def get_pitcher_game_logs(pitcher_id: int, season: int, is_lvbp: bool = False) -> List[Dict[str, Any]]:
+def get_pitcher_game_logs(pitcher_id: int, season: int, is_lvbp: bool = False, phase: str = "all") -> List[Dict[str, Any]]:
     """
     Obtiene las salidas (Game Logs) del lanzador para la temporada especificada.
     Si is_lvbp es True, busca en juegos de LVBP; de lo contrario en MLB y MiLB.
+    Soporta filtrado por fase de campeonato (ej: 'R', 'L', 'F', 'all').
     """
     if is_lvbp:
-        return _get_lvbp_pitcher_game_logs(pitcher_id, season)
+        return _get_lvbp_pitcher_game_logs(pitcher_id, season, phase=phase)
 
     # MLB y MiLB vía MLB Stats API
     url = (
@@ -312,6 +313,10 @@ def get_pitcher_game_logs(pitcher_id: int, season: int, is_lvbp: bool = False) -
                     date_str = s.get("date", "")
                     gpk = game.get("gamePk", 0)
                     is_start = stat.get("gamesStarted", 0) > 0
+                    g_type = s.get("gameType") or "R"
+
+                    if phase and phase != "all" and g_type != phase:
+                        continue
 
                     logs.append({
                         "game_pk": gpk,
@@ -319,6 +324,8 @@ def get_pitcher_game_logs(pitcher_id: int, season: int, is_lvbp: bool = False) -
                         "opponent": opp,
                         "is_starter": is_start,
                         "role": "Abridor" if is_start else "Relevista",
+                        "game_type": g_type,
+                        "phase": g_type,
                         "ip": stat.get("inningsPitched", "0.0"),
                         "h": stat.get("hits", 0),
                         "r": stat.get("runs", 0),
@@ -340,12 +347,15 @@ def get_pitcher_game_logs(pitcher_id: int, season: int, is_lvbp: bool = False) -
     return logs
 
 
-def _get_lvbp_pitcher_game_logs(pitcher_id: int, season: int) -> List[Dict[str, Any]]:
-    """Obtiene salidas de LVBP desde Supabase con fallback a caché local y API oficial MLB."""
+def _get_lvbp_pitcher_game_logs(pitcher_id: int, season: int, phase: str = "all") -> List[Dict[str, Any]]:
+    """Obtiene salidas de LVBP desde Supabase con fallback a caché local y API oficial MLB con filtrado de fase."""
     logs: List[Dict[str, Any]] = []
 
-    # Mapa oficial de rol abridor / relevista y datos vía MLB Stats API (sportId=17)
+    # Mapas oficiales de rol, pitcheos, strikes y fase vía MLB Stats API (sportId=17)
     starter_map: Dict[Any, bool] = {}
+    pitches_map: Dict[Any, int] = {}
+    strikes_map: Dict[Any, int] = {}
+    phase_map: Dict[Any, str] = {}
     splits_fallback: List[Dict[str, Any]] = []
     try:
         api_url = (
@@ -361,11 +371,20 @@ def _get_lvbp_pitcher_game_logs(pitcher_id: int, season: int) -> List[Dict[str, 
                 for s in splits_fallback:
                     g_pk = s.get("game", {}).get("gamePk")
                     dt = s.get("date")
+                    gt = s.get("gameType") or "R"
                     gs = s.get("stat", {}).get("gamesStarted", 0) > 0
+                    p_cnt = int(s.get("stat", {}).get("numberOfPitches", 0) or 0)
+                    s_cnt = int(s.get("stat", {}).get("strikes", 0) or 0)
                     if g_pk:
                         starter_map[g_pk] = gs
+                        pitches_map[g_pk] = p_cnt
+                        strikes_map[g_pk] = s_cnt
+                        phase_map[g_pk] = gt
                     if dt:
                         starter_map[dt] = gs
+                        pitches_map[dt] = p_cnt
+                        strikes_map[dt] = s_cnt
+                        phase_map[dt] = gt
     except Exception:
         pass
 
@@ -374,7 +393,7 @@ def _get_lvbp_pitcher_game_logs(pitcher_id: int, season: int) -> List[Dict[str, 
         from utils.supabase_client import init_supabase
         supabase = init_supabase()
         res = supabase.table('pitching_stats') \
-            .select('*, games!inner(id, game_date, season, home_team_id, away_team_id)') \
+            .select('*, games!inner(id, game_date, season, home_team_id, away_team_id, game_type)') \
             .eq('player_id', pitcher_id) \
             .eq('games.season', season) \
             .execute()
@@ -392,13 +411,27 @@ def _get_lvbp_pitcher_game_logs(pitcher_id: int, season: int) -> List[Dict[str, 
                 er = int(row.get("er", 0) or 0)
                 bb = int(row.get("bb", 0) or 0)
                 so = int(row.get("so", 0) or 0)
+
+                # Priorizar conteo real de pitcheos del API si Supabase viene en cero/nulo
                 pitches = int(row.get("pitches_thrown", 0) or 0)
+                if pitches == 0:
+                    pitches = pitches_map.get(gid) or pitches_map.get(game.get("game_date", "")) or 0
+
+                strikes = int(row.get("strikes", 0) or 0)
+                if strikes == 0:
+                    strikes = strikes_map.get(gid) or strikes_map.get(game.get("game_date", "")) or int(pitches * 0.62)
 
                 # Filtrar salidas fantasma (jugador en roster pero que no lanzó ningún inning ni pitcheo)
                 if str(ip).strip() in ("0.0", "0", "") and h == 0 and r == 0 and er == 0 and bb == 0 and so == 0 and pitches == 0:
                     continue
 
                 g_date = game.get("game_date", "")
+                g_type = game.get("game_type") or phase_map.get(gid) or phase_map.get(g_date) or "R"
+
+                # Filtrar por fase si está especificada
+                if phase and phase != "all" and g_type != phase:
+                    continue
+
                 if gid in starter_map:
                     is_start = starter_map[gid]
                 elif g_date in starter_map:
@@ -412,6 +445,8 @@ def _get_lvbp_pitcher_game_logs(pitcher_id: int, season: int) -> List[Dict[str, 
                     "opponent": opp_name,
                     "is_starter": is_start,
                     "role": "Abridor" if is_start else "Relevista",
+                    "game_type": g_type,
+                    "phase": g_type,
                     "ip": ip,
                     "h": h,
                     "r": r,
@@ -420,7 +455,7 @@ def _get_lvbp_pitcher_game_logs(pitcher_id: int, season: int) -> List[Dict[str, 
                     "so": so,
                     "hr": int(row.get("hr", 0) or 0),
                     "pitches": pitches,
-                    "strikes": int(row.get("strikes", 0) or 0),
+                    "strikes": strikes,
                     "era": str(row.get("era") or "0.00"),
                     "decision": "W" if row.get("wins", 0) > 0 else ("L" if row.get("losses", 0) > 0 else ("SV" if row.get("saves", 0) > 0 else "")),
                     "league": "LVBP",
@@ -457,12 +492,24 @@ def _get_lvbp_pitcher_game_logs(pitcher_id: int, season: int) -> List[Dict[str, 
                         er = int(row.get("earned_runs", 0) or 0)
                         bb = int(row.get("walks", row.get("base_on_balls", 0)) or 0)
                         so = int(row.get("strikeouts", 0) or 0)
+
                         pitches = int(row.get("pitches_thrown", row.get("number_of_pitches", 0)) or 0)
+                        if pitches == 0:
+                            pitches = pitches_map.get(gid) or pitches_map.get(game.get("game_date", "")) or 0
+
+                        strikes = int(row.get("strikes", 0) or 0)
+                        if strikes == 0:
+                            strikes = strikes_map.get(gid) or strikes_map.get(game.get("game_date", "")) or int(pitches * 0.62)
 
                         if str(ip).strip() in ("0.0", "0", "") and h == 0 and r == 0 and er == 0 and bb == 0 and so == 0 and pitches == 0:
                             continue
 
                         g_date = game.get("game_date", "")
+                        g_type = game.get("game_type") or phase_map.get(gid) or phase_map.get(g_date) or "R"
+
+                        if phase and phase != "all" and g_type != phase:
+                            continue
+
                         if gid in starter_map:
                             is_start = starter_map[gid]
                         elif g_date in starter_map:
@@ -476,6 +523,8 @@ def _get_lvbp_pitcher_game_logs(pitcher_id: int, season: int) -> List[Dict[str, 
                             "opponent": opp_name,
                             "is_starter": is_start,
                             "role": "Abridor" if is_start else "Relevista",
+                            "game_type": g_type,
+                            "phase": g_type,
                             "ip": ip,
                             "h": h,
                             "r": r,
@@ -484,7 +533,7 @@ def _get_lvbp_pitcher_game_logs(pitcher_id: int, season: int) -> List[Dict[str, 
                             "so": so,
                             "hr": int(row.get("home_runs", 0) or 0),
                             "pitches": pitches,
-                            "strikes": int(row.get("strikes", 0) or 0),
+                            "strikes": strikes,
                             "era": str(row.get("era", "0.00")),
                             "decision": "W" if row.get("wins", 0) > 0 else ("L" if row.get("losses", 0) > 0 else ("SV" if row.get("saves", 0) > 0 else "")),
                             "league": "LVBP",
@@ -503,6 +552,9 @@ def _get_lvbp_pitcher_game_logs(pitcher_id: int, season: int) -> List[Dict[str, 
             opp = s.get("opponent", {}).get("name", "Rival")
             date_str = s.get("date", "")
             gpk = game.get("gamePk", 0)
+            g_type = s.get("gameType") or "R"
+            if phase and phase != "all" and g_type != phase:
+                continue
             is_start = stat.get("gamesStarted", 0) > 0
             logs.append({
                 "game_pk": gpk,
@@ -510,6 +562,8 @@ def _get_lvbp_pitcher_game_logs(pitcher_id: int, season: int) -> List[Dict[str, 
                 "opponent": opp,
                 "is_starter": is_start,
                 "role": "Abridor" if is_start else "Relevista",
+                "game_type": g_type,
+                "phase": g_type,
                 "ip": stat.get("inningsPitched", "0.0"),
                 "h": stat.get("hits", 0),
                 "r": stat.get("runs", 0),

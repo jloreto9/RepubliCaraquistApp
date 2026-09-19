@@ -106,6 +106,8 @@ if "pitcher_season" not in st.session_state:
     st.session_state["pitcher_season"] = 2025
 if "time_mode" not in st.session_state:
     st.session_state["time_mode"] = "game"
+if "pitcher_phase" not in st.session_state:
+    st.session_state["pitcher_phase"] = "all"
 if "selected_game_pk" not in st.session_state:
     st.session_state["selected_game_pk"] = None
 if "range_dates" not in st.session_state:
@@ -297,9 +299,13 @@ with col_head3:
 
 st.markdown("---")
 
-# ── 5. Selectores de Rama y Modo Temporal ─────────────────────────────────────
+# ── 5. Selectores de Rama, Fase y Modo Temporal ───────────────────────────────
 
-col_ctrl1, col_ctrl2 = st.columns([1, 1])
+if st.session_state["active_branch"] == "lvbp" and has_lvbp:
+    col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([1.1, 1.2, 1.2])
+else:
+    col_ctrl1, col_ctrl3 = st.columns([1, 1])
+    col_ctrl2 = None
 
 with col_ctrl1:
     branch_opts = []
@@ -322,10 +328,34 @@ with col_ctrl1:
         st.session_state["selected_game_pk"] = None
         st.rerun()
 
-with col_ctrl2:
+if col_ctrl2 is not None:
+    with col_ctrl2:
+        phase_modes = [
+            ("🌐 Todas", "all"),
+            ("⚾ Regular", "R"),
+            ("🔥 Round Robin", "L"),
+            ("🏆 Final", "F"),
+        ]
+        curr_ph_codes = [p[1] for p in phase_modes]
+        curr_ph = st.session_state.get("pitcher_phase", "all")
+        curr_ph_idx = curr_ph_codes.index(curr_ph) if curr_ph in curr_ph_codes else 0
+        sel_ph_tuple = st.radio(
+            "Fase (LVBP)",
+            phase_modes,
+            index=curr_ph_idx,
+            format_func=lambda x: x[0],
+            horizontal=True,
+            key="rb_pitcher_phase"
+        )
+        if sel_ph_tuple[1] != st.session_state.get("pitcher_phase"):
+            st.session_state["pitcher_phase"] = sel_ph_tuple[1]
+            st.session_state["selected_game_pk"] = None
+            st.rerun()
+
+with col_ctrl3:
     time_modes = [
         ("🎯 Salida Individual", "game"),
-        ("📅 Temporada Completa", "season"),
+        ("📅 Resumen de Fase", "season"),
         ("📆 Rango de Fechas", "range"),
     ]
     curr_m_idx = [m[1] for m in time_modes].index(st.session_state["time_mode"])
@@ -344,6 +374,7 @@ with col_ctrl2:
 active_branch = st.session_state["active_branch"]
 time_mode = st.session_state["time_mode"]
 season_int = st.session_state["pitcher_season"]
+selected_phase = st.session_state.get("pitcher_phase", "all")
 
 
 # ── 6. Carga de Salidas e Historial ───────────────────────────────────────────
@@ -352,14 +383,15 @@ with st.spinner("Cargando historial de salidas..."):
     game_logs = get_pitcher_game_logs(
         p_id,
         season=season_int,
-        is_lvbp=(active_branch == "lvbp")
+        is_lvbp=(active_branch == "lvbp"),
+        phase=selected_phase,
     )
 
-    # Fallback automático de temporada si la actual no tiene salidas
-    if not game_logs:
+    # Fallback automático de temporada si la actual no tiene salidas (solo en modo 'all')
+    if not game_logs and selected_phase == "all":
         for fallback_s in [2025, 2024, 2023, 2022]:
             if fallback_s != season_int:
-                test_logs = get_pitcher_game_logs(p_id, season=fallback_s, is_lvbp=(active_branch == "lvbp"))
+                test_logs = get_pitcher_game_logs(p_id, season=fallback_s, is_lvbp=(active_branch == "lvbp"), phase="all")
                 if test_logs:
                     season_int = fallback_s
                     st.session_state["pitcher_season"] = fallback_s
@@ -371,7 +403,7 @@ selected_game_summary = {}
 if time_mode == "game":
     if game_logs:
         opts_dict = {
-            f"{g.get('date', '')} vs {g.get('opponent', '')} ({g.get('ip', 0)} IP, {g.get('so', 0)} K)": g
+            f"{g.get('date', '')} vs {g.get('opponent', '')} ({g.get('ip', 0)} IP, {g.get('so', 0)} K, {g.get('pitches', 0)} P)": g
             for g in game_logs
         }
         labels = list(opts_dict.keys())
@@ -379,7 +411,7 @@ if time_mode == "game":
         selected_game_summary = opts_dict[selected_label]
         st.session_state["selected_game_pk"] = selected_game_summary.get("game_pk")
     else:
-        st.warning(f"No se encontraron salidas registradas en la temporada {season_int} para este lanzador.")
+        st.warning(f"No se encontraron salidas registradas en la fase seleccionada para la temporada {season_int}.")
 elif time_mode == "range":
     col_d1, col_d2 = st.columns(2)
     with col_d1:
@@ -628,6 +660,7 @@ with tab_card:
                 end_date=str(st.session_state["range_dates"][1]) if time_mode == "range" else None,
                 season=season_int,
                 df_statcast=df_statcast_season,
+                phase=selected_phase,
             )
         except Exception as e:
             st.error(f"Error generando la tarjeta gráfica: {e}")
