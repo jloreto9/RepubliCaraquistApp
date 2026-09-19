@@ -785,11 +785,12 @@ def build_lvbp_matplotlib_summary(
     end_date: Optional[str] = None,
     game_logs: Optional[List[Dict[str, Any]]] = None,
     phase: str = "all",
+    is_mexico: bool = False,
 ) -> bytes:
     """
-    Construye la tarjeta Matplotlib 20x20 adaptada para Leones del Caracas.
+    Construye la tarjeta Matplotlib 20x20 adaptada para Leones del Caracas / LVBP / México.
     Soporta modo salida individual ('game'), temporada completa ('season') o rango de fechas ('range'),
-    y filtrado por fase de campeonato ('R', 'L', 'F', 'all').
+    y filtrado por fase de campeonato ('R', 'L', 'F', 'P', 'all').
     """
     game_summary = game_summary or {}
     analysis = analysis or {}
@@ -797,28 +798,42 @@ def build_lvbp_matplotlib_summary(
     # Si es modo temporada completa o rango de fechas
     if mode in ("season", "range"):
         logs = list(game_logs or [])
-        team_label = pitcher_info.get("lvbp_team_name") or pitcher_info.get("team") or "Leones del Caracas"
+        team_label = pitcher_info.get("team") if is_mexico else (pitcher_info.get("lvbp_team_name") or pitcher_info.get("team") or "Leones del Caracas")
 
-        phase_labels = {
-            "R": "Temporada Regular",
-            "L": "Round Robin",
-            "F": "Serie Final",
-            "all": "Temporada Completa",
-        }
+        if is_mexico:
+            phase_labels = {
+                "R": "Temporada Regular",
+                "P": "Postemporada",
+                "L": "Postemporada",
+                "F": "Serie Final",
+                "all": "Temporada Completa",
+            }
+        else:
+            phase_labels = {
+                "R": "Temporada Regular",
+                "L": "Round Robin",
+                "F": "Serie Final",
+                "all": "Temporada Completa",
+            }
         phase_txt = phase_labels.get(phase, "Temporada Completa")
 
         if phase and phase != "all":
-            logs = [g for g in logs if g.get("game_type") == phase or g.get("phase") == phase]
+            if is_mexico and phase == "P":
+                logs = [g for g in logs if g.get("game_type") in ("P", "L", "W", "D", "F") or g.get("phase") in ("P", "L", "W", "D", "F")]
+            else:
+                logs = [g for g in logs if g.get("game_type") == phase or g.get("phase") == phase]
 
+        league_title = "México" if is_mexico else "LVBP"
         if mode == "range":
-            s_d = str(start_date) if start_date else f"{season}-10-01"
-            e_d = str(end_date) if end_date else f"{season}-12-31"
+            s_d = str(start_date) if start_date else (f"{season}-04-01" if is_mexico else f"{season}-10-01")
+            e_d = str(end_date) if end_date else (f"{season}-09-30" if is_mexico else f"{season}-12-31")
             logs = [g for g in logs if s_d <= str(g.get("date", "")) <= e_d]
-            sub1 = f"LVBP • Resumen por Rango ({phase_txt})"
+            sub1 = f"{league_title} • Resumen por Rango ({phase_txt})"
             sub2 = f"{team_label} | {s_d} al {e_d}"
         else:
-            sub1 = f"LVBP • {phase_txt}"
-            sub2 = f"{team_label} | Temporada {season}"
+            sub1 = f"{league_title} • {phase_txt}"
+            season_prefix = "LMB Verano " if is_mexico else "Temporada "
+            sub2 = f"{team_label} | {season_prefix}{season}"
 
         if not logs:
             fig, ax = plt.subplots(figsize=(10, 10), facecolor='white')
@@ -855,6 +870,8 @@ def build_lvbp_matplotlib_summary(
                         if 'is_starter' in p_data and p_data.get('is_starter') is not None:
                             g['is_starter'] = p_data['is_starter']
                             g['role'] = 'Abridor' if p_data['is_starter'] else 'Relevista'
+                        if (not g.get('decision') or g.get('decision') in ('—', '-', 'None')) and p_data.get('decision'):
+                            g['decision'] = p_data['decision']
                     except Exception:
                         pass
                 return g
@@ -986,6 +1003,7 @@ def build_lvbp_matplotlib_summary(
         def _clean_team_name(t_name: str) -> str:
             t = str(t_name).replace("vs ", "").strip()
             subs = {
+                # LVBP
                 "Navegantes del Magallanes": "Magallanes",
                 "Leones del Caracas": "Caracas",
                 "Tiburones de La Guaira": "La Guaira",
@@ -994,6 +1012,27 @@ def build_lvbp_matplotlib_summary(
                 "Águilas del Zulia": "Zulia",
                 "Caribes de Anzoátegui": "Caribes",
                 "Bravos de Margarita": "Bravos",
+                # LMB México
+                "Diablos Rojos del México": "Diablos Rojos",
+                "Tecolotes de los Dos Laredos": "Tecolotes",
+                "Pericos de Puebla": "Pericos",
+                "Tigres de Quintana Roo": "Tigres QR",
+                "Piratas de Campeche": "Piratas",
+                "El Águila de Veracruz": "El Águila",
+                "Conspiradores de Querétaro": "Conspiradores",
+                "Saraperos de Saltillo": "Saraperos",
+                "Dorados de Chihuahua": "Dorados",
+                "Algodoneros del Unión Laguna": "Algodoneros",
+                "Olmecas de Tabasco": "Olmecas",
+                "Leones de Yucatán": "Leones YUC",
+                "Guerreros de Oaxaca": "Guerreros",
+                "Acereros de Monclova": "Acereros",
+                "Sultanes de Monterrey": "Sultanes",
+                "Toros de Tijuana": "Toros TIJ",
+                "Rieleros de Aguascalientes": "Rieleros",
+                "Charros de Jalisco": "Charros",
+                "Caliente de Durango": "Caliente",
+                "Bravos de León": "Bravos LEO",
             }
             return subs.get(t, t[:14])
 
@@ -1076,9 +1115,11 @@ def build_lvbp_matplotlib_summary(
 
     opp = game_summary.get("opponent", "Rival")
     dt = game_summary.get("date", "")
-    team_label = pitcher_info.get("lvbp_team_name") or pitcher_info.get("team") or "Leones del Caracas"
+    team_label = pitcher_info.get("team") if is_mexico else (pitcher_info.get("lvbp_team_name") or pitcher_info.get("team") or "Leones del Caracas")
     _plot_headshot(ax_headshot, pitcher_info.get("photo_url"))
-    _plot_bio(ax_bio, pitcher_info, f"LVBP • {team_label} vs {opp}", f"Fecha: {dt} | Temporada {season}")
+    league_title = "México" if is_mexico else "LVBP"
+    season_prefix = "LMB Verano " if is_mexico else "Temporada "
+    _plot_bio(ax_bio, pitcher_info, f"{league_title} • {team_label} vs {opp}", f"Fecha: {dt} | {season_prefix}{season}")
     _plot_logo(ax_logo)
 
     kpis = analysis.get("pbp_kpis", {})
@@ -1224,6 +1265,8 @@ def build_pitching_summary_card(
     game_data: Optional[Dict[str, Any]] = None,
     pitch_analysis: Optional[Dict[str, Any]] = None,
     is_lvbp: bool = False,
+    is_mexico: bool = False,
+    branch: Optional[str] = None,
     season: int = 2024,
     # Parámetros alternativos y expandidos para compatibilidad universal
     pitcher_info: Optional[Dict[str, Any]] = None,
@@ -1249,8 +1292,9 @@ def build_pitching_summary_card(
     p_analysis = analysis or pitch_analysis or {}
     statcast_df = df if df is not None else df_statcast
     phase_arg = phase or kwargs.get("phase", "all")
+    use_mexico = is_mexico or (branch == "mexico")
 
-    if is_lvbp:
+    if is_lvbp or use_mexico or branch == "lvbp":
         raw_bytes = build_lvbp_matplotlib_summary(
             pitcher_info=p_info,
             game_summary=g_data,
@@ -1262,6 +1306,7 @@ def build_pitching_summary_card(
             end_date=end_date,
             game_logs=game_logs,
             phase=phase_arg,
+            is_mexico=use_mexico,
         )
     else:
         if statcast_df is not None and not statcast_df.empty:

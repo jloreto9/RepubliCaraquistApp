@@ -301,7 +301,7 @@ st.markdown("---")
 
 # ── 5. Selectores de Rama, Fase y Modo Temporal ───────────────────────────────
 
-if st.session_state["active_branch"] == "lvbp" and has_lvbp:
+if st.session_state["active_branch"] in ("lvbp", "mexico"):
     col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([1.1, 1.2, 1.2])
 else:
     col_ctrl1, col_ctrl3 = st.columns([1, 1])
@@ -312,9 +312,16 @@ with col_ctrl1:
     if has_lvbp:
         lvbp_lbl = "🦁 Leones del Caracas (LVBP)" if has_caracas else f"🇻🇪 {lvbp_team_name} (LVBP)"
         branch_opts.append(lvbp_lbl)
+    branch_opts.append("🇲🇽 México")
     branch_opts.append("⚾ MLB / MiLB (Statcast)")
 
-    curr_b_idx = 0 if st.session_state["active_branch"] == "lvbp" and has_lvbp else (len(branch_opts) - 1)
+    if st.session_state["active_branch"] == "lvbp" and has_lvbp:
+        curr_b_idx = 0
+    elif st.session_state["active_branch"] == "mexico":
+        curr_b_idx = branch_opts.index("🇲🇽 México") if "🇲🇽 México" in branch_opts else 0
+    else:
+        curr_b_idx = len(branch_opts) - 1
+
     sel_branch_str = st.radio(
         "Rama Analítica",
         branch_opts,
@@ -322,7 +329,13 @@ with col_ctrl1:
         horizontal=True,
         key="rb_branch"
     )
-    new_b = "lvbp" if "LVBP" in sel_branch_str else "mlb"
+    if "LVBP" in sel_branch_str:
+        new_b = "lvbp"
+    elif "México" in sel_branch_str or "Mexico" in sel_branch_str:
+        new_b = "mexico"
+    else:
+        new_b = "mlb"
+
     if new_b != st.session_state["active_branch"]:
         st.session_state["active_branch"] = new_b
         st.session_state["selected_game_pk"] = None
@@ -330,17 +343,27 @@ with col_ctrl1:
 
 if col_ctrl2 is not None:
     with col_ctrl2:
-        phase_modes = [
-            ("🌐 Todas", "all"),
-            ("⚾ Regular", "R"),
-            ("🔥 Round Robin", "L"),
-            ("🏆 Final", "F"),
-        ]
+        if st.session_state["active_branch"] == "mexico":
+            phase_modes = [
+                ("🌐 Todas", "all"),
+                ("⚾ Regular", "R"),
+                ("🔥 Postemporada", "P"),
+            ]
+            ph_title = "Fase (México)"
+        else:
+            phase_modes = [
+                ("🌐 Todas", "all"),
+                ("⚾ Regular", "R"),
+                ("🔥 Round Robin", "L"),
+                ("🏆 Final", "F"),
+            ]
+            ph_title = "Fase (LVBP)"
+
         curr_ph_codes = [p[1] for p in phase_modes]
         curr_ph = st.session_state.get("pitcher_phase", "all")
         curr_ph_idx = curr_ph_codes.index(curr_ph) if curr_ph in curr_ph_codes else 0
         sel_ph_tuple = st.radio(
-            "Fase (LVBP)",
+            ph_title,
             phase_modes,
             index=curr_ph_idx,
             format_func=lambda x: x[0],
@@ -384,6 +407,7 @@ with st.spinner("Cargando historial de salidas..."):
         p_id,
         season=season_int,
         is_lvbp=(active_branch == "lvbp"),
+        branch=active_branch,
         phase=selected_phase,
     )
 
@@ -391,7 +415,13 @@ with st.spinner("Cargando historial de salidas..."):
     if not game_logs and selected_phase == "all":
         for fallback_s in [2025, 2024, 2023, 2022]:
             if fallback_s != season_int:
-                test_logs = get_pitcher_game_logs(p_id, season=fallback_s, is_lvbp=(active_branch == "lvbp"), phase="all")
+                test_logs = get_pitcher_game_logs(
+                    p_id,
+                    season=fallback_s,
+                    is_lvbp=(active_branch == "lvbp"),
+                    branch=active_branch,
+                    phase="all"
+                )
                 if test_logs:
                     season_int = fallback_s
                     st.session_state["pitcher_season"] = fallback_s
@@ -432,7 +462,7 @@ if time_mode == "game" and current_game_pk:
         pitch_analysis = get_game_pitch_data(
             current_game_pk,
             p_id,
-            is_lvbp=(active_branch == "lvbp")
+            is_lvbp=(active_branch in ("lvbp", "mexico"))
         )
 elif time_mode in ("season", "range"):
     with st.spinner("Agregando métricas del período..."):
@@ -589,8 +619,9 @@ with tab_graphs:
             st.plotly_chart(fig_sz, use_container_width=True)
 
     else:
-        # Rama LVBP (o modo sin Statcast)
-        st.markdown("#### 🇻🇪 Desglose de Pitcheo y Carga de Trabajo (Play-by-Play)")
+        # Rama LVBP / México (Play-by-Play)
+        league_title = "🇲🇽 Liga Mexicana" if active_branch == "mexico" else "🇻🇪 LVBP"
+        st.markdown(f"#### {league_title} — Desglose de Pitcheo y Carga de Trabajo (Play-by-Play)")
         workload = pitch_analysis.get("innings_workload", [])
 
         col_lv1, col_lv2 = st.columns(2)
@@ -633,6 +664,7 @@ with tab_graphs:
     st.markdown("##### 📋 Historial de Salidas del Período:")
     if game_logs:
         df_logs_table = pd.DataFrame(game_logs)[["date", "opponent", "role", "decision", "ip", "h", "r", "er", "bb", "so", "pitches"]].copy()
+        df_logs_table["decision"] = df_logs_table["decision"].apply(lambda d: d if d and str(d).strip() not in ("", "None", "nan") else "—")
         df_logs_table.columns = ["Fecha", "Rival", "Rol", "Decisión", "IP", "H", "C", "CL", "BB", "K", "Pitcheos"]
         st.dataframe(df_logs_table, use_container_width=True, hide_index=True)
 
@@ -641,7 +673,7 @@ with tab_graphs:
 
 with tab_card:
     st.markdown("### 🖼️ Tarjeta Oficial de Pitcheo")
-    if active_branch == "lvbp":
+    if active_branch in ("lvbp", "mexico"):
         st.caption("Resolución de exportación: 2400 x 2400 px (1:1) a 300 DPI • Diseño inspirado en Thomas Nestico (@TJStats)")
     else:
         st.caption("Resolución de exportación: 2400 x 1350 px (16:9) a 300 DPI • Diseño inspirado en Thomas Nestico (@TJStats)")
@@ -654,6 +686,8 @@ with tab_card:
                 game_summary=selected_game_summary,
                 analysis=pitch_analysis,
                 is_lvbp=(active_branch == "lvbp"),
+                is_mexico=(active_branch == "mexico"),
+                branch=active_branch,
                 mode=time_mode,
                 game_logs=game_logs,
                 start_date=str(st.session_state["range_dates"][0]) if time_mode == "range" else None,
@@ -670,7 +704,7 @@ with tab_card:
         st.image(card_bytes, use_container_width=True)
 
         safe_name = "".join(c for c in p_name if c.isalnum() or c == "_")
-        league_tag = "LVBP" if active_branch == "lvbp" else "MLB"
+        league_tag = "MEX" if active_branch == "mexico" else ("LVBP" if active_branch == "lvbp" else "MLB")
         file_label = f"PitchingSummary_{safe_name}_{league_tag}_{season_int}_{time_mode}.png"
 
         st.download_button(
