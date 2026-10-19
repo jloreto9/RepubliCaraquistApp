@@ -2,8 +2,8 @@ name: Update LVBP Data
 
 on:
   schedule:
-    # Ejecutar todos los días a las 6 AM UTC (2 AM Venezuela)
-    - cron: '0 6 * * *'
+    # Ejecutar todos los días a las 07:33 UTC (03:33 AM hora Venezuela / República Dominicana)
+    - cron: '33 7 * * *'
   workflow_dispatch: # Permite ejecutar manualmente
 
 jobs:
