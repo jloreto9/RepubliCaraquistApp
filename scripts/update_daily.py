@@ -41,7 +41,8 @@ def build_game_record(game, game_date, season):
     phase = map_phase(game_type_code)
     return {
         "id": game.get("gamePk"),
-        "game_date": game_date,
+        # Primar officialDate de MLB Stats API sobre fecha calculada
+        "game_date": game.get("officialDate") or game_date,
         "game_datetime": game.get("gameDate"),
         "home_team_id": game.get("teams", {}).get("home", {}).get("team", {}).get("id"),
         "away_team_id": game.get("teams", {}).get("away", {}).get("team", {}).get("id"),
