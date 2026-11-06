@@ -198,7 +198,7 @@ def update_game_stats(game_id):
                     }
                     
                     try:
-                        supabase.table('batting_stats').upsert(batting_record).execute()
+                        supabase.table('batting_stats').upsert(batting_record, on_conflict='game_id,player_id').execute()
                         stats_count += 1
                     except:
                         pass
@@ -230,7 +230,7 @@ def update_game_stats(game_id):
                     }
                     
                     try:
-                        supabase.table('pitching_stats').upsert(pitching_record).execute()
+                        supabase.table('pitching_stats').upsert(pitching_record, on_conflict='game_id,player_id').execute()
                         stats_count += 1
                     except:
                         pass
@@ -335,7 +335,7 @@ def update_standings():
                     'pct': round(pct, 3),
                     'runs_for': runs_for,
                     'runs_against': runs_against,
-                    'run_diff': runs_for - runs_against,
+                    # 'run_diff' es columna generada en Postgres
                     'updated_at': datetime.now().isoformat()
                 })
         
@@ -351,7 +351,7 @@ def update_standings():
             
             # Upsert standings
             for team_standing in standings_data:
-                supabase.table('standings').upsert(team_standing).execute()
+                supabase.table('standings').upsert(team_standing, on_conflict='team_id,season').execute()
             
             print(f"✅ Standings actualizados para {len(standings_data)} equipos")
         
@@ -366,11 +366,11 @@ def get_phase_games_for_elo(season, phase):
         .eq('status', 'Final')
 
     try:
-        response = base_query.eq('phase', phase).order('game_datetime', desc=False).execute()
+        response = supabase.table('games').select('id, game_datetime, game_date, home_team_id, away_team_id, home_score, away_score').eq('season', season).eq('status', 'Final').eq('phase', phase).order('game_datetime', desc=False).execute()
         return response.data or []
     except Exception:
         # Compatibilidad retro cuando la columna phase aún no existe.
-        response = base_query.eq('game_type', phase).order('game_datetime', desc=False).execute()
+        response = supabase.table('games').select('id, game_datetime, game_date, home_team_id, away_team_id, home_score, away_score').eq('season', season).eq('status', 'Final').eq('game_type', phase).order('game_datetime', desc=False).execute()
         return response.data or []
 
 
