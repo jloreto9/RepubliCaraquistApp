@@ -98,20 +98,21 @@ def get_current_season():
         # Fuera de temporada (Mar-Sep): la última temporada fue año anterior
         return year - 1
 
-def update_yesterdays_games():
-    """Actualiza los juegos de ayer"""
-    yesterday = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+def update_yesterdays_games(days_back=3):
+    """Actualiza los juegos recientes con ventana deslizante (maneja suspensiones y dobles juegos)"""
+    start_date = (datetime.now() - timedelta(days=days_back)).strftime('%Y-%m-%d')
+    end_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
     season = get_current_season()
     
-    print(f"📅 Actualizando juegos del {yesterday}")
+    print(f"📅 Actualizando juegos recientes desde {start_date} hasta {end_date} (ventana de {days_back} días)")
     print(f"🏆 Temporada: {season}")
     
     try:
-        # Obtener juegos de ayer
+        # Obtener juegos de la ventana reciente
         schedule = statsapi.get("schedule", {
             "sportId": 17,
-            "startDate": yesterday,
-            "endDate": yesterday,
+            "startDate": start_date,
+            "endDate": end_date,
             "leagueId": LEAGUE_ID
         })
         
